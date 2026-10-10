@@ -1581,30 +1581,49 @@ La pantalla puede reutilizar el lenguaje visual de las barras del Home, pero deb
 
 ---
 
-## 28. V04.39 — Bienvenida, invitación genérica y Ayuda (Ronda 1, Staging)
+## 28. V04.39 / V04.40 — Bienvenida, invitación genérica y Ayuda (cierre de la Ronda 1, Staging)
 
-Primera ronda del frente *Comunidad y descubrimiento*. No cambia reglas deportivas, de identidad ni legales.
+Primera ronda del frente *Comunidad y descubrimiento* (cerrada con V04.40). No cambia reglas deportivas, de identidad ni legales.
 
 ### 28.1 Pantalla de Bienvenida (`#view-access`)
 
-Quien llega por primera vez debe entender de inmediato que BRAMUlab es **una app de pádel amateur**.
+Quien llega por primera vez debe entender de inmediato que BRAMUlab es una app de pádel.
 
-- Composición (bundle `04.39-h5`): foto a pantalla completa · aire · **logo BRAMUlab original + «Donde vive tu pádel.» como bajada de marca chica, en blanco** (una sola unidad; el verde queda solo en «lab») · más aire antes de las tarjetas · tres tarjetas oscuras y translúcidas (se ve la foto detrás), sin bordes de color, con título, una línea de apoyo e ícono con acento propio — **Cargá tus partidos** (lima: «Guardá tus resultados y construí tu historial.») · **Competí con tus amigos** (azul BRAMU: «Compará partidos, rivales y grupos de forma simple.») · **Construí tu Nivel BRAMU** (ámbar del Nivel: «Tu nivel evoluciona a medida que jugás.») · aire que deja ver la cancha · `INICIAR SESIÓN` (principal, lima) y `CREAR CUENTA` (secundario, oscuro) al pie. Sin píldora y sin bajada repetida.
+- Composición: foto a pantalla completa · aire · **logo BRAMUlab original + «Donde vive tu pádel.» como bajada de marca chica, en blanco** (una sola unidad; el verde queda solo en «lab») · tres tarjetas oscuras y translúcidas (se ve la foto detrás), sin bordes de color, con título, una línea de apoyo legible y un ícono con acento propio — **Cargá tus partidos** (lima: «Guardá tus resultados y construí tu historial.») · **Competí con tus amigos** (azul BRAMU: «Compará partidos, rivales y grupos de forma simple.») · **Construí tu Nivel BRAMU** (ámbar del Nivel: «Tu nivel evoluciona a medida que jugás.») · aire que deja ver la cancha · `INICIAR SESIÓN` (principal, lima) y `CREAR CUENTA` (secundario, oscuro) al pie. Sin píldora y sin bajada repetida.
 - Se retiran el subtítulo anterior («Entrá con tu cuenta o creá tu jugador para empezar.») y las líneas de bajada de las pasadas anteriores. Se conservan sin cambios: tarjeta contextual de invitación personal (`?claim=`), aviso de servidor no disponible, instalación PWA opcional (§2.0) y la acción de laboratorio.
 - **No** se agrega aceptación legal automática ni la frase «Al continuar aceptás…»: el consentimiento real y los enlaces a Términos/Privacidad siguen **únicamente** en el alta.
-- **Dos fotos según el formato:** móvil y cualquier pantalla más alta que ancha → `assets/bienvenida-hero.jpg` (vertical 941×1672, derivada de `Sistema grafico/Archivos/BRAMUlab-Inicio.png`); pantallas anchas/apaisadas (aspecto ≥ 1:1: escritorio, tablet o teléfono horizontal) → `assets/bienvenida-hero-desktop.jpg` (1672×941, derivada de `BRAMUlab-Inicio-Desk.png`), con una viñeta oscura detrás de la columna central. Los originales de Dropbox no se tocan; una versión retocada se reemplaza con el mismo nombre de archivo y un bump de bundle.
+- **Dos fotos según el formato:** móvil y cualquier pantalla más alta que ancha → `assets/bienvenida-hero.jpg` (vertical 941×1672, derivada de `Sistema grafico/Archivos/BRAMUlab-Inicio.png`); pantallas anchas/apaisadas (aspecto ≥ 1:1: escritorio, tablet o teléfono horizontal) → `assets/bienvenida-hero-desktop.jpg` (1672×941, derivada de `BRAMUlab-Inicio-Desk.png`; **provisoria, Sebastián la reemplazará**), con una viñeta oscura detrás de la columna central. Los originales de Dropbox no se tocan; una versión retocada se reemplaza con el mismo nombre de archivo y un bump de bundle.
 - Móvil: sin recortes en 320×568 ni en horizontal; el contenido scrollea dentro de `.access-scroll` cuando no entra.
 
 ### 28.2 Invitación genérica (BUSCAR JUGADORES)
 
 Función **distinta** de la invitación personal para recuperar identidades provisionales y partidos (§15), que no se toca.
 
-- Aparece **solo** cuando una búsqueda server-backed terminó bien (≥ 2 caracteres) y devolvió 0 cuentas reales: tarjeta cálida con ícono «¿NO LO ENCONTRASTE?» («Invitalo a BRAMUlab para que también pueda registrar sus partidos y compartir esta experiencia con vos.») + `COMPARTIR INVITACIÓN` y «Copiar mensaje». Nunca ante un error de conexión, ni con la búsqueda vacía/corta; se retira apenas se sigue escribiendo.
-- Al tocarla: menú nativo de compartir (incluye WhatsApp) con un mensaje conversacional («Che, ¿te sumás a BRAMUlab? 🎾 …») que explica qué es BRAMU, incluye el enlace general `https://app.bramulab.com` y los pasos reales para instalarla (iPhone: Safari → Compartir → «Agregar a Inicio», igual que la guía de instalación de la app; Android: Chrome → menú ⋮ → «Instalar app» / «Agregar a la pantalla principal»). Si el dispositivo no soporta compartir (o falla), copia el mensaje y confirma («Mensaje copiado. Pegalo en WhatsApp.»); si el portapapeles también falla, muestra el texto para copiarlo a mano. Cancelar el menú no es un error.
-- Sin tokens, sin seguimiento de referidos, sin tablas ni RPC, sin identidades provisionales.
+- Aparece **solo** cuando una búsqueda server-backed terminó bien (≥ 2 caracteres) y devolvió 0 cuentas reales. Nunca ante un error de conexión, ni con la búsqueda vacía/corta; se retira apenas se sigue escribiendo.
+- **Tarjeta (V04.40):** fondo azul BRAMU muy oscuro uniforme (`--surface-2`), borde completo fino azul BRAMU, ícono de agregar jugador en ese azul, título blanco «¿NO LO ENCONTRASTE?», «Invitalo a BRAMUlab para que también pueda registrar sus partidos y compartir esta experiencia con vos.», `COMPARTIR INVITACIÓN` (lima) y «Copiar mensaje» (discreto).
+- **Mensaje definitivo (aprobado por Sebastián, V04.40; mismo texto para compartir y copiar, sin reescribir):** «Conocés BRAMUlab? 🎾 · Es una app para ir cargando los partidos que jugamos… · Al principio te hace unas preguntas para estimar tu Nivel BRAMU… · Te dejo el link para que la instales: https://app.bramulab.com · Es fácil: 📱 iPhone… 📱 Android…» (texto íntegro en `buildGenericInviteMessage`, `app.js`, con prueba de texto completo). Sin «Che», sin explicaciones técnicas y **sin publicar la escala del Nivel**. El enlace es siempre el de Production, también al probar desde Staging. Pasos de instalación = los de la guía de la app (iPhone: Safari → Compartir → «Agregar a Inicio»; Android: Chrome → menú ⋮ → «Instalar app» o «Agregar a la pantalla principal»).
+- Menú nativo de compartir (incluye WhatsApp); si no existe o falla, copia y confirma («Mensaje copiado. Pegalo en WhatsApp.»); si el portapapeles también falla, muestra el texto para copiarlo a mano. Cancelar el menú no es un error. Sin tokens, sin seguimiento de referidos, sin tablas ni RPC, sin identidades provisionales.
 
-### 28.3 Ayuda / Preguntas frecuentes
+### 28.3 Ayuda / Preguntas frecuentes (V04.40: nueve preguntas)
 
-Ícono **«?»** en el header del Home (orden Ayuda → Ranking → Notificaciones, 40×40) → **Preguntas frecuentes** (`#view-help`, mismo shell de Configuración, sin barra inferior); volver regresa al Home. No hay acceso duplicado en Configuración. Cinco acordeones nativos y breves (cerrados cada vez que se abre): qué es BRAMU · cómo cargar un partido ya jugado (hasta 14 días atrás; valida uno de los dos rivales; 30 días) · Nivel BRAMU (1,0–10,0; CALIBRANDO → CALIBRADO con 5 partidos contra ≥ 3 rivales distintos) · Ranking BRAMU (semanal, cada lunes; requisitos para tener puesto) · Grupos (≥ 3 de 4 jugadores; 2 mejores partidos por semana; Race anual; no modifican Nivel ni Ranking). Los textos repiten reglas ya vigentes y la ayuda existente de Ranking/Grupos: si una regla cambia, se actualizan ambos lugares.
+Ícono **«?»** en el header del Home (orden Ayuda → Ranking → Notificaciones, 40×40) → **Preguntas frecuentes** (`#view-help`, mismo shell de Configuración, sin barra inferior); volver regresa al Home. No hay acceso duplicado en Configuración. Acordeones nativos, cerrados cada vez que se abre, en **cuatro categorías**:
 
-**Fuera de esta ronda (Ronda 2 o posteriores):** gente que quizás conozcas, jugadores de tu zona, RPC/algoritmo de descubrimiento, cambios sociales en Mis jugadores y landing pública.
+| Categoría | Preguntas |
+|---|---|
+| CONOCÉ BRAMU | ¿Qué es BRAMUlab? |
+| TUS PARTIDOS | ¿Cómo cargo un partido? (hasta 14 días atrás; vos ya figurás; invitados) · ¿Cómo se validan los partidos? (la pareja rival; alcanza uno de los dos rivales; corrección; 30 días desde la carga) |
+| GRUPOS | ¿Cómo funcionan los Grupos? (tabla semanal, Race anual, mínimo 3 jugadores, independientes de Nivel y Ranking) · ¿Qué partidos cuentan para mi grupo? (oficiales con ≥ 3 de 4 jugadores del grupo; alta a mitad de semana vale desde el lunes de esa semana) · ¿Cómo se suman los puntos? (Clásico 5 / Americano 3; bonus por sorpresa de nivel, remontada o victoria clara según formato; 2 mejores partidos por semana) |
+| TU NIVEL Y RANKING | ¿Qué es el Nivel BRAMU? · ¿Qué significa CALIBRANDO? (5 partidos computables contra ≥ 3 rivales distintos; calibrado no es fijo) · ¿Qué es el Ranking BRAMU? (semanal, cada lunes con el Nivel consolidado; sin puntos propios) |
+
+**Decisión editorial de Sebastián (09/10/2026): la Ayuda y la invitación NO mencionan que la escala del Nivel va de 1 a 10 ni publican sus extremos.** El motor y sus límites técnicos no cambian. Los textos fueron contrastados contra `Cargar_Partido` §2/§3, §7/§11 de este documento, `Grupos_BRAMU` §3–§6, `Nivel_BRAMU` §3 y `Ranking_BRAMU` §3/§4, y no contradicen la ayuda específica de Ranking y de Grupos (si una regla cambia, se actualizan ambos lugares).
+
+## 29. V04.40 — Ronda 2: descubrimiento de jugadores (Staging)
+
+Dentro de **BUSCAR JUGADORES** (sin pantallas nuevas, sin seguidores ni amistades):
+
+- Al entrar, el **teclado queda cerrado** y el campo de búsqueda queda arriba, listo para tocar. Debajo, solo cuando tengan resultados: **GENTE QUE QUIZÁS CONOZCAS** y **JUGADORES DE TU ZONA** (hasta 5 filas por sección, mismo componente compacto: avatar, nombre, @usuario y Nivel cuando existe). Tocar una fila abre el Perfil público existente; agregar/quitar en Mis jugadores sigue siendo la acción de ese perfil.
+- Apenas se escribe, las sugerencias ceden el lugar a los resultados de `search_players` (sin cambios). Borrar el texto las vuelve a mostrar (sin otra llamada). Búsqueda terminada sin resultados → invitación genérica (§28.2). Error de conexión → aviso propio; **nunca** «Sin coincidencias.» ni «sin sugerencias» falsos.
+- Sin datos suficientes: estado vacío honesto («Todavía no tenemos sugerencias para vos…»); nunca se completan listas con ejemplos.
+- **Gente que quizás conozcas** = conexión **indirecta** derivada exclusivamente de partidos **oficiales** (`validated`): compartiste un partido con Juan; Juan compartió otro con Pedro → Pedro puede aparecer. Nunca se muestra el intermediario ni qué partido originó la sugerencia. Sin contactos telefónicos, emails, seguidores ni amistades manuales.
+- **Jugadores de tu zona** = cuentas registradas, activas y con perfil completo con el mismo `profiles.location_id` (localidad canónica) que el tuyo; sin GPS ni distancia; la zona no se amplía cuando hay pocos jugadores.
+- Nunca se sugiere: a vos mismo, provisionales, cuentas eliminadas/inactivas ni incompletas, ni a quien ya guardaste en Mis jugadores; en conexiones tampoco a quien ya jugó un partido oficial con vos; ninguna persona aparece en las dos secciones. Orden determinista simple (conexiones: más conexiones en común, luego @usuario; zona: orden estable por viewer). Contrato técnico: `Operacion/Backend_Infraestructura.md` §8.4.1. Privacidad: `Operacion/Privacidad_Legal.md` §19 (**DECISIÓN ABIERTA antes de publicar en Production**).

@@ -449,3 +449,23 @@ El texto vigente (Política §2 «eventos internos de producto», §3 finalidade
 ### 18.6 Revisión legal pendiente y orden de publicación
 **Para la verificación interna de Central (§13), por escrito:** (1) ¿es suficiente publicar la nueva Política **sin** reaceptación de `legal_v1`, dado que la medición solo corre con consentimiento específico y opcional? ¿O conviene `legal_v2`? (2) ¿La casilla opcional del alta + pantalla única para existentes constituye consentimiento «libre, expreso e informado» (art. 5.1)? (3) ¿Hace falta conservar el **texto** del consentimiento además de versión + fecha (hoy se guarda `consent_version` y `legal_version`; el texto vive en Git/Política publicada)? (4) ¿El texto «sin interruptor de oposición» ya no aplica? (5) ¿Qué exige la AAIP antes de capturar (§18.5)?
 **Orden:** (1) verificación interna + constancia AAIP → (2) Sebastián autoriza **con SHA** → (3) publicar la Política/Eliminar cuenta (§18.4) → (4) Central aplica la migración `20261008150000` y las del Runbook Parte D → (5) **recién entonces** Central fija `app_config.activity_consent_version = 'activity_v1'` (hasta ese UPDATE la app no muestra ni pide nada y no se mide) → (6) promoción del frontend V04.38 → (7) verificar. Nunca capturar antes de publicar el texto (art. 6: información *previa*).
+
+---
+
+## 19. Descubrimiento de jugadores (V04.40, Staging) — análisis de privacidad y DECISIÓN ABIERTA
+
+*Evaluación interna de producto, no asesoramiento legal. No se crea una nueva versión legal ni un nuevo consentimiento por reflejo.*
+
+**Qué hace.** Dentro de BUSCAR JUGADORES: «Gente que quizás conozcas» (conexión indirecta derivada de partidos oficiales compartidos) y «Jugadores de tu zona» (misma `profiles.location_id`). Detalle técnico: `Backend_Infraestructura.md` §8.4.1.
+
+**Qué NO expone.** Solo campos que la Política ya declara visibles para cualquier jugador con cuenta (@usuario, nombre, foto, localidad como texto, Nivel y estado). No revela partidos, fechas, resultados, equipos ni quién es el intermediario; sin GPS, contactos, emails ni seguidores; sin enumeración masiva (máximo 8 por sección, sin paginación, rate limit).
+
+**Lo que sí es nuevo.** Un uso derivado de datos que ya se tratan: (1) la participación en partidos oficiales —la Política §2 «Partidos» dice que son visibles solo para sus participantes y §3 no menciona sugerencias— se usa para proponer a una persona a otra; (2) la localidad (ya visible para jugadores con cuenta) se usa para listar «tu zona». La persona sugerida no puede evitar aparecer (coherente con «sin controles de privacidad campo por campo» del lanzamiento inicial, `Backend_Infraestructura.md` §5.1).
+
+**Valoración.** Mismo universo de datos y de destinatarios que hoy, sin información nueva visible y sin cambiar proveedores ni destinos; la finalidad es compatible con la ya declarada (facilitar la comunidad competitiva: registrar y compartir partidos, Nivel, Ranking). No hay impedimento para probarlo en Staging. **Antes de publicarlo en Production falta transparencia**, no consentimiento.
+
+**DECISIÓN ABIERTA (no bloquea Staging; bloquea la publicación del descubrimiento en Production).** Propuesta concreta:
+1. Agregar a la Política §3 una frase corta («Podemos sugerirte jugadores que quizás conozcas, a partir de tu localidad y de los partidos oficiales que compartiste con otros jugadores, y sugerirte a ellos; no mostramos qué partidos originan una sugerencia») y, en §2 «Ubicación», aclarar que la localidad puede usarse para sugerir jugadores de la misma zona; registrarlo en el historial de cambios.
+2. Tratarlo como **cambio no material** (no pide reaceptación ni opt-in/opt-out): usa datos ya tratados, con los mismos destinatarios y sin información adicional visible. Si la revisión legal interna lo considerara material, se integraría en la próxima actualización de `legal_v2` junto con la medición, sin segunda pantalla.
+3. Verificar que la finalidad declarada ante AAIP/RNBDP (expediente en curso, ver §18.5) alcance «facilitar la interacción entre jugadores»; si no, incluirlo en el mismo trámite de actualización.
+4. No agregar opt-out por ahora; reevaluar si aparecen reclamos de usuarios reales.

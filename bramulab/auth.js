@@ -654,6 +654,22 @@
     return { ok: true, players };
   }
 
+  /** V04.40 · Ronda 2 — descubrimiento de jugadores para BUSCAR JUGADORES (RPC `get_player_discovery`, migración
+   *  `20261009120000_discovery_get_player_discovery.sql`). Devuelve `{ok:true, connections:[], zone:[]}` con filas de la misma forma
+   *  que `search_players` (+ `avatar_signed_url`, resuelto en UNA llamada batch a Storage). Sin parámetros de texto ni paginación:
+   *  el servidor decide quién se sugiere. `{ok:false, code}` ante cualquier error — el llamador NUNCA debe mostrarlo como «sin
+   *  sugerencias». */
+  async function getPlayerDiscovery(limit) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_player_discovery', { p_limit: limit || 5 });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    const rows = Array.isArray(data) ? data : [];
+    const signedByPath = await resolveAvatarUrlsBatch(rows.map((r) => r.avatar_url));
+    rows.forEach((r) => { r.avatar_signed_url = r.avatar_url ? (signedByPath.get(r.avatar_url) || null) : null; });
+    return { ok: true, connections: rows.filter((r) => r.section === 'connections'), zone: rows.filter((r) => r.section === 'zone') };
+  }
+
   /** Ronda correctiva QA 26SEP (§15.24 "Fila compacta server-backed de jugador") — batch de
    *  identidad/Nivel/avatar por `player_id`s YA conocidos por el caller (RPC
    *  `get_players_compact`, ver la migración `20260927120000_preprod_ux_players_compact.sql`).
@@ -1236,7 +1252,7 @@
     refreshSession, requestAccountChallenge, verifyAccountChallenge, completeEmailChange, deleteMyAccount,
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
     fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
-    searchPlayers, getPlayersCompact, getPublicProfile, getWhatsAppContact, createProvisionalPlayer, listMyProvisionalPlayers,
+    searchPlayers, getPlayerDiscovery, getPlayersCompact, getPublicProfile, getWhatsAppContact, createProvisionalPlayer, listMyProvisionalPlayers,
     createClaimLink, claimProvisionalPlayer, previewClaimLink, getRecoveredMatchIds, getMyRecentRecoveries, getIdentityRecoveryStatus, processIdentityRecovery,
     listDuplicateMatchCandidates, resolveDuplicateMatchCandidate, completeRankingProfileData,
     completeContactProfileData, updateProfileAvatar, uploadAvatar, removeAvatarFiles,

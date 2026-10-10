@@ -5415,7 +5415,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .activity-consent__actions .btn-start, .activity-consent__actions .btn-secondary{ width:100%; }
 #view-activity-consent .link-btn{ align-self:center; margin-top: 14px; }
 #view-activity-consent .access-scroll--under-header{ padding-top: 12px; }
-/* V04.39-h5 — la fila «Medición de uso» tiene un valor corto («Activada»): sin esto el valor reserva el 55 % del ancho y el rótulo se parte en dos líneas. */
+/* V04.40-h1 — la fila «Medición de uso» tiene un valor corto («Activada»): sin esto el valor reserva el 55 % del ancho y el rótulo se parte en dos líneas. */
 #settings-activity-row .settings-row__label{ white-space:nowrap; }
 #settings-activity-row .settings-row__value{ flex:0 0 auto; max-width:45%; }
 
@@ -5429,9 +5429,9 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
    - Se reutilizan tokens/componentes: `.btn-start`/`.btn-secondary` (jerarquía real de los botones), pastilla lima de Estado Cero.
    ========================================================================== */
 #view-access{
-  --welcome-hero-image: url('assets/bienvenida-hero.jpg?v=04.39-h5');
+  --welcome-hero-image: url('assets/bienvenida-hero.jpg?v=04.40-h1');
   --welcome-hero-pos: 50% 100%;
-  --welcome-hero-image-desktop: url('assets/bienvenida-hero-desktop.jpg?v=04.39-h5');
+  --welcome-hero-image-desktop: url('assets/bienvenida-hero-desktop.jpg?v=04.40-h1');
   position: relative; isolation: isolate;
 }
 .welcome-hero{ position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden; background: var(--bg); }
@@ -5464,7 +5464,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .welcome-benefits{ list-style:none; margin: 0 0 16px; padding:0; display:flex; flex-direction:column; gap:6px; }
 .welcome-benefit{
   --wb: 149,255,25; /* acento del ÍCONO por tarjeta (r,g,b): lima BRAMU · azul BRAMU · ámbar del Nivel */
-  display:flex; align-items:center; gap:12px; padding: 10px 14px 10px 10px;
+  display:flex; align-items:center; gap:14px; padding: 13px 14px 13px 12px;
   background: rgba(4,9,16,.58); border:1px solid rgba(183,211,235,.16); border-radius: 12px;
   -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
 }
@@ -5476,7 +5476,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 }
 .welcome-benefit__body{ display:flex; flex-direction:column; gap:2px; min-width:0; }
 .welcome-benefit__title{ font-size:14px; font-weight:800; color: var(--paper); line-height:1.25; }
-.welcome-benefit__sub{ font-size:12px; font-weight:500; color: var(--paper-dim); line-height:1.35; }
+.welcome-benefit__sub{ font-size:12.5px; font-weight:500; color: rgba(248,250,252,.8); line-height:1.4; text-shadow: 0 1px 8px rgba(3,7,13,.7); }
 #view-access .access-actions{ margin-top: 0; gap: 10px; }
 /* CREAR CUENTA: claramente secundario (más oscuro y discreto); INICIAR SESIÓN conserva el protagonismo lima. */
 #view-access .access-actions .btn-secondary{ background: rgba(5,10,18,.62); border-color: var(--line-strong); color: rgba(248,250,252,.9); font-weight:700; }
@@ -5487,7 +5487,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
   .welcome-brand{ margin-bottom: 20px; gap:6px; }
   .welcome-claim{ font-size: 13.5px; }
   .welcome-benefits{ gap:6px; margin-bottom:12px; }
-  .welcome-benefit{ padding-top:7px; padding-bottom:7px; }
+  .welcome-benefit{ padding-top:9px; padding-bottom:9px; }
   .welcome-benefit__icon{ width:32px; height:32px; }
 }
 @media (max-width: 340px){
@@ -5518,20 +5518,21 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 /* ==========================================================================
    V04.39 · Ronda 1 — INVITACIÓN GENÉRICA (BUSCAR JUGADORES) y AYUDA / Preguntas frecuentes.
    ========================================================================== */
+/* V04.40 — tarjeta de invitación con la paleta BRAMU: fondo azul muy oscuro UNIFORME (--surface-2), borde completo fino azul BRAMU (--accent-cyan #199FFF),
+   ícono en ese mismo azul, títulos blancos, botón principal lima (.btn-start) y acción secundaria discreta. Más aire interno entre título, texto y acciones. */
 .player-search-invite{
-  margin: 16px 0 0; padding: 16px; border-radius: 18px; display:flex; flex-direction:column; align-items:stretch; gap: 12px; text-align:left;
-  background: linear-gradient(140deg, rgba(149,255,25,.10) 0%, rgba(25,159,255,.06) 100%), var(--surface-1);
-  border: 1px solid rgba(149,255,25,.24);
+  margin: 18px 0 0; padding: 20px 18px 16px; border-radius: 18px; display:flex; flex-direction:column; align-items:stretch; gap: 16px; text-align:left;
+  background: var(--surface-2); border: 1px solid rgba(25,159,255,.38);
 }
 .player-search-invite__head{ display:flex; align-items:center; gap: 12px; }
 .player-search-invite__icon{
-  flex:none; width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border-radius: 12px;
-  color: var(--brand-lime); background: rgba(149,255,25,.12); border: 1px solid rgba(149,255,25,.32);
+  flex:none; width:38px; height:38px; display:inline-flex; align-items:center; justify-content:center; border-radius: 12px;
+  color: var(--accent-cyan); background: rgba(25,159,255,.12); border: 1px solid rgba(25,159,255,.34);
 }
 .player-search-invite__eyebrow{ font-size: 15px; font-weight: 800; letter-spacing: 0.04em; color: var(--paper); }
-.player-search-invite__text-intro{ margin: 0; font-size: 14px; line-height: 1.5; color: var(--paper-dim); }
-.player-search-invite__btn{ flex:none; width:100%; }
-.player-search-invite__copy{ align-self:center; padding: 6px 10px; }
+.player-search-invite__text-intro{ margin: 0; font-size: 14px; line-height: 1.55; color: rgba(248,250,252,.76); }
+.player-search-invite__btn{ flex:none; width:100%; margin-top: 2px; }
+.player-search-invite__copy{ align-self:center; padding: 6px 10px; font-size: 13px; font-weight: 600; color: var(--paper-dim); }
 .player-search-invite__text{
   width:100%; box-sizing:border-box; padding: 10px 12px; border-radius: 12px; resize:none;
   background: var(--ink-softer); color: var(--paper); border: 1px solid var(--line); font: inherit; font-size: 13px; line-height:1.45; text-align:left;
@@ -5555,3 +5556,11 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 
 /* V04.39 h4 — «?» de AYUDA en el header del Home: área táctil de 40×40 (el resto de los íconos del header comparten `.icon-btn`). */
 .player-home-help{ display:inline-flex; align-items:center; justify-content:center; min-width:40px; min-height:40px; padding:0; }
+
+/* V04.40 · Ronda 2 — DESCUBRIMIENTO dentro de BUSCAR JUGADORES: secciones livianas con el mismo componente de fila del buscador. */
+.player-discovery{ margin-top: 4px; }
+.player-discovery__section{ margin-bottom: 18px; }
+.player-discovery__label{ font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: var(--paper-dim); margin: 2px 2px 8px; }
+.player-discovery__note{ margin: 14px 4px; font-size: 13px; line-height: 1.5; color: var(--paper-dim); }
+/* V04.40 — AYUDA agrupada por categorías (reutiliza .settings-group / .settings-list). */
+.help-cat{ margin-bottom: 18px; }

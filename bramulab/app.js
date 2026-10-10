@@ -13169,6 +13169,13 @@
     const emptyEl = $('#player-search-empty');
     const trimmed = (query || '').trim();
     setGenericInviteVisible(false);
+    if (!trimmed) {
+      // V04.40 — campo vacío: sin resultados de búsqueda; el descubrimiento ocupa el lugar.
+      listSection.hidden = true; wrap.innerHTML = ''; emptyEl.hidden = true;
+      loadPlayerDiscovery();
+      return;
+    }
+    setPlayerDiscoveryVisible(false);
     if (trimmed.length < 2) {
       listSection.hidden = true;
       wrap.innerHTML = '';
@@ -13203,22 +13210,67 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* V04.40 · Ronda 2 — DESCUBRIMIENTO DE JUGADORES (BUSCAR JUGADORES)    */
+  /* ------------------------------------------------------------------ */
+  let playerDiscoveryRequestId = 0;
+  /** Última respuesta exitosa de ESTA apertura de la pantalla: borrar el texto vuelve a mostrar las sugerencias sin otra llamada de red. */
+  let playerDiscoveryCache = null;
+  function setPlayerDiscoveryVisible(visible) {
+    const box = $('#player-discovery');
+    if (!box) return;
+    box.hidden = !visible;
+    if (!visible) playerDiscoveryRequestId++; // una respuesta tardía no debe pisar la búsqueda que empezó
+  }
+  function renderPlayerDiscoveryRows(listSelector, sectionSelector, rows) {
+    const section = $(sectionSelector);
+    const wrap = $(listSelector);
+    section.hidden = rows.length === 0;
+    wrap.innerHTML = rows.map(buildPlayerRowHTMLFromServerRow).join('');
+    $all(`${listSelector} .player-row`).forEach((btn) => {
+      btn.addEventListener('click', () => openPlayerPublicProfile({ name: btn.dataset.name, playerId: btn.dataset.playerId }, 'search'));
+    });
+  }
+  /** Pide `get_player_discovery` y pinta las secciones que tengan filas. Un error NUNCA se presenta como «sin sugerencias». */
+  async function loadPlayerDiscovery() {
+    const requestId = ++playerDiscoveryRequestId;
+    const box = $('#player-discovery');
+    box.hidden = true;
+    ['#player-discovery-connections', '#player-discovery-zone', '#player-discovery-empty', '#player-discovery-error'].forEach((sel) => { $(sel).hidden = true; });
+    const result = playerDiscoveryCache || await Auth.getPlayerDiscovery(5);
+    // Si mientras tanto se empezó a escribir (o se salió de la pantalla), esta respuesta ya no corresponde.
+    if (requestId !== playerDiscoveryRequestId || ($('#player-search-input').value || '').trim()) return;
+    if (!result.ok) {
+      $('#player-discovery-error').hidden = false;
+      box.hidden = false;
+      return;
+    }
+    playerDiscoveryCache = result;
+    renderPlayerDiscoveryRows('#player-discovery-connections-list', '#player-discovery-connections', result.connections);
+    renderPlayerDiscoveryRows('#player-discovery-zone-list', '#player-discovery-zone', result.zone);
+    $('#player-discovery-empty').hidden = result.connections.length + result.zone.length > 0;
+    box.hidden = false;
+  }
+
+  /* ------------------------------------------------------------------ */
   /* V04.39 · Ronda 1 — INVITACIÓN GENÉRICA a BRAMU (BUSCAR JUGADORES)    */
   /* ------------------------------------------------------------------ */
   /** Enlace general de acceso. Fijo a propósito: es la dirección pública del producto, no depende del entorno que lo emite. */
   const GENERIC_INVITE_URL = 'https://app.bramulab.com';
-  /** Mensaje conversacional para WhatsApp: qué es BRAMU, el enlace general y cómo dejarla instalada (mismos pasos reales que la guía
-   *  de instalación de la app: Compartir → «Agregar a Inicio» en iPhone; menú de Chrome en Android). Sin token ni datos del usuario. */
+  /** Mensaje DEFINITIVO aprobado por Sebastián (V04.40): se comparte y se copia con ESTE mismo texto, tal cual. NO reescribir, no agregar «Che» ni
+   *  explicaciones técnicas, no mencionar límites del Nivel. El enlace es siempre el de Production (el objetivo es invitar usuarios reales, también
+   *  al probar desde Staging). Los pasos de instalación son los mismos de la guía de instalación de la app. Una prueba compara el texto completo. */
   function buildGenericInviteMessage() {
     return [
-      'Che, ¿te sumás a BRAMUlab? 🎾',
+      'Conocés BRAMUlab? 🎾',
       '',
-      'Estoy usando esta app para ir guardando los partidos de pádel que jugamos. Nos queda todo el historial, cada uno va construyendo su Nivel BRAMU y también podemos competir en grupos entre amigos.',
+      'Es una app para ir cargando los partidos que jugamos. Nos queda todo el historial: resultados, estadísticas, cuánto jugamos, con quién y contra quién. También podemos armar grupos para competir entre amigos.',
       '',
-      'Te paso el link para que te hagas tu cuenta:',
+      'Al principio te hace unas preguntas para estimar tu Nivel BRAMU y después ese nivel se va ajustando según los partidos que jugás.',
+      '',
+      'Te dejo el link para que la instales:',
       GENERIC_INVITE_URL,
       '',
-      'Y si querés dejarla instalada en el celu, es fácil:',
+      'Es fácil:',
       '📱 iPhone: abrí el link en Safari, tocá Compartir y elegí Agregar a Inicio.',
       '📱 Android: abrilo en Chrome, tocá el menú ⋮ y elegí Instalar app (o Agregar a la pantalla principal).',
     ].join('\n');
@@ -13280,9 +13332,13 @@
     if (!currentPlayerName) { openAccessFlow(); return; }
     $('#player-search-input').value = '';
     setGenericInviteVisible(false);
+    setPlayerDiscoveryVisible(false);
+    playerDiscoveryCache = null;
     renderPlayerSearchResults('');
     showView('player-search');
-    setTimeout(() => $('#player-search-input').focus(), 60);
+    // V04.40 — el teclado NO se abre solo: el campo queda arriba, listo para tocar, y debajo aparecen las sugerencias.
+    const scroller = $('#view-player-search .analysis-scroll');
+    if (scroller) scroller.scrollTop = 0;
   }
 
   // Backend Bloque 4 (§4 de la revisión: "el frontend debe usar debounce de búsqueda ~300ms")
@@ -13297,6 +13353,8 @@
       const value = e.target.value;
       // La invitación pertenece al resultado de ESA búsqueda: al seguir escribiendo se retira hasta la próxima respuesta.
       setGenericInviteVisible(false);
+      // V04.40 — apenas se escribe, las sugerencias ceden el lugar a los resultados de la búsqueda (sin esperar el debounce).
+      if (value.trim()) setPlayerDiscoveryVisible(false);
       const currentUser = Store.getCurrentUser();
       if (Auth.isConfigured() && currentUser && currentUser.serverBacked) {
         clearTimeout(playerSearchDebounceId);

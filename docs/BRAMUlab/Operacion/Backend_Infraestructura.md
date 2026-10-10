@@ -682,6 +682,16 @@ El servidor continúa imponiendo formato/unicidad de username y validaciones de 
 4. No mezcla mocks, cuentas de Staging ni semillas.
 5. Una identidad provisional no aparece en la búsqueda global; solo puede reaparecer para usuarios relacionados mediante partidos, recientes o red.
 
+#### 8.4.1 Descubrimiento de jugadores — `get_player_discovery(p_limit integer default 5)` (V04.40, migración `20261009120000_discovery_get_player_discovery.sql`)
+
+RPC de lectura `SECURITY DEFINER`, `search_path = public`, solo `authenticated`. Sin tablas nuevas (solo el índice `profiles_location_id_idx`). Exige jugador asociado a la sesión (`no_player_for_session`) y rate limit de 20 llamadas/60 s (`rate_limited`). Devuelve filas `{section, player_id, username, display_name, first_name, last_name, level_status, level_public, avatar_url}` (misma forma que `search_players`; el avatar es una ruta de Storage que el cliente firma en batch).
+
+- `section = 'connections'`: conexión **indirecta** sobre `matches.status = 'validated'` (único estado oficial): participantes con `player_id` no nulo de partidos validados de quienes compartieron un partido validado con el caller, excluyendo al caller y a quienes ya jugaron con él. Orden: cantidad de personas en común desc, `username` asc (la cantidad no se devuelve).
+- `section = 'zone'`: mismo `profiles.location_id` que el caller (no nulo) con `locations.is_active`; orden estable por viewer (`md5(player_id || caller)`); excluye a quienes ya salieron en `connections`.
+- Elegibilidad común (= `search_players`): `players.type = 'registered'`, `is_active`, `profiles.username` no nulo; además, nunca el caller ni `player_saved_players` del caller.
+- Anti-enumeración: sin texto libre, sin offset/paginación, máximo 8 por sección (default 5), misma lista en cada llamada. Nunca devuelve fechas, equipos, resultados, ids de partido ni el intermediario.
+- Pruebas: `supabase/functions/_shared/v0440-descubrimiento.test.mjs` (PGlite con todas las migraciones) y `supabase/tests/verify-v0440-get-player-discovery.sql` (Staging, transaccional con rollback). **Aplicación a Staging: la hace Central; Production no hasta autorización.**
+
 
 ### 8.5 Crear y cargar un partido
 

@@ -101,23 +101,48 @@ test('Invitación genérica: vive en BUSCAR JUGADORES, con el copy pedido, y es 
   assert.doesNotMatch(v.replace(/<!--[\s\S]*?-->/g, '').replace(/invite-sheet__feedback/g, ''), /invite-sheet|claim/i, 'no reutiliza el circuito de invitación personal (solo el estilo del feedback)');
 });
 
+test('Invitación V04.40: tarjeta azul BRAMU (sin mezcla verde/azul), botón principal lima y acción secundaria discreta', () => {
+  const v = section('view-player-search');
+  assert.match(v, /id="player-search-invite-btn" class="btn-start player-search-invite__btn">COMPARTIR INVITACIÓN</);
+  assert.match(v, /id="player-search-invite-copy-btn" class="link-btn player-search-invite__copy">Copiar mensaje</);
+  const card = css.slice(css.indexOf('.player-search-invite{'), css.indexOf('.player-search-invite__btn{'));
+  assert.match(card, /background: var\(--surface-2\)/, 'fondo azul BRAMU oscuro uniforme');
+  assert.match(card, /border: 1px solid rgba\(25,159,255,\.38\)/, 'borde completo celeste/azul BRAMU');
+  assert.match(card, /\.player-search-invite__icon\{[^}]*color: var\(--accent-cyan\)/, 'ícono celeste');
+  assert.match(card, /\.player-search-invite__eyebrow\{[^}]*color: var\(--paper\)/, 'título blanco');
+  assert.doesNotMatch(card, /linear-gradient|149,255,25/, 'sin gradiente ni tinte verde en la tarjeta');
+});
+
 test('Invitación genérica: mensaje humano con el enlace general y sin token ni datos personales', () => {
   const m = appJs.match(/const GENERIC_INVITE_URL = '([^']+)';/);
   assert.equal(m && m[1], 'https://app.bramulab.com');
   const msg = new Function(`const GENERIC_INVITE_URL=${JSON.stringify(m[1])}; return (function(){${fnBody('buildGenericInviteMessage')}})();`)();
   assert.ok(msg.includes('https://app.bramulab.com'));
   const approved = [
-    'Che, ¿te sumás a BRAMUlab? 🎾',
+    'Conocés BRAMUlab? 🎾',
     '',
-    'Estoy usando esta app para ir guardando los partidos de pádel que jugamos. Nos queda todo el historial, cada uno va construyendo su Nivel BRAMU y también podemos competir en grupos entre amigos.',
+    'Es una app para ir cargando los partidos que jugamos. Nos queda todo el historial: resultados, estadísticas, cuánto jugamos, con quién y contra quién. También podemos armar grupos para competir entre amigos.',
     '',
-    'Te paso el link para que te hagas tu cuenta:',
+    'Al principio te hace unas preguntas para estimar tu Nivel BRAMU y después ese nivel se va ajustando según los partidos que jugás.',
+    '',
+    'Te dejo el link para que la instales:',
     'https://app.bramulab.com',
     '',
-    'Y si querés dejarla instalada en el celu, es fácil:',
+    'Es fácil:',
     '📱 iPhone: abrí el link en Safari, tocá Compartir y elegí Agregar a Inicio.',
     '📱 Android: abrilo en Chrome, tocá el menú ⋮ y elegí Instalar app (o Agregar a la pantalla principal).',
   ].join('\n');
+  // Mismo texto, sin las líneas en blanco, EXACTAMENTE el pegado por Sebastián (V04.40: definitivo, no reescribir).
+  const pasted = `Conocés BRAMUlab? 🎾
+Es una app para ir cargando los partidos que jugamos. Nos queda todo el historial: resultados, estadísticas, cuánto jugamos, con quién y contra quién. También podemos armar grupos para competir entre amigos.
+Al principio te hace unas preguntas para estimar tu Nivel BRAMU y después ese nivel se va ajustando según los partidos que jugás.
+Te dejo el link para que la instales:
+https://app.bramulab.com
+Es fácil:
+📱 iPhone: abrí el link en Safari, tocá Compartir y elegí Agregar a Inicio.
+📱 Android: abrilo en Chrome, tocá el menú ⋮ y elegí Instalar app (o Agregar a la pantalla principal).`;
+  assert.equal(msg.split('\n').filter((l) => l !== '').join('\n'), pasted, 'texto aprobado, línea por línea');
+  assert.doesNotMatch(msg, /Che,|¿te sumás|Sumate|1 a 10|1,0|10,0/);
   assert.equal(msg, approved, 'el mensaje compartido es EXACTAMENTE el aprobado');
   assert.doesNotMatch(msg, /token|claim|\?claim=/i);
   // instrucciones = las de la guía real de instalación de la app (Compartir → «Agregar a Inicio»)
@@ -175,16 +200,28 @@ test('Ayuda: se abre con el «?» del header del Home, vuelve al Home, no está 
   assert.match(css, /\.player-home-help\{[^}]*min-width:40px; min-height:40px/);
 });
 
-test('Ayuda: 5 preguntas pedidas, textos con las reglas vigentes y sin tutorial/carrusel', () => {
+test('Ayuda V04.40: 9 preguntas en 4 categorías, reglas verificadas y SIN publicar la escala del Nivel', () => {
   const v = section('view-help');
+  const cats = [...v.matchAll(/settings-group__title">([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(cats, ['CONOCÉ BRAMU', 'TUS PARTIDOS', 'GRUPOS', 'TU NIVEL Y RANKING']);
   const qs = [...v.matchAll(/<summary class="help-faq__q"><span>([^<]+)<\/span>/g)].map((m) => m[1]);
-  assert.deepEqual(qs, ['¿Qué es BRAMU?', '¿Cómo cargo un partido ya jugado?', '¿Qué es el Nivel BRAMU?', '¿Qué es el Ranking BRAMU?', '¿Cómo funcionan los Grupos?']);
-  // reglas: carga retroactiva 14 d, validación de UN rival, 30 d; Nivel 1,0–10,0 y calibración 5 partidos/3 rivales; Ranking semanal (lunes);
-  // Grupos 3 de 4, 2 mejores partidos, Race anual, sin tocar Nivel/Ranking.
-  for (const frag of ['hasta 14 días atrás', 'uno de los dos rivales', '30 días', '1,0 a 10,0', '5 partidos validados contra al menos 3 rivales distintos',
-    'Cada lunes se publica', 'Nivel calibrado', '3 de los 4 jugadores', '2 mejores partidos', 'Race anual', 'no modifican tu Nivel ni tu Ranking']) assert.ok(v.includes(frag), frag);
-  assert.doesNotMatch(v, /<script|carousel|carrusel|tutorial|siguiente/i);
-  assert.doesNotMatch(v, /puntos propios|Ranking BRAMU tiene puntos/);
+  assert.deepEqual(qs, ['¿Qué es BRAMUlab?', '¿Cómo cargo un partido?', '¿Cómo se validan los partidos?', '¿Cómo funcionan los Grupos?', '¿Qué partidos cuentan para mi grupo?',
+    '¿Cómo se suman los puntos?', '¿Qué es el Nivel BRAMU?', '¿Qué significa CALIBRANDO?', '¿Qué es el Ranking BRAMU?']);
+  // categoría -> cantidad de preguntas
+  const perCat = v.split('settings-group help-cat').slice(1).map((c) => (c.match(/<details /g) || []).length);
+  assert.deepEqual(perCat, [1, 2, 3, 3]);
+  // reglas contrastadas con las fuentes maestras
+  for (const frag of ['Registrás tus partidos', 'hasta 14 días atrás', 'uno de los dos rivales', '30 días desde su carga original', 'Vos ya aparecés seleccionado', 'invitado',
+    '5 partidos computables contra al menos 3 rivales distintos', 'Estar CALIBRADO no significa que el Nivel quede fijo', 'una nueva clasificación cada lunes',
+    'No hay puntos adicionales de Ranking', '3 de sus 4 jugadores', 'desde el lunes de esa misma semana', 'Race anual', 'al menos 3 jugadores',
+    'Clásicos, una victoria suma 5 puntos; en Americano, 3', 'sorpresa de nivel, remontada o victoria clara', 'tus 2 partidos que más puntos te dieron',
+    'independientes de tu Nivel BRAMU y del Ranking oficial']) assert.ok(v.includes(frag), frag);
+  // decisión editorial de Sebastián: NO publicar la escala; sin lenguaje de «no es», sin publicidad, sin tutorial/carrusel
+  const text = v.replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ');
+  assert.doesNotMatch(text, /\b1 a 10\b|1,0|10,0|escala|del 1 al 10/i, 'no se publica la escala del Nivel');
+  assert.doesNotMatch(text, /te deja competir|No es un marcador/);
+  assert.doesNotMatch(v, /<script|carousel|carrusel|tutorial/i);
+  assert.doesNotMatch(v, /Los cuatro jugadores deben|aprobarlo los cuatro/);
 });
 
 // ---------------------------------------------------------------- límites de la ronda
