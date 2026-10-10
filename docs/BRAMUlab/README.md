@@ -17,7 +17,13 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
-## 09/10/2026 — Hotfix de aperturas `04.38-h6` en Production (estado más reciente)
+## 10/10/2026 — V04.40 PUBLICADA en Production (estado vigente)
+
+Con autorización expresa de Sebastián, se publicó BRAMUlab **V04.40 / bundle `04.40-h1`** desde SHA de código **`e5d3e6a60e2ff4dd9aa1b4259350afdb2d6f9677`** (incluye la aclaración informativa en Política `legal_v2`). Deployment Vercel Production **`dpl_FXFXcfkp92KMNNWBikhPiZc6BPZm`** READY y alias **`app.bramulab.com`** verificado. En Supabase **Production** se aplicó la migración **`discovery_get_player_discovery`**; acceso a RPC exclusivamente para `authenticated`, nunca `anon`; 7 jugadores y 1 partido preservados en verificación. Sin nueva aceptación legal, sin modificación de `main` ni BRAMUlive. Staging mantiene alias independiente. La compatibilidad exacta de la finalidad con la constancia AAIP sigue pendiente de cotejo documental; no presentar el trámite como aprobado. Fuente maestra: `Operacion/Privacidad_Legal.md` §19.
+
+---
+
+## 09/10/2026 — Hotfix de aperturas `04.38-h6` en Production (antecedente histórico)
 
 Con autorización explícita del responsable se publicó **solo** el hotfix `04.38-h6`, SHA exacto `0dcb55a9fc0bcfc4e6e26b7c5648a46065e5954e`, deployment Vercel `dpl_DCSuFLGFSnbNKAuzQjxFP4zCfg3c` READY y alias `app.bramulab.com` verificado. Soluciona el throttle local de 30 min aplicado erróneamente aunque fallara el registro de aperturas. Se verificaron **7 cuentas reales conservadas**, `legal_v2` vigente y captura `activity_capture_enabled=TRUE`. Ya existe **1 apertura real del 09/10/2026** registrada antes del hotfix. Staging permanece aislado; `main`, BRAMUlive, Supabase schema y AAIP sin cambios por este hotfix. Ver fuente maestra `Metrics/BRAMU_Metrics.md` sección «Hotfix 04.38-h6 PUBLICADO en Production».
 
@@ -39,8 +45,8 @@ Con autorización explícita del responsable se publicó **solo** el hotfix `04.
 | Frente | Estado |
 |---|---|
 | **Producto** | BRAMUlab **V04.37**. Backend Bloques 1–8, Pre-Bloque 9, 9A/9B, G1–G3 y todos los frentes P0 de salida **cerrados**. |
-| **Production** | **ACTIVA desde el 07/10/2026** en `https://app.bramulab.com`, con bundle `04.37-h26` (commit `f1ad7d1b`, deployment `dpl_2FiyCJD1eA5t7sVj27qWyaayRnCp`). Primeros usuarios reales ya dentro. Infraestructura, legal y AAIP: `Operacion/Operacion_Vercel_Staging_Production.md`. |
-| **Staging** | Taller activo: **V04.40 / bundle `04.40-h1`** (cierre de la Ronda 1 + Ronda 2 del frente Comunidad y descubrimiento: mensaje de invitación definitivo, Ayuda en 9 preguntas y descubrimiento de jugadores en Buscar jugadores; migración `20261009120000` pendiente de aplicar en Supabase Staging; pendiente de QA de Sebastián, no promovida). Todo cambio nace acá. |
+| **Production** | **ACTIVA**, V04.40 / `04.40-h1` publicada el 10/10/2026, deployment `dpl_FXFXcfkp92KMNNWBikhPiZc6BPZm` desde SHA `e5d3e6a`. Usuarios reales preservados. Privacidad y seguimiento AAIP: `Operacion/Privacidad_Legal.md` §19. |
+| **Staging** | **V04.40 / bundle `04.40-h1`**: Rondas 1 y 2 implementadas; migración de descubrimiento aplicada y verificada en Supabase Staging. QA visual de Sebastián aprobado para publicar; los cambios visuales futuros siguen naciendo en Staging. |
 | **Pendientes reales** | Seguimiento del expediente AAIP, smoke humano mínimo de Production, decisión de backups (G4), QA humano de la fecha de nacimiento en Android, y el frente independiente de repositorio público/GitHub Pages. Detalle: `Operacion/Pre_Production.md` §2. Ideas futuras y riesgos conocidos: `Producto/BRAMUlab_Backlog.md`. |
 | **BRAMU Metrics** | **EN CURSO — protegido** (ver §3). |
 
