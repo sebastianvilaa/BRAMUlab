@@ -156,6 +156,7 @@ El contacto por WhatsApp no publica el número como dato visible: el CTA solo ex
 
 - Es obligatorio, único y no distingue mayúsculas/minúsculas.
 - Se almacena en forma canónica minúscula.
+- Desde el bundle `04.40-h2`, los campos editables de `@usuario` normalizan automáticamente las letras mayúsculas a minúsculas mientras se escribe, sin error por el uso de mayúsculas; se conserva la posición del cursor. También se normalizan los borradores de alta anteriores antes de oficializar. Las demás restricciones de formato, nombres reservados y unicidad siguen siendo autoritativas en el servidor; la normalización no habilita cambiar un `@usuario` ya consolidado.
 - Formato inicial: entre 3 y 24 caracteres; letras ASCII minúsculas, números, punto y guion bajo.
 - No admite espacios, tildes ni caracteres ambiguos.
 - Existe una lista de nombres reservados.
