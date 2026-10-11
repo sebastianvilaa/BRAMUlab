@@ -7210,8 +7210,23 @@
   // is_username_available es una sola llamada RPC, no una búsqueda cancelable).
   let usernameFeedbackToken = 0;
 
+  // V04.40-h2 — solo cambia mayúsculas por minúsculas en @usuario. Conserva
+  // la posición del cursor al editar en medio del texto y no corrige en silencio
+  // acentos, espacios ni otros caracteres inválidos: esas reglas siguen vigentes.
+  function normalizeUsernameField(input) {
+    const normalized = input.value.toLowerCase();
+    if (normalized === input.value) return;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    input.value = normalized;
+    if (document.activeElement === input && start !== null && end !== null) {
+      try { input.setSelectionRange(start, end); } catch (e) { /* posición no editable */ }
+    }
+  }
+
   function renderUsernameFeedback(inputId, feedbackId, excludeUserId) {
     const input = $(`#${inputId}`);
+    normalizeUsernameField(input);
     const username = input.value.trim();
     const el = $(`#${feedbackId}`);
     usernameFeedbackToken += 1;
@@ -7415,7 +7430,7 @@
     $('#signup-verify-now-btn').addEventListener('click', () => {
       signupDraft.firstName = $('#signup-first-name').value.trim() || signupDraft.firstName || null;
       signupDraft.lastName = $('#signup-last-name').value.trim() || signupDraft.lastName || null;
-      signupDraft.username = $('#signup-username').value.trim() || signupDraft.username || null;
+      signupDraft.username = $('#signup-username').value.trim().toLowerCase() || signupDraft.username || null;
       Store.saveSignupDraft(signupDraft);
       signupStep = 'verify';
       renderSignupStep();
@@ -7545,7 +7560,7 @@
       // (runOfficializeAndEnter), después de confirmar el email, con el borrador ya completo.
       signupDraft.firstName = $('#signup-first-name').value.trim();
       signupDraft.lastName = $('#signup-last-name').value.trim();
-      signupDraft.username = $('#signup-username').value.trim();
+      signupDraft.username = $('#signup-username').value.trim().toLowerCase();
       // Sin "nombre visible" propio en el alta (Experiencia_Inicial.md §2.2: "BRAMU utiliza
       // el nombre ya ingresado como referencia inicial") — createUserAccount/complete_profile
       // ya saben usar el nombre de pila cuando displayName llega vacío/repetido.
@@ -7572,8 +7587,8 @@
   function prefillSignupStep2Fields() {
     $('#signup-first-name').value = signupDraft.firstName || '';
     $('#signup-last-name').value = signupDraft.lastName || '';
-    $('#signup-username').value = signupDraft.username || '';
-    if (signupDraft.username) $('#signup-username').dataset.touched = '1';
+    $('#signup-username').value = (signupDraft.username || '').toLowerCase();
+    if (signupDraft.username) { signupDraft.username = $('#signup-username').value; $('#signup-username').dataset.touched = '1'; }
     updateSignupAvatarInitials();
     if (signupDraft.username) renderUsernameFeedback('signup-username', 'signup-username-feedback');
   }
@@ -7631,6 +7646,8 @@
       }
     }
 
+    // Incluye borradores de versiones anteriores a la normalización de la UI.
+    if (signupDraft.username) signupDraft.username = signupDraft.username.trim().toLowerCase();
     const completeResult = await Auth.completeProfile({
       username: signupDraft.username,
       firstName: signupDraft.firstName,
@@ -15254,7 +15271,7 @@
       // local (ver submitServerBackedProfileEdit). El resto de esta función (sin cambios) sigue
       // siendo exclusivo del camino local/legacy.
       if (user.serverBacked) { await submitServerBackedProfileEdit(user); return; }
-      const username = $('#profile-edit-username').value.trim();
+      const username = $('#profile-edit-username').value.trim().toLowerCase();
       const displayName = normalizePlayerName($('#profile-edit-display-name').value);
       const firstName = $('#profile-edit-first-name').value.trim();
       const phone = $('#profile-edit-phone').value.trim();
