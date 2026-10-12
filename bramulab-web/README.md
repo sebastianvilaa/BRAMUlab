@@ -10,7 +10,7 @@ Aunque los proyectos comparten el repositorio Git, esta carpeta es **hermana** d
 ## Por dónde empezar
 - [Concepto y recorrido](docs/BRAMUlab_Web.md): decisiones confirmadas de relato, UX, hero, funcionalidades, capturas reales, movimiento, SEO y alcances.
 - Marca oficial: `../docs/BRAMUlab/Identidad_Visual/Identidad_Visual.md` y maestros de marca en su carpeta.
-- Brief web visual: Dropbox `/Otros Trabajos/BRAMU/Sistema grafico/BRAMUlab-Bases-de-diseno-web.md`.
+- [Bases de diseño web](docs/Bases_Diseno_Web.md): brief visual, complementario a la identidad maestra.
 - Fotografías candidatas: Dropbox `/Otros Trabajos/BRAMU/Sistema grafico/Archivos/BRAMUlab-Inicio.png` y `BRAMUlab-Inicio-Desk.png`.
 
 ## Organización al iniciar diseño/desarrollo
@@ -18,7 +18,8 @@ Aunque los proyectos comparten el repositorio Git, esta carpeta es **hermana** d
 bramulab-web/
 ├── README.md
 ├── docs/
-│   └── BRAMUlab_Web.md
+│   ├── BRAMUlab_Web.md
+│   └── Bases_Diseno_Web.md
 ├── index.html            # pendiente, NO crear en fase conceptual
 ├── css/                  # pendiente
 ├── js/                   # pendiente
