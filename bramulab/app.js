@@ -770,13 +770,14 @@
    *  consolidado) el avatar deja de tener iniciales y pasa a un ícono circular de persona "+",
    *  y no hay línea de @usuario debajo del texto. El acento de equipo (verde/azul, antes un
    *  punto chico sobre el CTA — `.sheet-add-player-dot`) se conserva pero ahora tiñe el ícono. */
-  function buildAddPlayerRowHTML(trimmed) {
+  function buildAddPlayerRowHTML(trimmed, isSameName = false) {
     return `<button type="button" id="load-player-sheet-add" class="player-row player-row--add">
       <span class="player-row__avatar player-row__avatar--add" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.4 19c0-3.3 2.7-5.6 5.6-5.6s5.6 2.3 5.6 5.6"/><path d="M18 7.5v5M15.5 10h5"/></svg>
       </span>
       <span class="player-row__info">
         <span class="player-row__name">Agregar a “${escapeHtml(trimmed)}”</span>
+        ${isSameName ? '<span class="player-row__handle">Otra persona sin cuenta</span>' : ''}
       </span>
     </button>`;
   }
@@ -977,10 +978,14 @@
       if (provisionals.length) html += '<div class="load-player-sheet__section-label" style="margin-top:12px;">Jugadores</div>';
       html += realRows.map(buildPlayerRowHTMLFromServerRow).join('');
     }
-    const alreadyOffered = (n) => provisionals.some((p) => normalizePlayerName(p.display_name || '') === n)
-      || realRows.some((r) => normalizePlayerName(r.display_name || '') === n);
-    const canAdd = trimmed.length >= 2 && !alreadyOffered(normalizePlayerName(trimmed));
-    if (canAdd) html += buildAddPlayerRowHTML(trimmed);
+    // Hotfix: compartir nombre no implica compartir identidad. Un Esteban con cuenta
+    // y otro Esteban sin cuenta (o dos invitados homónimos) deben poder coexistir.
+    // La exclusión real de participantes sigue por player_id, nunca por display_name.
+    const normalizedQuery = normalizePlayerName(trimmed).toLocaleLowerCase('es');
+    const sameNameExists = provisionals.some((p) => normalizePlayerName(p.display_name || '').toLocaleLowerCase('es') === normalizedQuery)
+      || realRows.some((r) => normalizePlayerName(r.display_name || '').toLocaleLowerCase('es') === normalizedQuery);
+    const canAdd = trimmed.length >= 2;
+    if (canAdd) html += buildAddPlayerRowHTML(trimmed, sameNameExists);
 
     listWrap.innerHTML = html || '<p class="load-player-sheet__empty">Escribí al menos 2 caracteres para buscar, o elegí un invitado.</p>';
     $all('#load-player-sheet-list .player-row[data-player-id]').forEach((btn) => {
