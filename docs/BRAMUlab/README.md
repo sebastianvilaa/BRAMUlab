@@ -17,7 +17,15 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
-## 11/10/2026 — Hotfix `04.40-h2` PUBLICADO en Production (estado vigente)
+## 13/10/2026 — Hotfix de homónimos `04.40-h3` PUBLICADO en Production (estado vigente)
+
+Se corrigió el selector de compañero/rivales en Cargar partido: una coincidencia exacta de nombre con una cuenta registrada **o una identidad provisional** no oculta «Agregar a “nombre”». Si ya existe otra persona con ese nombre, la acción identifica «Otra persona sin cuenta». Se conserva la selección por `player_id`, sin fusionar identidades ni asignar dos lugares al mismo `player_id`. Cinco pruebas de regresión ejecutadas satisfactoriamente contra el código de Staging; backend de creación provisional inspeccionado en **Staging y Production** (siempre crea un UUID; sin matching por nombre). Sin migraciones ni escrituras en bases de datos.
+
+**Release exacta:** BRAMUlab V04.40 / `04.40-h3`, commit `a74569081a5b08db9659a37c824ca3b763d2b816`, deployment Vercel Production `dpl_C94TxYd6QSr6tHx4dSZeZ7nmbZNK` **READY**, alias `app.bramulab.com` verificado; Staging independiente `dpl_BfNRhP7A5QcWJhd4JKpQhCQXyeYX` **READY**. La verificación es funcional con dobles controlados y de infraestructura; no se ejecutó un recorrido interactivo real de iPhone/Production. `main` y BRAMUlive sin cambios. Fuente maestra: `Producto/Cargar_Partido.md` §2.2.
+
+---
+
+## 11/10/2026 — Hotfix `04.40-h2` PUBLICADO en Production (antecedente histórico)
 
 Con autorización del responsable, se corrigió en frontend la escritura de `@usuario`: las mayúsculas se convierten inmediatamente a minúsculas en los campos editables del registro y de edición local, conservando el cursor. Los borradores de alta anteriores se normalizan antes de oficializar. Los caracteres inválidos, nombres reservados y duplicados siguen bloqueados; el `@usuario` de cuentas reales continúa fijo tras registrarse. **Sin cambio de esquema, fórmula deportiva, datos reales ni identidad ya consolidada.** Se verificó la función pura de normalización, sus reglas básicas de formato/colisiones y el build de Staging `READY`. **Frontend Production `04.40-h2`:** SHA exacto `e1b22230c22ae4b8b1ee39e6ab5354e1ba4a8762`, deployment Vercel `dpl_4SQXhpmtKoWkFtikSFcwPUwvaSoK` `READY`, alias `app.bramulab.com` comprobado. Staging separado en `dpl_Fx2h3e9cLMm5MaZd69WJq9m9h6BK`. No se realizó una nueva prueba de navegador real; no hay cambios en `main`, Supabase, BRAMUlive ni en la Política. Contrato vigente: `Operacion/Backend_Infraestructura.md` §5.2.
 
@@ -51,8 +59,8 @@ Con autorización explícita del responsable se publicó **solo** el hotfix `04.
 | Frente | Estado |
 |---|---|
 | **Producto** | BRAMUlab **V04.37**. Backend Bloques 1–8, Pre-Bloque 9, 9A/9B, G1–G3 y todos los frentes P0 de salida **cerrados**. |
-| **Production** | **ACTIVA**, V04.40 / `04.40-h2` publicada el 11/10/2026, deployment `dpl_4SQXhpmtKoWkFtikSFcwPUwvaSoK` desde SHA `e1b22230`; hotfix de normalización de @usuario. Privacidad y seguimiento AAIP: `Operacion/Privacidad_Legal.md` §19. |
-| **Staging** | **V04.40 / bundle `04.40-h2`**: Rondas 1 y 2 implementadas y publicadas, más normalización de @usuario. Build READY, alias independiente. Próximos cambios siguen naciendo en Staging. |
+| **Production** | **ACTIVA**, V04.40 / `04.40-h3` publicada el 13/10/2026, deployment `dpl_C94TxYd6QSr6tHx4dSZeZ7nmbZNK` desde SHA `a7456908`; homónimos en Cargar partido. Privacidad y seguimiento AAIP: `Operacion/Privacidad_Legal.md` §19. |
+| **Staging** | **V04.40 / bundle `04.40-h3`**: normalización de @usuario y hotfix de homónimos publicados; build READY y alias independiente. Próximos cambios siguen naciendo en Staging. |
 | **Pendientes reales** | Seguimiento del expediente AAIP, smoke humano mínimo de Production, decisión de backups (G4), QA humano de la fecha de nacimiento en Android, y el frente independiente de repositorio público/GitHub Pages. Detalle: `Operacion/Pre_Production.md` §2. Ideas futuras y riesgos conocidos: `Producto/BRAMUlab_Backlog.md`. |
 | **BRAMU Metrics** | **EN CURSO — protegido** (ver §3). |
 
