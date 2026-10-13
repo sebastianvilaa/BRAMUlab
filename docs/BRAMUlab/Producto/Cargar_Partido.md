@@ -59,6 +59,8 @@ El jugador propio ya aparece completo. Los huecos de compañero/rivales se muest
 
 La selección de jugadores mantiene los contratos vigentes de identidad. No se modifica backend.
 
+**Hotfix de homónimos (V04.40-h3, 13/10/2026):** en el selector server-backed, una cuenta registrada o un invitado provisional llamado, por ejemplo, «Esteban», **no bloquea** la acción «Agregar a “Esteban”» para incorporar a otra persona sin cuenta. Se muestran las coincidencias existentes y, además, la opción de agregar otra persona. Si el nombre ya coincide con algún resultado se aclara «Otra persona sin cuenta». La creación llama a `create_provisional_player`, que asigna un `player_id` nuevo; no vincula ni fusiona identidades por nombre. Una misma persona no puede ocupar dos lugares en un partido: la exclusión y validación server-backed se realizan por `player_id`, nunca por `display_name`. Se conserva el comportamiento legacy local sin cambios y el mínimo vigente de dos caracteres para ofrecer la acción.
+
 ### 2.3 CTA
 
 `CARGAR RESULTADO`:
