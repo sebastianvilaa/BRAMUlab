@@ -295,19 +295,21 @@
     const cmp = !!ctx.compare && ctx.range !== 'today';
     const period = periodRowLabel(ctx.range); const week = PERIOD_ROW['7d'];
     const pair = (todayCell, periodCell, label) => [{ key: 'today', label: 'Hoy', cell: todayCell }, { key: 'period', label: label || period, cell: periodCell }];
+    // `tier`: 1 = lo principal del propietario (Registrados, Activos, Partidos cargados) · 2 = Web · 3 = resto. El orden del arreglo ES el orden de lectura.
     return [
-      { id: 'web.views', kind: 'dual', label: WEB_CARDS.views.label, href: '#/web', hint: WEB_CARDS.views.hint, rows: pair(cellFromWeb(ctx.wmToday, 'views'), cellFromWeb(ctx.wmPeriod, 'views')) },
-      { id: 'web.clicks', kind: 'dual', label: WEB_CARDS.clicks.label, href: '#/web', hint: WEB_CARDS.clicks.hint, rows: pair(cellFromWeb(ctx.wmToday, 'clicks'), cellFromWeb(ctx.wmPeriod, 'clicks')) },
-      { id: 'users.registered_now', kind: 'total', label: kpiLabel(kp('users.registered_now')) || 'Jugadores registrados', href: '#/kpi/users.registered_now', caption: 'Total actual',
+      { id: 'users.registered_now', tier: 1, kind: 'total', label: kpiLabel(kp('users.registered_now')) || 'Jugadores registrados', href: '#/kpi/users.registered_now', caption: 'Total actual',
         total: cellFromKpi(kp('users.registered_now'), meta, false), subLabel: kpiLabel(kp('users.signups')) || 'Nuevas altas',
         rows: pair(cellFromToday(data.today, 'signups'), cellFromKpi(kp('users.signups'), meta, cmp)) },
-      { id: 'matches.created', kind: 'dual', label: 'Partidos cargados', href: '#/kpi/matches.created', rows: pair(cellFromToday(data.today, 'matchesCreated'), cellFromKpi(kp('matches.created'), meta, cmp)) },
-      { id: 'matches.validated', kind: 'dual', label: 'Partidos validados', href: '#/kpi/matches.validated', rows: pair(cellFromToday(data.today, 'matchesValidated'), cellFromKpi(kp('matches.validated'), meta, cmp)) },
       // «Activos» es SIEMPRE una ventana de 7 días completos (definición del indicador): su fila lo dice, aunque el período elegido sea otro.
-      { id: 'usage.wau', kind: 'dual', label: kpiLabel({ id: 'usage.wau' }), href: '#/kpi/usage.wau', hint: 'Solo cuentas que aceptaron la medición', rows: pair(cellFromToday(data.today, 'activePlayers'), cellFromKpi(kp('usage.wau'), meta, cmp && ctx.range === '7d'), week) },
-      { id: 'community.groups_active', kind: 'stock', label: 'Grupos vigentes', href: '#/kpi/community.groups_active', caption: 'Total actual', total: cellFromKpi(kp('community.groups_active'), meta, false) },
+      { id: 'usage.wau', tier: 1, kind: 'dual', label: kpiLabel({ id: 'usage.wau' }), href: '#/kpi/usage.wau', hint: 'Solo cuentas que aceptaron la medición', rows: pair(cellFromToday(data.today, 'activePlayers'), cellFromKpi(kp('usage.wau'), meta, cmp && ctx.range === '7d'), week) },
+      { id: 'matches.created', tier: 1, kind: 'dual', label: 'Partidos cargados', href: '#/kpi/matches.created', rows: pair(cellFromToday(data.today, 'matchesCreated'), cellFromKpi(kp('matches.created'), meta, cmp)) },
+      { id: 'web.views', tier: 2, kind: 'dual', label: WEB_CARDS.views.label, href: '#/web', hint: WEB_CARDS.views.hint, rows: pair(cellFromWeb(ctx.wmToday, 'views'), cellFromWeb(ctx.wmPeriod, 'views')) },
+      { id: 'web.clicks', tier: 2, kind: 'dual', label: WEB_CARDS.clicks.label, href: '#/web', hint: WEB_CARDS.clicks.hint, rows: pair(cellFromWeb(ctx.wmToday, 'clicks'), cellFromWeb(ctx.wmPeriod, 'clicks')) },
+      { id: 'matches.validated', tier: 3, kind: 'dual', label: 'Partidos validados', href: '#/kpi/matches.validated', rows: pair(cellFromToday(data.today, 'matchesValidated'), cellFromKpi(kp('matches.validated'), meta, cmp)) },
+      { id: 'community.groups_active', tier: 3, kind: 'stock', label: 'Grupos vigentes', href: '#/kpi/community.groups_active', caption: 'Total actual', total: cellFromKpi(kp('community.groups_active'), meta, false) },
     ];
   }
+
   /** ¿La medición tiene límites que conviene tener a mano? (presencia sin captura, apagada o solo quienes aceptaron). */
   function measurementWarn(meta) {
     if (!meta) return false;
@@ -649,7 +651,7 @@
     return out;
   }
   /** Una tarjeta del tablero. `total` = saldo actual (stock) con sus altas debajo; `dual` = Hoy + período; `stock` = solo saldo. */
-  function homeCard(def) {
+  function homeCard(def, primary) {
     const label = h('div', { class: 'mx-card__label', text: def.label });
     const chev = h('span', { class: 'mx-card__chev', 'aria-hidden': 'true', text: '›' });
     const common = { href: def.href, 'aria-label': `${def.label}: ver detalle` };
@@ -658,12 +660,12 @@
         h('div', { class: 'mx-card__value' + (def.total.empty ? ' is-empty' : ''), text: def.total.text }), h('div', { class: 'mx-card__hint', text: def.caption }), ...dualNotes([def.total])]);
     }
     if (def.kind === 'total') {
-      return h('a', Object.assign({ class: 'mx-card mx-home mx-home--total' }, common), [chev,
+      return h('a', Object.assign({ class: 'mx-card mx-home mx-home--total' + (primary ? ' mx-home--primary' : '') }, common), [chev,
         h('div', { class: 'mx-home__main' }, [label, h('div', { class: 'mx-card__value' + (def.total.empty ? ' is-empty' : ''), text: def.total.text }), h('div', { class: 'mx-card__hint', text: def.caption })]),
         h('div', { class: 'mx-home__side' }, [h('div', { class: 'mx-home__sub', text: def.subLabel }), ...def.rows.map(dualRow), ...dualNotes(def.rows.map((r) => r.cell).concat([def.total]))]),
       ]);
     }
-    return h('a', Object.assign({ class: 'mx-card mx-home' }, common), [chev, label, ...def.rows.map(dualRow), ...dualNotes(def.rows.map((r) => r.cell)), def.hint ? h('div', { class: 'mx-card__hint', text: def.hint }) : null]);
+    return h('a', Object.assign({ class: 'mx-card mx-home' + (primary ? ' mx-home--primary' : '') }, common), [chev, label, ...def.rows.map(dualRow), ...dualNotes(def.rows.map((r) => r.cell)), def.hint ? h('div', { class: 'mx-card__hint', text: def.hint }) : null]);
   }
   function skeletonView() {
     const grid = h('div', { class: 'mx-grid mx-grid--kpi' }, [1, 2, 3, 4, 5, 6, 7, 8].map(() => h('div', { class: 'mx-skel' })));
@@ -794,9 +796,14 @@
     const wmT = webData ? webMeasure(webData.web, webData.meta, true) : none;
     const defs = homeCards(data, { range: S.range, compare: S.compare, wmToday: wmT, wmPeriod: wmP });
     const st = todayStamp(meta, data);
-    out.push(h('div', { class: 'mx-h', text: 'Actividad' }));
+    const tier = (n) => defs.filter((d) => d.tier === n).map((d) => homeCard(d, n === 1));
+    out.push(h('div', { class: 'mx-h', text: 'Jugadores y partidos' }));
     out.push(h('p', { class: 'mx-sub', text: `Hoy es parcial${st.upTo ? ` (hasta las ${st.upTo})` : ''}. «${periodRowLabel(S.range)}» son días completos, hasta ayer. No se suman.` }));
-    out.push(h('div', { class: 'mx-grid mx-grid--home' }, defs.map(homeCard)));
+    out.push(h('div', { class: 'mx-grid mx-grid--primary' }, tier(1)));
+    out.push(h('div', { class: 'mx-h', text: 'Web' }));
+    out.push(h('div', { class: 'mx-grid mx-grid--home' }, tier(2)));
+    out.push(h('div', { class: 'mx-h', text: 'Otros indicadores' }));
+    out.push(h('div', { class: 'mx-grid mx-grid--home' }, tier(3)));
     if (!isToday) {
       const sig = data.series && data.series.signups; const mc = data.series && data.series.matches_created; const act = data.series && data.series.active_players;
       const presenceOn = !!meta.presenceSince;

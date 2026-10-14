@@ -240,9 +240,9 @@ test('nombre oficial: «BRAMUlab Metrics» en título, instalación en iPhone, a
   assert.match(html, /<span class="mx-brand__text">[^\n]*<b>Metrics<\/b>/, 'wordmark BRAMUlab + «Metrics»');
 });
 
-test('Inicio: orden de importancia y Hoy + período en la MISMA tarjeta (sin sumarlos)', () => {
+test('Inicio: orden de importancia del propietario y Hoy + período en la MISMA tarjeta (sin sumarlos)', () => {
   const c = M.homeCards(DATA(), ctx());
-  assert.deepEqual(plain(c.map((x) => x.id)), ['web.views', 'web.clicks', 'users.registered_now', 'matches.created', 'matches.validated', 'usage.wau', 'community.groups_active']);
+  assert.deepEqual(plain(c.map((x) => x.id)), ['users.registered_now', 'usage.wau', 'matches.created', 'web.views', 'web.clicks', 'matches.validated', 'community.groups_active']);
   const casos = c.find((x) => x.id === 'matches.created');
   assert.deepEqual(plain(casos.rows.map((r) => [r.key, r.label, r.cell.text])), [['today', 'Hoy', '3'], ['period', 'Últimos 7 días', '14']]);
   assert.equal(casos.label, 'Partidos cargados');
@@ -356,4 +356,20 @@ test('estados vacíos compactos y avisos sin protagonismo (los números mandan)'
   assert.match(css, /\.mx-state\{[^}]*font-size:11px/);
   assert.ok(!/\.mx-state--[a-z]+\{[^}]*background:rgba/.test(css), 'los avisos ya no son bloques con fondo');
   assert.match(read('admin/metrics/metrics.js'), /mx-panel--slim/, '«Del alta al 5.º partido» sin datos ocupa una línea');
+});
+
+test('Inicio: lo principal (Registrados, Activos, Partidos cargados) domina el comienzo; Web pasa a un segundo bloque y nada se pierde', () => {
+  const c = M.homeCards(DATA(), ctx());
+  assert.deepEqual(plain(c.map((x) => [x.id, x.tier])), [['users.registered_now', 1], ['usage.wau', 1], ['matches.created', 1], ['web.views', 2], ['web.clicks', 2], ['matches.validated', 3], ['community.groups_active', 3]]);
+  const tiers = c.map((x) => x.tier); assert.deepEqual(plain(tiers), plain(tiers.slice().sort()), 'el orden de lectura nunca sube de nivel');
+  const code = read('admin/metrics/metrics.js').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(code.indexOf("'Jugadores y partidos'") < code.indexOf("text: 'Web'") && code.indexOf("text: 'Web'") < code.indexOf("'Otros indicadores'"), 'bloques en ese orden');
+  const css = read('admin/metrics/metrics.css');
+  assert.match(css, /\.mx-home--primary \.mx-dual__row--today \.mx-dual__val\{font-size:36px\}/, 'el número de hoy de lo principal es el más grande');
+  assert.match(css, /\.mx-grid--primary\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/, 'móvil: registrados a todo el ancho, activos y partidos lado a lado');
+  assert.match(css, /\.mx-grid--primary\{grid-template-columns:1\.25fr 1fr 1fr\}/, 'escritorio: las 3 en una fila');
+  // activos: aviso discreto de que solo mide a quienes aceptaron, y sin dato no se inventa nada
+  const wau = c.find((x) => x.id === 'usage.wau'); assert.match(wau.hint, /Solo cuentas que aceptaron la medición/);
+  const sinDato = M.homeCards({ ...DATA(), today: { ...DATA().today, activePlayers: null }, kpis: DATA().kpis.map((k) => (k.id === 'usage.wau' ? K('usage.wau', null, { availability: 'not_instrumented' }) : k)) }, ctx()).find((x) => x.id === 'usage.wau');
+  assert.deepEqual(plain(sinDato.rows.map((r) => [r.cell.text, r.cell.empty])), [['—', true], ['—', true]]);
 });

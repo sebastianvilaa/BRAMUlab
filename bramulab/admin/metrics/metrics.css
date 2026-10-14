@@ -191,6 +191,16 @@ a{color:inherit}
 .mx-dual__delta{grid-column:1 / -1;text-align:right;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text-faint)}
 .mx-dual__delta--good{color:var(--ok)}.mx-dual__delta--bad{color:var(--danger)}.mx-dual__delta--neutral{color:var(--blue)}
 .mx-home--total{grid-column:1 / -1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:14px}
+/* lo principal: tres tarjetas que dominan el comienzo (registrados a todo el ancho; activos y partidos lado a lado en móvil; las 3 en una fila en escritorio) */
+.mx-grid--primary{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:700px){ .mx-grid--primary{grid-template-columns:1.25fr 1fr 1fr} .mx-grid--primary .mx-home--total{grid-column:auto} }
+.mx-home--primary{padding:14px 14px 13px;border-color:var(--line-strong);background:linear-gradient(180deg,var(--surface-2),var(--surface-1))}
+.mx-home--primary .mx-card__label{font-size:13px;color:var(--text)}
+.mx-home--primary .mx-dual__row--today .mx-dual__val{font-size:36px}
+.mx-home--primary .mx-dual__row--period .mx-dual__val{font-size:23px;color:var(--text)}
+.mx-home--primary .mx-dual__lab{font-size:10.5px}
+.mx-home--primary.mx-home--total .mx-home__main .mx-card__value{font-size:46px}
+.mx-home--primary.mx-home--total .mx-dual__row--today .mx-dual__val{font-size:30px}
 @media (min-width:700px){ .mx-home--total{grid-column:span 2} }
 .mx-home__main{display:flex;flex-direction:column;gap:4px;justify-content:center;min-width:0}
 .mx-home__main .mx-card__value{font-size:34px}
