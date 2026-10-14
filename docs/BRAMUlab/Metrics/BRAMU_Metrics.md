@@ -6,6 +6,12 @@
 
 
 
+## 13/10/2026 — Corrección de clics hacia la app (Staging, sin activar)
+
+**RESUELTO EN CÓDIGO:** `bramulab-web/js/web-metrics.js` v1.1 (commit `0e4fbed5ba2d15d0a4697bb7ee92a54b614f6b6c`) cuenta clics solo en la entrada principal `https://app.bramulab.com/` o `/index.html`, no rutas legales como `/terminos/` o `/privacidad/` del mismo origen. **16 pruebas puntuales** PASS en `bramulab/tests/web-analytics-outbound-links.test.mjs`. No cambia enlaces, tabla, RPC, dashboard, activación ni Production. **Coordinación Desarrollo Web:** la copia local aún desactivada debe sincronizar exactamente este script desde `staging` antes del futuro lanzamiento; contrato y SHA del archivo en `bramulab-web/docs/BRAMUlab_Web.md` §10. Hasta sincronizar la copia local, no afirmar que ambos árboles coinciden.
+
+---
+
 ## 13/10/2026 — Módulo «Web» mínimo (STAGING, sin publicación)
 
 **Autorización del responsable:** preparar ahora un módulo Web en Metrics, exclusivamente con visitas a `bramulab.com`, clics hacia `app.bramulab.com` y su relación informativa; **sin pagar Pro ni otras herramientas**. El módulo NO afirma medir personas únicas, quién cerró, instalaciones ni accesos efectivos a la app.
