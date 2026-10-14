@@ -849,6 +849,8 @@ Para una misma provisional:
 
 La UI habla de **invitar / vincular / recuperar partidos**. “Claim” queda como término interno técnico.
 
+**Forma del enlace (V04.41).** El link compartido es `{origen}/invitacion/{token}` (origen del entorno: Staging o `app.bramulab.com`). El token es el mismo de siempre (64 hex = 256 bits, solo su sha256 persiste); la ruta es presentación. `bramulab/vercel.json` reescribe `/invitacion/:token` a la función `bramulab/api/invitacion.js`, que **no consulta datos** y responde el mismo HTML para cualquier token: metadatos Open Graph de marca (imagen `assets/invitacion-og.png`, sin token/nombres/resultados, `og:url` = raíz, `noindex`, `Cache-Control: private, no-store`, `Referrer-Policy: no-referrer`) y un script que lee el token de `location.pathname` y redirige a `/?claim={token}`, la captura de siempre (localStorage → login/alta → `¿JUGASTE ESTE PARTIDO?`). `?claim=` anteriores siguen válidos. Sin migraciones ni RPC nuevos. El Service Worker no intercepta `/invitacion/*`.
+
 ### 9.3 Confirmación del receptor
 
 El link es un bearer token: no agrega verificación social, DNI, teléfono ni prueba de identidad externa.

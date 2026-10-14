@@ -7,6 +7,10 @@
     {
       "source": "/robots.txt",
       "destination": "/robots.generated.txt"
+    },
+    {
+      "source": "/invitacion/:token",
+      "destination": "/api/invitacion"
     }
   ],
   "headers": [

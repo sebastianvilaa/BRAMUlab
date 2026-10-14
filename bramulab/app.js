@@ -2331,8 +2331,17 @@
    *  seguían siendo DOS segmentos independientes con el `column-gap` de por medio en el medio —
    *  nunca una línea continua. Un elemento propio que atraviesa las dos columnas sí lo es. */
   function buildResultRowsHTML(players, sets, currentPartial, firstTeam) {
-    const nameA = S.teamLabel(players, 'A');
-    const nameB = S.teamLabel(players, 'B');
+    // V04.41 — nombres de la pareja con la MISMA semántica que Historial: una identidad SIN CUENTA (provisional) va en amarillo (solo ese
+    // nombre; el color verde/celeste de la pareja y el marcador no cambian). Cada nombre con `userId` lleva `data-player-id` para poder
+    // marcarlo después, cuando `listRelatedProvisionalPlayers` responde (markPendingNamesInResult).
+    const teamNameHTML = (team) => (players || []).filter((pl) => pl.team === team).map((pl) => {
+      const name = escapeHtml(pl.name || '');
+      if (!pl.userId) return name;
+      const pending = provisionalIdSet.has(pl.userId);
+      return `<span${pending ? ' class="player-name--pending" title="Sin cuenta"' : ''} data-player-id="${escapeHtml(pl.userId)}">${name}</span>`;
+    }).join(' / ');
+    const nameA = teamNameHTML('A');
+    const nameB = teamNameHTML('B');
     function cellsForTeam(team) {
       let cells = (sets || []).map((s) => {
         const mine = team === 'A' ? s.gamesA : s.gamesB;
@@ -2361,7 +2370,7 @@
         const tbTxt = currentPartial.tiebreak ? `<sub style="font-size:9px;">(${team === 'A' ? currentPartial.tiebreak.a : currentPartial.tiebreak.b})</sub>` : '';
         cells += `<span class="result-card__set is-incomplete ${cls}">${mine}${tbTxt}</span>`;
       }
-      return `<div class="result-card__row" data-team="${team}"><span class="result-card__name">${escapeHtml(team === 'A' ? nameA : nameB)}</span><span class="result-card__sets">${cells}</span></div>`;
+      return `<div class="result-card__row" data-team="${team}"><span class="result-card__name">${team === 'A' ? nameA : nameB}</span><span class="result-card__sets">${cells}</span></div>`;
     }
     // V04.34 — SOLO presentación: `firstTeam` ('B') pone mi pareja ARRIBA cuando soy Team B; los datos canónicos A/B no se tocan.
     return firstTeam === 'B'
@@ -4225,6 +4234,7 @@
       ? '<p class="b6-correction-compare__label">Resultado oficial actual</p>'
       : '';
     $('#analysis-result').innerHTML = buildResultBlockHTML(f, { officialLabelHTML, mineFirst: true });
+    markPendingNamesInResult();
     // Backend Bloque 6 (Fase B) — pendientes/Confirmar/corrección/identidad. Nunca bloquea el
     // resto del Resumen (stats/intelligence siguen con `f`): pinta lo que ya se tiene y refina
     // en paralelo con get_match_detail fresco (ver renderB6Actions).
@@ -15782,6 +15792,29 @@
   let guestsRenderSeq = 0;
   let inviteSheetCurrent = null;
 
+  /** V04.41 — marca en amarillo, dentro de la tarjeta de resultado del Resumen, los nombres de identidades SIN CUENTA (provisionales) y agrega
+   *  la leyenda breve bajo la tarjeta. Idempotente; no cambia el marcador ni los colores de pareja. */
+  function markPendingNamesInResult() {
+    const host = $('#analysis-result');
+    if (!host) return;
+    let any = false;
+    host.querySelectorAll('.result-card__name [data-player-id]').forEach((el) => {
+      const pending = provisionalIdSet.has(el.dataset.playerId);
+      el.classList.toggle('player-name--pending', pending);
+      if (pending) { el.title = 'Sin cuenta'; any = true; } else { el.removeAttribute('title'); }
+    });
+    let legend = $('#analysis-result-legend');
+    if (any && !legend) {
+      legend = document.createElement('p');
+      legend.id = 'analysis-result-legend';
+      legend.className = 'result-card__legend';
+      legend.textContent = 'Sin cuenta: jugador todavía sin cuenta en BRAMUlab';
+      host.insertAdjacentElement('afterend', legend);
+    } else if (!any && legend) {
+      legend.remove();
+    }
+  }
+
   /** B1 — "JUGADORES SIN CUENTA" en el Resumen: invitados del partido que el usuario puede invitar (el servidor ya aplica la
    *  regla única creador/partido compartido en list_related_provisional_players). Solo partidos server-backed ya aceptados;
    *  nunca un borrador local/outbox. Oculta si no hay ninguno. No rediseña el Resumen. */
@@ -15798,6 +15831,8 @@
     const res = await Matches.listRelatedProvisionalPlayers();
     if (seq !== guestsRenderSeq || !analysisCurrent || analysisCurrent.matchId !== f.matchId || !res.ok) return;
     const invitable = new Map(res.players.map((pl) => [pl.player_id, pl]));
+    res.players.forEach((pl) => provisionalIdSet.add(pl.player_id));
+    markPendingNamesInResult();
     const rows = participants.filter((p) => invitable.has(p.userId));
     if (!rows.length) return;
     // V04.30 — bloque consistente: ícono de identidad pendiente + nombre + CTA "INVITAR A {NOMBRE}" (sin la distancia entre nombre y acción).
@@ -15805,95 +15840,176 @@
     list.innerHTML = rows.map((p) => {
       const name = (invitable.get(p.userId).display_name || p.name || 'Jugador');
       return `<div class="guests-row"><div class="guests-row__head">${warnIcon}<span class="guests-row__name">${escapeHtml(name)}</span><span class="guests-row__tag">Sin cuenta</span></div>`
-        + `<button type="button" class="btn-secondary btn-secondary--accent guests-row__btn" data-guest-id="${escapeHtml(p.userId)}" data-guest-name="${escapeHtml(name)}" data-source-match-id="${escapeHtml(f.matchId || '')}">INVITAR A ${escapeHtml(name.toLocaleUpperCase('es-AR'))}</button></div>`;
+        + `<button type="button" class="btn-secondary btn-secondary--accent guests-row__btn" data-guest-id="${escapeHtml(p.userId)}" data-guest-name="${escapeHtml(name)}" data-source-match-id="${escapeHtml(f.matchId || '')}" data-is-author="${f.createdByPlayerId && f.createdByPlayerId === currentUserId ? '1' : '0'}">INVITAR A ${escapeHtml(name.toLocaleUpperCase('es-AR'))}</button></div>`;
     }).join('');
     list.querySelectorAll('[data-guest-id]').forEach((btn) => {
-      btn.addEventListener('click', () => openInviteSheet(btn.dataset.guestId, btn.dataset.guestName, btn.dataset.sourceMatchId));
+      btn.addEventListener('click', () => openInviteSheet(btn.dataset.guestId, btn.dataset.guestName, btn.dataset.sourceMatchId, btn.dataset.isAuthor === '1'));
     });
     section.hidden = false;
   }
 
-  /** B2 — hoja "Invitá a {nombre} a BRAMU". El enlace se genera al tocar COPIAR INVITACIÓN (rota solo el link propio del invitador). */
-  function openInviteSheet(playerId, name, sourceMatchId) {
+  /** V04.41 — mensaje de invitación (texto natural, un párrafo breve + el enlace aparte). Sin el nombre del invitado: puede ser un apodo
+   *  incómodo. Si quien comparte NO cargó el partido, la primera frase no le atribuye la carga. Función pura (probada). */
+  function buildInviteMessage(url, isAuthor) {
+    const first = isAuthor ? '¡Buenas! Cargué nuestro partido en BRAMUlab.' : '¡Buenas! Nuestro partido ya está cargado en BRAMUlab.';
+    return `${first} Te dejo el link para que puedas entrar, reclamar tu lugar y recuperarlo en tu historial.\n${url}`;
+  }
+  /** `wa.me` abre la app de WhatsApp en iPhone/Android, WhatsApp Web en escritorio y la página de descarga si no está instalada. Nunca envía solo. */
+  function buildInviteWhatsAppUrl(message) { return `https://wa.me/?text=${encodeURIComponent(message)}`; }
+
+  /** B2 — hoja "Invitá a {nombre} a BRAMULAB" (V04.41). El enlace se genera al tocar un CTA (rota solo el link propio del invitador) y se
+   *  reutiliza mientras la hoja siga abierta (WhatsApp y compartir no generan dos enlaces). */
+  function openInviteSheet(playerId, name, sourceMatchId, isAuthor) {
     const cleanName = String(name || 'este jugador').trim() || 'este jugador';
     // V04.33 — `sourceMatchId`: el partido desde el que se invita; el link lo recuerda para mostrarlo en "¿Sos X?".
-    inviteSheetCurrent = { playerId, name: cleanName, sourceMatchId: sourceMatchId || null, busy: false };
-    $('#invite-sheet-title').textContent = `INVITÁ A ${cleanName.toLocaleUpperCase('es-AR')} A BRAMU`;
-    $('#invite-sheet-text').textContent = `Compartile esta invitación para que pueda sumarse a BRAMU y recuperar sus partidos. La invitación es personal: enviásela solo a ${cleanName}.`;
-    const feedback = $('#invite-sheet-feedback');
-    feedback.hidden = true; feedback.textContent = ''; feedback.classList.remove('invite-sheet__feedback--error');
-    const linkInput = $('#invite-sheet-link');
-    linkInput.hidden = true; linkInput.value = '';
-    $('#invite-sheet-copy-btn').disabled = false;
-    $('#invite-sheet-copy-btn').textContent = 'COPIAR INVITACIÓN';
+    inviteSheetCurrent = { playerId, name: cleanName, sourceMatchId: sourceMatchId || null, isAuthor: !!isAuthor, busy: false, preparing: null };
+    $('#invite-sheet-title').textContent = `INVITÁ A ${cleanName.toLocaleUpperCase('es-AR')} A BRAMULAB`;
+    $('#invite-sheet-text').textContent = 'BRAMUlab prepara el mensaje para que lo compartas. Quien lo reciba podrá sumarse y recuperar los partidos asociados a su identidad.';
+    resetInviteSheetFeedback();
+    $('#invite-sheet-wa-btn').disabled = false;
+    $('#invite-sheet-share-btn').disabled = false;
     const scrim = $('#invite-sheet-scrim');
     scrim.hidden = false;
-    requestAnimationFrame(() => { scrim.classList.add('is-open'); });
+    requestAnimationFrame(() => {
+      scrim.classList.add('is-open');
+      // La microanimación se reproduce UNA vez por apertura (sin `.is-playing` y con reduced-motion se ve el estado final).
+      const anim = $('#invite-anim');
+      anim.classList.remove('is-playing');
+      void anim.getBoundingClientRect();
+      anim.classList.add('is-playing');
+    });
   }
   function closeInviteSheet() {
     const scrim = $('#invite-sheet-scrim');
     scrim.classList.remove('is-open');
-    setTimeout(() => { scrim.hidden = true; }, 220);
+    setTimeout(() => { scrim.hidden = true; $('#invite-anim').classList.remove('is-playing'); }, 220);
     inviteSheetCurrent = null;
+  }
+  function resetInviteSheetFeedback() {
+    const feedback = $('#invite-sheet-feedback');
+    feedback.hidden = true; feedback.textContent = ''; feedback.classList.remove('invite-sheet__feedback--error');
+    const box = $('#invite-sheet-message'); box.hidden = true; box.value = '';
+    $('#invite-sheet-wa-open').hidden = true;
+  }
+  function showInviteFeedback(text, isError) {
+    const feedback = $('#invite-sheet-feedback');
+    feedback.textContent = text;
+    feedback.classList.toggle('invite-sheet__feedback--error', !!isError);
+    feedback.hidden = false;
   }
   const INVITE_LINK_ERROR_TEXT = {
     rate_limited: 'Generaste muchas invitaciones seguidas. Probá de nuevo en un rato.',
     provisional_not_found: 'Este jugador ya no está disponible para invitar.',
   };
-  /** Genera el enlace personal. Devuelve `{ok, url}` o `{ok:false, code}`. */
+  /** Genera el enlace personal `{origen}/invitacion/{token}` (V04.41; el token es el mismo de siempre, la ruta es solo presentación y
+   *  `/?claim=` anterior sigue funcionando). Devuelve `{ok, url}` o `{ok:false, code}`. */
   async function createInviteUrl(playerId, sourceMatchId) {
     const created = await Auth.createClaimLink(playerId, sourceMatchId);
     if (!created.ok || !created.token) return { ok: false, code: created.code || 'unknown' };
-    return { ok: true, url: `${window.location.origin}${window.location.pathname}?claim=${created.token}` };
+    return { ok: true, url: `${window.location.origin}/invitacion/${created.token}` };
   }
-  async function copyInviteLink() {
+  /** Prepara (una sola vez por apertura de la hoja) el enlace + mensaje + URL de WhatsApp. Un fallo no se cachea: el reintento vuelve a generar. */
+  function prepareInvite(cur) {
+    if (cur.preparing) return cur.preparing;
+    cur.preparing = createInviteUrl(cur.playerId, cur.sourceMatchId).then((link) => {
+      if (!link.ok) { cur.preparing = null; return link; }
+      const message = buildInviteMessage(link.url, cur.isAuthor);
+      return { ok: true, url: link.url, message, waUrl: buildInviteWhatsAppUrl(message) };
+    }).catch(() => { cur.preparing = null; return { ok: false, code: 'unknown' }; });
+    return cur.preparing;
+  }
+  /** Copia un texto (o una promesa de texto: el permiso de portapapeles de iOS vence si se espera la red ANTES de escribir, así que se entrega un
+   *  ClipboardItem con la promesa). Devuelve true si copió. */
+  async function copyInviteText(textOrPromise) {
+    try {
+      if (navigator.clipboard && typeof window.ClipboardItem === 'function') {
+        const blobPromise = Promise.resolve(textOrPromise).then((t) => new Blob([t], { type: 'text/plain' }));
+        await navigator.clipboard.write([new window.ClipboardItem({ 'text/plain': blobPromise })]);
+        return true;
+      }
+    } catch (e) { /* cae a writeText */ }
+    try {
+      const text = await textOrPromise;
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; }
+    } catch (e) { /* cae a copia manual */ }
+    return false;
+  }
+  /** Último recurso: el mensaje completo en un cuadro seleccionable para copiarlo a mano. */
+  function showInviteManualCopy(message) {
+    const box = $('#invite-sheet-message');
+    box.value = message; box.hidden = false;
+    try { box.focus(); box.select(); } catch (e) { /* noop */ }
+  }
+  /** Envuelve un CTA: bloquea ambos botones mientras se prepara, muestra «PREPARANDO…» y maneja el error del servidor. Devuelve el `prepared` o null. */
+  async function runInviteAction(btn, action) {
     const cur = inviteSheetCurrent;
     if (!cur || cur.busy) return;
     cur.busy = true;
-    const btn = $('#invite-sheet-copy-btn');
-    const feedback = $('#invite-sheet-feedback');
-    const linkInput = $('#invite-sheet-link');
-    btn.disabled = true;
-    feedback.hidden = true; feedback.classList.remove('invite-sheet__feedback--error');
-    linkInput.hidden = true;
-    // El permiso de portapapeles de iOS/Safari vence si se espera la red ANTES de escribir: se entrega un ClipboardItem con
-    // una promesa para conservar el gesto del usuario; si no existe/falla, se cae a writeText y, por último, a copia manual.
-    const linkPromise = createInviteUrl(cur.playerId, cur.sourceMatchId);
-    let copied = false;
-    try {
-      if (navigator.clipboard && typeof window.ClipboardItem === 'function') {
-        const blobPromise = linkPromise.then((r) => {
-          if (!r.ok) throw new Error('create_failed');
-          return new Blob([r.url], { type: 'text/plain' });
-        });
-        await navigator.clipboard.write([new window.ClipboardItem({ 'text/plain': blobPromise })]);
-        copied = true;
+    const wa = $('#invite-sheet-wa-btn'); const share = $('#invite-sheet-share-btn');
+    const label = btn.textContent;
+    wa.disabled = true; share.disabled = true; btn.textContent = 'PREPARANDO…';
+    resetInviteSheetFeedback();
+    try { await action(cur); } finally {
+      if (inviteSheetCurrent === cur) {
+        btn.textContent = label; cur.busy = false;
+        const gone = cur.unavailable === true;
+        wa.disabled = gone; share.disabled = gone;
       }
-    } catch (e) { copied = false; }
-    const link = await linkPromise;
-    if (!link.ok) {
-      feedback.textContent = INVITE_LINK_ERROR_TEXT[link.code] || 'No pudimos generar la invitación. Probá de nuevo.';
-      feedback.classList.add('invite-sheet__feedback--error');
-      feedback.hidden = false;
-      // V04.31 — si la identidad ya no está disponible para invitar, no queda una CTA activa que parezca válida.
-      btn.disabled = link.code === 'provisional_not_found'; cur.busy = false;
-      return;
     }
-    if (!copied) {
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(link.url); copied = true; }
-      } catch (e) { copied = false; }
-    }
-    if (copied) {
-      feedback.textContent = `Invitación copiada. Enviásela a ${cur.name}.`;
-    } else {
-      linkInput.value = link.url;
-      linkInput.hidden = false;
-      try { linkInput.focus(); linkInput.select(); } catch (e) { /* noop */ }
-      feedback.textContent = `Copiá la invitación y enviásela a ${cur.name}.`;
-    }
-    feedback.hidden = false;
-    btn.disabled = false; cur.busy = false;
+  }
+  function handleInvitePrepareError(cur, link) {
+    showInviteFeedback(INVITE_LINK_ERROR_TEXT[link.code] || 'No pudimos generar la invitación. Probá de nuevo.', true);
+    // V04.31 — si la identidad ya no está disponible para invitar, no queda una CTA activa que parezca válida.
+    if (link.code === 'provisional_not_found') cur.unavailable = true;
+  }
+  /** ENVIAR POR WHATSAPP: abre WhatsApp con el mensaje y el enlace ya escritos; la persona elige destinatario y envía (BRAMUlab nunca envía). Si el
+   *  navegador bloquea la apertura automática (el enlace se genera por red después del toque) queda un botón «ABRIR WHATSAPP» ya preparado. */
+  function inviteViaWhatsApp() {
+    return runInviteAction($('#invite-sheet-wa-btn'), async (cur) => {
+      const prepared = await prepareInvite(cur);
+      if (!prepared.ok) { handleInvitePrepareError(cur, prepared); return; }
+      if (inviteSheetCurrent !== cur) return;
+      const opener = $('#invite-sheet-wa-open');
+      opener.href = prepared.waUrl;
+      let opened = null;
+      try { opened = window.open(prepared.waUrl, '_blank'); } catch (e) { opened = null; }
+      if (opened) {
+        showInviteFeedback('Listo: elegí en WhatsApp a quién enviárselo.');
+      } else {
+        opener.hidden = false;
+        showInviteFeedback('Tu invitación está lista. Tocá ABRIR WHATSAPP para enviarla.');
+      }
+    });
+  }
+  /** COMPARTIR DE OTRA MANERA: menú nativo de compartir si existe; si no existe o falla, copia el mensaje completo (y, si tampoco se puede,
+   *  lo muestra para copiarlo a mano). Cancelar el menú no es un error. */
+  function inviteViaShare() {
+    return runInviteAction($('#invite-sheet-share-btn'), async (cur) => {
+      const canShare = typeof navigator.share === 'function';
+      // Sin menú nativo: la copia arranca YA (con la promesa del mensaje) para conservar el gesto del toque.
+      const copyNow = canShare ? null : copyInviteText(prepareInvite(cur).then((r) => { if (!r.ok) throw new Error('create_failed'); return r.message; }));
+      const prepared = await prepareInvite(cur);
+      if (!prepared.ok) { handleInvitePrepareError(cur, prepared); return; }
+      if (inviteSheetCurrent !== cur) return;
+      if (canShare) {
+        try {
+          await navigator.share({ text: prepared.message });
+          showInviteFeedback('Listo: elegí a quién enviárselo.');
+          return;
+        } catch (e) {
+          if (e && e.name === 'AbortError') return; // la persona cerró el menú
+          if (e && e.name === 'NotAllowedError') {
+            // iOS puede vencer el gesto del toque mientras se generaba el enlace; el enlace ya está listo y el segundo toque abre el menú al instante.
+            showInviteFeedback('Tu invitación está lista. Tocá de nuevo COMPARTIR DE OTRA MANERA para elegir cómo enviarla.');
+            return;
+          }
+          // otro fallo del menú nativo → copia
+        }
+      }
+      const copied = copyNow ? await copyNow : await copyInviteText(prepared.message);
+      if (copied) showInviteFeedback('Mensaje copiado. Pegalo donde quieras enviarlo.');
+      else { showInviteFeedback('Copiá el mensaje y enviáselo a la persona indicada.'); showInviteManualCopy(prepared.message); }
+    });
   }
 
   /** B3/B4 — punto único de entrada de una invitación pendiente (token guardado en este dispositivo). Con sesión real lee la
@@ -15955,7 +16071,7 @@
         ? `<span class="mini-match__avatar" data-avatar-path="${escapeHtml(p.avatarPath)}">${escapeHtml(playerInitials(name))}</span>`
         : `<span class="mini-match__avatar">${escapeHtml(playerInitials(name))}</span>`;
       return `<div class="mini-match__player"${p.playerId ? ` data-player-id="${escapeHtml(p.playerId)}"` : ''}>${avatar}<span class="mini-match__who"><span class="mini-match__name${p.isInvitee ? ' mini-match__name--invitee' : ''}">${escapeHtml(name)}</span>`
-        + (p.username ? `<span class="mini-match__handle">@${escapeHtml(p.username)}</span>` : '') + '</span></div>';
+        + (p.username ? `<span class="mini-match__handle">@${escapeHtml(p.username)}</span>` : (p.isInvitee ? '<span class="mini-match__handle mini-match__handle--pending">Sin cuenta</span>' : '')) + '</span></div>';
     };
     const teamHTML = (t, idx) => {
       const mine = t === first;
@@ -16040,7 +16156,15 @@
       const yes = $('#invitation-confirm-yes');
       const no = $('#invitation-confirm-no');
       const err = $('#invitation-confirm-error');
-      $('#invitation-confirm-title').textContent = `¿SOS ${String(displayName || 'este jugador').toLocaleUpperCase('es-AR')}?`;
+      // V04.41 — pregunta NEUTRAL: el nombre provisional puede ser un apodo («Remera celeste»); no se le pregunta a nadie «¿sos X?».
+      // El lugar de la identidad invitada se ve resaltado como «Sin cuenta» dentro del mini-partido; confirmar sigue siendo explícito.
+      const more = Math.max(0, ((preview && preview.matchCount) || 0) - 1);
+      $('#invitation-confirm-title').textContent = src ? '¿JUGASTE ESTE PARTIDO?' : '¿JUGASTE ESTOS PARTIDOS?';
+      $('#invitation-confirm-text').textContent = src
+        ? (more > 0
+          ? `Quien lo cargó dejó un lugar «Sin cuenta» (marcado en amarillo). Si ese lugar es el tuyo, confirmalo: este partido y ${more} más asociado${more === 1 ? '' : 's'} a esa identidad pasan a tu historial.`
+          : 'Quien lo cargó dejó un lugar «Sin cuenta» (marcado en amarillo). Si ese lugar es el tuyo, confirmalo y este partido pasa a tu historial.')
+        : 'Hay partidos registrados con una identidad sin cuenta. Si esa identidad es la tuya, confirmalo y esos partidos pasan a tu historial.';
       err.hidden = true; err.textContent = '';
       $('#invitation-confirm-actions').hidden = false;
       $('#invitation-confirm-conflict-actions').hidden = true;
@@ -16321,7 +16445,8 @@
   function initInvitationFlow() {
     $('#invite-sheet-close').addEventListener('click', closeInviteSheet);
     $('#invite-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#invite-sheet-scrim')) closeInviteSheet(); });
-    $('#invite-sheet-copy-btn').addEventListener('click', copyInviteLink);
+    $('#invite-sheet-wa-btn').addEventListener('click', inviteViaWhatsApp);
+    $('#invite-sheet-share-btn').addEventListener('click', inviteViaShare);
   }
 
   /** Único punto de entrada al arranque (reemplaza el `bootDefaultScreen()` directo de antes):

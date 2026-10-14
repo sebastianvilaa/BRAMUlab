@@ -4098,6 +4098,64 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .invite-sheet__feedback--error{ color: var(--danger); }
 .invite-sheet__body .btn-start{ width:100%; }
 
+/* V04.41 — hoja de invitación rica: crece en altura (nunca pantalla completa), scrollea en teléfonos bajos y deja el CTA principal a mano.
+   `.bottom-sheet` base trae touch-action:none: acá se habilita el scroll vertical solo si el contenido no entra. */
+#invite-sheet{ max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+.invite-sheet__note{ margin: -4px 0 0; font-size: 12px; line-height: 1.45; color: var(--text-dim); text-align: center; }
+.invite-sheet__message{ font-family: inherit; line-height: 1.45; resize: none; padding: 10px 12px; min-height: 0; }
+.invite-sheet__wa-open{ display:flex; align-items:center; justify-content:center; width:100%; text-decoration:none; text-align:center; }
+.invite-sheet__share, .invite-sheet__wa-open{ width:100%; }
+.invite-sheet__body .invite-sheet__share{ min-height: 48px; }
+
+/* V04.41 — microanimación de la invitación. El estado BASE de cada elemento es el FINAL (todo encendido): sin `.is-playing` (o con
+   prefers-reduced-motion) se ve ese estado final directamente. `.is-playing` agrega las animaciones de entrada (~3,5 s, una sola vez). */
+.invite-anim{ width:100%; padding: 4px 0 2px; }
+.invite-anim svg{ display:block; width:100%; height:auto; overflow:visible; }
+.invite-anim .ia-gold-stroke{ stroke: var(--gold); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.invite-anim .ia-lime-stroke{ stroke: var(--brand-lime); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.invite-anim .ia-cyan-stroke{ stroke: var(--accent-cyan); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.invite-anim .ia-dim-stroke{ stroke: var(--text-faint); fill: none; stroke-width: 2; stroke-linecap: round; }
+.invite-anim .ia-gold-fill{ fill: rgba(255,201,61,0.08); }
+.invite-anim .ia-lime-fill{ fill: rgba(149,255,25,0.12); }
+.invite-anim .ia-cyan-fill{ fill: rgba(25,159,255,0.10); }
+.invite-anim .ia-dashed{ stroke-dasharray: 4 3; }
+.invite-anim .ia-av-gold{ opacity: 0; }
+.invite-anim .ia-lime-solid{ fill: var(--brand-lime); }
+.invite-anim .ia-cyan-solid{ fill: var(--accent-cyan); }
+.invite-anim .ia-card{ fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1.5; }
+.invite-anim .ia-cell{ fill: var(--surface-active); }
+.invite-anim .ia-div{ stroke: var(--line-strong); stroke-width: 1; }
+.invite-anim .ia-line{ stroke: rgba(149,255,25,0.45); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; fill: none; }
+.invite-anim .ia-labels text{ fill: var(--text-dim); font-size: 10.5px; font-weight: 600; text-anchor: middle; font-family: var(--font-body); letter-spacing: 0.01em; }
+.invite-anim .ia-node, .invite-anim .ia-row, .invite-anim .ia-av-lime, .invite-anim .ia-plane{ transform-box: fill-box; transform-origin: center; }
+
+@keyframes ia-pop { from { opacity: 0; transform: scale(0.6); } 60% { opacity: 1; transform: scale(1.08); } to { opacity: 1; transform: scale(1); } }
+@keyframes ia-draw { from { stroke-dashoffset: 1; stroke: var(--brand-lime); } to { stroke-dashoffset: 0; } }
+@keyframes ia-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ia-gold-out { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes ia-lime-in { 0%, 55% { opacity: 0; transform: scale(0.7); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes ia-row-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+@keyframes ia-fly { 0% { transform: translate(-7px, 4px); opacity: 0; } 50% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+
+.invite-anim.is-playing .ia-node--1{ animation: ia-pop 0.5s var(--motion-ease) both; }
+.invite-anim.is-playing .ia-line--1{ animation: ia-draw 0.5s ease-out 0.45s both; }
+.invite-anim.is-playing .ia-node--2{ animation: ia-pop 0.5s var(--motion-ease) 0.8s both; }
+.invite-anim.is-playing .ia-plane{ animation: ia-fly 0.7s ease-out 0.9s both; }
+.invite-anim.is-playing .ia-line--2{ animation: ia-draw 0.5s ease-out 1.35s both; }
+.invite-anim.is-playing .ia-node--3{ animation: ia-pop 0.5s var(--motion-ease) 1.7s both; }
+.invite-anim.is-playing .ia-av-gold{ animation: ia-gold-out 1.1s linear 1.9s both; opacity: 1; }
+.invite-anim.is-playing .ia-av-lime{ animation: ia-lime-in 1.1s ease-out 1.9s both; }
+.invite-anim.is-playing .ia-line--3{ animation: ia-draw 0.5s ease-out 2.45s both; }
+.invite-anim.is-playing .ia-node--4{ animation: ia-fade-in 0.4s ease-out 2.8s both; }
+.invite-anim.is-playing .ia-row--1{ animation: ia-row-in 0.4s ease-out 3.0s both; }
+.invite-anim.is-playing .ia-row--2{ animation: ia-row-in 0.4s ease-out 3.25s both; }
+.invite-anim.is-playing .ia-labels{ animation: ia-fade-in 0.5s ease-out 0.2s both; }
+@media (prefers-reduced-motion: reduce){
+  .invite-anim.is-playing *{ animation: none !important; }
+  .invite-anim.is-playing .ia-av-gold{ opacity: 0; }
+}
+
+
 .overlay__text--error{ color: var(--danger); }
 
 .duplicate-match-list{ display:flex; flex-direction:column; gap:12px; margin: 8px 0 14px; }
@@ -4109,6 +4167,10 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 /* V04.30 — nombre SIN CUENTA (identidad provisional) en Historial: semántica de pendiente (--gold, mismo criterio que .history-item__badge--waiting).
    Tras vincular la identidad, el jugador vuelve al estilo normal y usa su nombre real. */
 .player-name--pending{ color: var(--gold); }
+/* V04.41 — dentro de la tarjeta de resultado el nombre sin cuenta es amarillo (solo ese nombre; verde/celeste de la pareja y el marcador no cambian). */
+.result-card__name .player-name--pending{ color: var(--gold); }
+.result-card__legend{ margin: 8px 2px 0; font-size: 12px; line-height: 1.4; color: var(--text-dim); display:flex; align-items:center; gap:6px; }
+.result-card__legend::before{ content:''; flex:none; width:8px; height:8px; border-radius:50%; background: var(--gold); }
 
 /* V04.30 — contexto de invitación: card pre-auth en Acceso, bloque del partido fuente en "¿Sos {nombre}?" y feedback de coincidencia de contraseñas. */
 .invitation-card{ margin: 0 0 16px; padding: 14px 16px; background: var(--surface-1); border: 1px solid var(--line-strong); border-radius: var(--radius-card); text-align:left; }
@@ -4190,8 +4252,9 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .mini-match__avatar{ width: 28px; height: 28px; flex:none; border-radius: 50%; background: var(--surface-1); border: 1px solid var(--line-strong); object-fit: cover; display:flex; align-items:center; justify-content:center; font-size: 10px; font-weight: 800; color: var(--paper-dim); overflow:hidden; }
 .mini-match__who{ display:flex; flex-direction:column; min-width: 0; line-height: 1.15; }
 .mini-match__name{ font-size: 14px; font-weight: 700; color: var(--paper); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
-.mini-match__name--invitee{ text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 3px; }
+.mini-match__who .mini-match__name--invitee{ color: var(--gold); text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 3px; }
 .mini-match__handle{ font-size: 11px; color: var(--paper-faint); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+.mini-match__who .mini-match__handle--pending{ color: var(--gold); }
 .mini-match__sets{ display:flex; gap: 6px; align-items:center; }
 .mini-match__set{ min-width: 20px; text-align:center; font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--paper-dim); font-variant-numeric: tabular-nums; }
 .mini-match__set--win{ color: var(--paper); }

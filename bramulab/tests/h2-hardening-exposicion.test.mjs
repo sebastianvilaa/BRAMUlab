@@ -145,7 +145,7 @@ test('B1) vercel.json publica solo dist/ y lo construye después de build-env; d
   const v = JSON.parse(read('vercel.json'));
   assert.equal(v.outputDirectory, 'dist');
   assert.match(v.buildCommand, /node scripts\/build-env\.mjs && node scripts\/build-dist\.mjs/);
-  assert.deepEqual(v.rewrites, [{ source: '/robots.txt', destination: '/robots.generated.txt' }]);
+  assert.deepEqual(v.rewrites, [{ source: '/robots.txt', destination: '/robots.generated.txt' }, { source: '/invitacion/:token', destination: '/api/invitacion' }]);
   assert.match(fs.readFileSync(path.join(REPO, '.gitignore'), 'utf8'), /^bramulab\/dist\/$/m);
   assert.equal(execFileSync('git', ['ls-files', 'bramulab/dist'], { cwd: REPO, encoding: 'utf8' }).trim(), '');
 });

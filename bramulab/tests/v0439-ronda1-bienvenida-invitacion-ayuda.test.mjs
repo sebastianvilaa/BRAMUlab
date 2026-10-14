@@ -177,8 +177,8 @@ test('Invitación genérica: sin tokens, tablas, RPC ni seguimiento; el circuito
   const block = appJs.slice(appJs.indexOf('V04.39 · Ronda 1 — INVITACIÓN GENÉRICA'), appJs.indexOf('/** §4/§5 — abre BUSCAR JUGADORES'));
   assert.ok(block.length > 500);
   assert.doesNotMatch(block, /Auth\.|\.rpc\(|createClaimLink|createInviteUrl|Store\.|localStorage|fetch\(/);
-  for (const k of ['async function createInviteUrl(', 'async function copyInviteLink()', 'function handlePendingInvitation(', 'const INVITE_LINK_ERROR_TEXT']) assert.ok(appJs.includes(k), k);
-  assert.match(html, /id="invite-sheet-copy-btn"[^>]*>COPIAR INVITACIÓN</);
+  for (const k of ['async function createInviteUrl(', 'function inviteViaWhatsApp()', 'function handlePendingInvitation(', 'const INVITE_LINK_ERROR_TEXT']) assert.ok(appJs.includes(k), k);
+  assert.match(html, /id="invite-sheet-wa-btn"[^>]*>ENVIAR POR WHATSAPP</);
 });
 
 // ---------------------------------------------------------------- 3. Ayuda

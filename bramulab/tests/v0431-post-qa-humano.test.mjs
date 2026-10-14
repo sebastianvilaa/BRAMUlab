@@ -60,14 +60,15 @@ test('BUG 1 · el flujo de alta nueva abre la pantalla tras el onboarding y no d
 
 /* ============ Respuestas, carrusel y UX de PARTIDOS RECUPERADOS ============ */
 /* ============ ¿SOS X? / invitación ============ */
-test('¿SOS X? · SÍ, SOY YO verde / NO, NO SOY YO outline rojo; conflicto con estado corto; COPIAR INVITACIÓN', () => {
-  assert.match(indexHtml, /id="invitation-confirm-yes" class="btn-start btn-start--overlay" type="button">SÍ, SOY YO</);
+test('¿JUGASTE ESTE PARTIDO? (V04.41) · SÍ, ESE SOY YO verde / NO, NO SOY YO outline rojo; conflicto con estado corto; invitar por WhatsApp/compartir', () => {
+  assert.match(indexHtml, /id="invitation-confirm-yes" class="btn-start btn-start--overlay" type="button">SÍ, ESE SOY YO</);
   assert.match(indexHtml, /id="invitation-confirm-no" class="btn-secondary btn-secondary--danger" type="button">NO, NO SOY YO</);
   assert.match(indexHtml, /id="invitation-confirm-conflict-ok"[^>]*>ENTENDIDO</);
-  assert.match(indexHtml, />COPIAR INVITACIÓN</);
+  assert.match(indexHtml, />ENVIAR POR WHATSAPP</);
+  assert.match(indexHtml, />COMPARTIR DE OTRA MANERA</);
   assert.doesNotMatch(indexHtml, /COPIAR ENLACE/);
-  assert.match(appJs, /Invitación copiada\. Enviásela a/);
-  assert.match(appJs, /btn\.disabled = link\.code === 'provisional_not_found'/);
+  assert.match(appJs, /Mensaje copiado\. Pegalo donde quieras enviarlo\./);
+  assert.match(appJs, /link\.code === 'provisional_not_found'\) cur\.unavailable = true/);
 });
 
 /* ============ @usuario ============ */

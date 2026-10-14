@@ -205,7 +205,7 @@
 // casilla opcional en el alta, fila «Medición de uso» en Configuración). La medición queda APAGADA hasta que el servidor fije la versión vigente.
 // V04.39 (09/10/2026) — Ronda 1 post-lanzamiento: Bienvenida con la fotografía de BRAMUlab-Inicio (bundle h5), invitación genérica en Buscar jugadores y Ayuda / Preguntas frecuentes.
 // V04.40 (09/10/2026) — cierre de Ronda 1 + Ronda 2: mensaje de invitación definitivo, tarjeta azul BRAMU, Ayuda en 9 preguntas / 4 categorías y descubrimiento de jugadores en Buscar jugadores (RPC get_player_discovery).
-const CACHE_NAME = 'bramulab-v04-40-h1';
+const CACHE_NAME = 'bramulab-v04-41-h1';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -216,49 +216,49 @@ const CACHE_NAME = 'bramulab-v04-40-h1';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=04.40-h3',
-  './engine.js?v=04.40-h3',
-  './stats.js?v=04.40-h3',
-  './store.js?v=04.40-h3',
+  './styles.css?v=04.41-h1',
+  './engine.js?v=04.41-h1',
+  './stats.js?v=04.41-h1',
+  './store.js?v=04.41-h1',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level-public.js?v=04.40-h3',
-  './level-calibration.js?v=04.40-h3',
-  './player-home.js?v=04.40-h3',
-  './match-load.js?v=04.40-h3',
-  './player-identity.js?v=04.40-h3',
-  './groups.js?v=04.40-h3',
-  './locations.js?v=04.40-h3',
-  './ranking.js?v=04.40-h3',
+  './level-public.js?v=04.41-h1',
+  './level-calibration.js?v=04.41-h1',
+  './player-home.js?v=04.41-h1',
+  './match-load.js?v=04.41-h1',
+  './player-identity.js?v=04.41-h1',
+  './groups.js?v=04.41-h1',
+  './locations.js?v=04.41-h1',
+  './ranking.js?v=04.41-h1',
   // Backend Bloque 2 — auth.js (nuevo). El CDN de supabase-js y env.generated.js NO se
   // pre-cachean acá a propósito: el primero es de otro origen (el fetch handler de abajo ya
   // trata cualquier origen externo aparte, "mejor esfuerzo" sin bloquear el install), y el
   // segundo varía por deploy (Vercel lo genera en build) — igual queda cacheado la primera vez
   // que se pide, por el fetch handler genérico de más abajo.
-  './auth.js?v=04.40-h3',
+  './auth.js?v=04.41-h1',
   // Backend Bloque 5 — matches.js/match-sync.js (nuevos). Igual criterio que auth.js: quedan
   // inertes sin backend configurado, pero se pre-cachean igual (offline-first para todos).
-  './matches.js?v=04.40-h3',
-  './match-sync.js?v=04.40-h3',
-  './match-validation.js?v=04.40-h3',
+  './matches.js?v=04.41-h1',
+  './match-sync.js?v=04.41-h1',
+  './match-validation.js?v=04.41-h1',
   // Hotfix 27/09/2026 (handoff 37) — match-self-heal.js (nuevo). Mismo criterio: sin red/DOM
   // propios, pre-cacheado igual.
-  './match-self-heal.js?v=04.40-h3',
+  './match-self-heal.js?v=04.41-h1',
   // Backend Bloque 8 (Fase D) — intelligence-client.js (nuevo). Mismo criterio: inerte sin
   // backend configurado, pre-cacheado igual.
-  './intelligence-client.js?v=04.40-h3',
-  './app.js?v=04.40-h3',
+  './intelligence-client.js?v=04.41-h1',
+  './app.js?v=04.41-h1',
   './manifest.webmanifest',
-  './icons/icon-192.png?v=04.40-h3',
-  './icons/icon-512.png?v=04.40-h3',
-  './icons/icon-512-maskable.png?v=04.40-h3',
-  './icons/apple-touch-icon.png?v=04.40-h3',
-  './icons/favicon-64.png?v=04.40-h3',
-  './assets/home-primer-partido.jpg?v=04.40-h3',
-  './assets/bienvenida-hero.jpg?v=04.40-h3',
-  './assets/bienvenida-hero-desktop.jpg?v=04.40-h3',
+  './icons/icon-192.png?v=04.41-h1',
+  './icons/icon-512.png?v=04.41-h1',
+  './icons/icon-512-maskable.png?v=04.41-h1',
+  './icons/apple-touch-icon.png?v=04.41-h1',
+  './icons/favicon-64.png?v=04.41-h1',
+  './assets/home-primer-partido.jpg?v=04.41-h1',
+  './assets/bienvenida-hero.jpg?v=04.41-h1',
+  './assets/bienvenida-hero-desktop.jpg?v=04.41-h1',
   './icons/padel-court-example.svg',
-  './icons/logo.svg?v=04.40-h3',
+  './icons/logo.svg?v=04.41-h1',
 ];
 
 self.addEventListener('install', (event) => {
@@ -284,6 +284,8 @@ self.addEventListener('fetch', (event) => {
   // BRAMU Metrics V1 (F3) — la consola privada /admin/* NO pasa por este Service Worker: ni caché ni fallback a index.html. Va siempre directo a la red
   // (sin respondWith el navegador resuelve el pedido solo); así nunca se sirve una copia vieja ni se cachea nada de la consola.
   try { if (new URL(event.request.url).pathname.indexOf('/admin/') === 0) return; } catch (e) { /* URL inválida: sigue el flujo normal */ }
+  // V04.41 — el enlace personal `/invitacion/{token}` lo atiende una función de Vercel (metadatos de marca + redirección a `/?claim=`): directo a la red, nunca cacheado ni reemplazado por index.html.
+  try { if (new URL(event.request.url).pathname.indexOf('/invitacion/') === 0) return; } catch (e) { /* URL inválida: sigue el flujo normal */ }
   // Google Fonts u otro origen externo: intentar red, sin romper si falla.
   const isSameOrigin = event.request.url.startsWith(self.location.origin);
   if (!isSameOrigin) {

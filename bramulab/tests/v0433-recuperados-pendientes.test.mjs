@@ -362,14 +362,14 @@ test('¿SOS X? · muestra el partido de ORIGEN como MINI-PARTIDO (parejas con fo
   // el layout soporta nombres largos (ellipsis) y 3 sets
   assert.match(cssText, /\.mini-match__name\{[^}]*text-overflow: ellipsis/);
   assert.match(cssText, /\.mini-match__team\{[^}]*grid-template-columns: minmax\(0,1fr\) auto/);
-  assert.match(indexHtml, />SÍ, SOY YO</); assert.match(indexHtml, />NO, NO SOY YO</);
+  assert.match(indexHtml, />SÍ, ESE SOY YO</); assert.match(indexHtml, />NO, NO SOY YO</);
   assert.match(fnSrc('askInvitationConfirmation'), /buildInvitationContextHTML\(src, preview, displayName\)/);
 });
 test('Invitación · el link recuerda el partido desde el que se invita (INVITAR en el Resumen); el cliente solo lo envía, el servidor lo valida', async () => {
   assert.match(fnSrc('renderAnalysisGuests'), /data-source-match-id="\$\{escapeHtml\(f\.matchId \|\| ''\)\}"/);
-  assert.match(appJs, /openInviteSheet\(btn\.dataset\.guestId, btn\.dataset\.guestName, btn\.dataset\.sourceMatchId\)/);
+  assert.match(appJs, /openInviteSheet\(btn\.dataset\.guestId, btn\.dataset\.guestName, btn\.dataset\.sourceMatchId, btn\.dataset\.isAuthor === '1'\)/);
   assert.match(fnSrc('createInviteUrl'), /Auth\.createClaimLink\(playerId, sourceMatchId\)/);
-  assert.match(fnSrc('copyInviteLink'), /createInviteUrl\(cur\.playerId, cur\.sourceMatchId\)/);
+  assert.match(fnSrc('prepareInvite'), /createInviteUrl\(cur\.playerId, cur\.sourceMatchId\)/);
   // auth.js: el argumento es opcional (clientes sin origen llaman igual que antes)
   const calls = [];
   const sandbox = { console, window: {} }; sandbox.window = sandbox;

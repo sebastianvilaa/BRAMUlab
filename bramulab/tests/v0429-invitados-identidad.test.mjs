@@ -36,22 +36,24 @@ test('Resumen: sección JUGADORES SIN CUENTA con fila + INVITAR (oculta por defe
   assert.match(fn, /listRelatedProvisionalPlayers/);
 });
 
-test('Hoja de invitar: título "INVITÁ A {NOMBRE} A BRAMU", texto aprobado, CTA COPIAR INVITACIÓN, sin botón de WhatsApp', () => {
+test('Hoja de invitar (V04.41): título "INVITÁ A {NOMBRE} A BRAMULAB", texto, aclaración personal, ENVIAR POR WHATSAPP + COMPARTIR DE OTRA MANERA', () => {
   const sheet = between(indexHtml, '<div id="invite-sheet-scrim"', 'V04.29 — RECEPTOR DE UNA INVITACIÓN');
-  assert.match(sheet, />COPIAR INVITACIÓN</);
-  assert.doesNotMatch(sheet, /whatsapp/i, 'sin botón específico de WhatsApp');
-  const open = between(appJs, '  function openInviteSheet(playerId, name, sourceMatchId) {', '  function closeInviteSheet() {');
-  assert.match(open, /INVITÁ A \$\{cleanName\.toLocaleUpperCase\('es-AR'\)\} A BRAMU/);
-  assert.match(open, /Compartile esta invitación para que pueda sumarse a BRAMU y recuperar sus partidos\. La invitación es personal: enviásela solo a \$\{cleanName\}\./);
-  assert.match(appJs, /Invitación copiada\. Enviásela a \$\{cur\.name\}\./);
+  assert.match(sheet, /id="invite-sheet-wa-btn"[^>]*>ENVIAR POR WHATSAPP</);
+  assert.match(sheet, /id="invite-sheet-share-btn"[^>]*>COMPARTIR DE OTRA MANERA</);
+  assert.match(sheet, /Esta invitación es personal\. Enviásela solamente a la persona indicada\./);
+  assert.doesNotMatch(sheet, /COPIAR INVITACIÓN/, 'el copiar/pegar manual ya no es el camino principal');
+  const open = between(appJs, '  function openInviteSheet(playerId, name, sourceMatchId, isAuthor) {', '  function closeInviteSheet() {');
+  assert.match(open, /INVITÁ A \$\{cleanName\.toLocaleUpperCase\('es-AR'\)\} A BRAMULAB/);
+  assert.match(open, /BRAMUlab prepara el mensaje para que lo compartas\. Quien lo reciba podrá sumarse y recuperar los partidos asociados a su identidad\./);
 });
 
-test('Receptor: "¿SOS {NOMBRE}?" con SOY YO / NO SOY YO y el texto aprobado; duplicados con los dos CTA aprobados', () => {
+test('Receptor (V04.41): pregunta neutral "¿JUGASTE ESTE PARTIDO?" con SÍ, ESE SOY YO / NO, NO SOY YO; duplicados con los dos CTA aprobados', () => {
   const recv = between(indexHtml, '<div id="invitation-confirm-overlay"', 'V04.29 — POSIBLE PARTIDO DUPLICADO');
-  assert.match(recv, />SÍ, SOY YO</);
+  assert.match(recv, />SÍ, ESE SOY YO</);
   assert.match(recv, />NO, NO SOY YO</);
-  assert.match(recv, /Hay partidos registrados con esta identidad\. Si sos vos, podés vincularlos a tu cuenta\./);
-  assert.match(appJs, /`¿SOS \$\{String\(displayName \|\| 'este jugador'\)\.toLocaleUpperCase\('es-AR'\)\}\?`/);
+  assert.match(recv, /¿JUGASTE ESTE PARTIDO\?/);
+  assert.match(appJs, /'¿JUGASTE ESTE PARTIDO\?' : '¿JUGASTE ESTOS PARTIDOS\?'/);
+  assert.doesNotMatch(appJs, /`¿SOS \$\{String\(displayName/, 'nunca se pregunta «¿SOS {apodo provisional}?»');
   const dup = between(indexHtml, '<div id="duplicate-match-overlay"', 'id="confirm-overlay"');
   assert.match(dup, /ENCONTRAMOS DOS PARTIDOS QUE PODRÍAN SER EL MISMO/);
   assert.match(dup, />SÍ, ES EL MISMO</);
@@ -74,7 +76,7 @@ function makeEnv({ token = 'a'.repeat(64), auth = {}, store = {}, matches = {}, 
   const els = {};
   const mkEl = () => ({
     hidden: false, textContent: '', innerHTML: '', value: '', disabled: false, dataset: {}, onclick: null, _l: {},
-    classList: { add() {}, remove() {}, toggle() {} }, addEventListener(t, f) { this._l[t] = f; }, querySelectorAll() { return []; }, focus() {}, select() {},
+    classList: { add() {}, remove() {}, toggle() {} }, addEventListener(t, f) { this._l[t] = f; }, querySelectorAll() { return []; }, focus() {}, select() {}, getBoundingClientRect() { return {}; }, removeAttribute() {}, remove() {}, insertAdjacentElement() {}, href: '', title: '',
   });
   const $ = (sel) => (els[sel] = els[sel] || mkEl());
   const log = { toasts: [], calls: [], cleared: 0 };
@@ -98,12 +100,12 @@ function makeEnv({ token = 'a'.repeat(64), auth = {}, store = {}, matches = {}, 
     refreshServerMatches: async () => { log.calls.push('refreshServerMatches'); },
     renderPlayerHome() { log.calls.push('renderPlayerHome'); }, renderHistory() { log.calls.push('renderHistory'); },
     syncServerLevelState() { log.calls.push('syncServerLevelState'); },
-    isServerBackedSession: () => serverBacked, analysisCurrent: null, currentUserId: 'me', MSync: null,
-    window: { location: { origin: 'https://app.test', pathname: '/bramulab/' } },
+    isServerBackedSession: () => serverBacked, analysisCurrent: null, currentUserId: 'me', MSync: null, provisionalIdSet: new Set(),
+    window: { location: { origin: 'https://app.test', pathname: '/bramulab/' }, open: () => ({}) },
     navigator: {}, requestAnimationFrame: (f) => f(), setTimeout, Promise, Map, Set, String, Array, Intl, Date, Blob, JSON, Math,
   };
   const code = between(appJs, '  const INVITATION_ERROR_TEXT = {', '  function initInvitationFlow() {');
-  const fnNames = ['renderAnalysisGuests', 'openInviteSheet', 'copyInviteLink', 'handlePendingInvitation', 'syncIdentityRecovery', 'promptDuplicateCandidates', 'buildDuplicateMatchCardHTML', 'refreshAfterIdentityChange'];
+  const fnNames = ['renderAnalysisGuests', 'openInviteSheet', 'inviteViaWhatsApp', 'inviteViaShare', 'buildInviteMessage', 'buildInviteWhatsAppUrl', 'handlePendingInvitation', 'syncIdentityRecovery', 'promptDuplicateCandidates', 'buildDuplicateMatchCardHTML', 'refreshAfterIdentityChange'];
   const factory = new Function(...Object.keys(sb), `${code}\nreturn { ${fnNames.join(', ')}, setAnalysis(v) { analysisCurrent = v; } };`);
   const fns = factory(...Object.values(sb));
   sb.setAnalysis = fns.setAnalysis;
@@ -130,37 +132,97 @@ test('JUGADORES SIN CUENTA: lista solo a los invitados invitables de ESTE partid
   assert.equal(none.$('#analysis-guests').hidden, true, 'sin invitados relacionados no se muestra nada');
 });
 
-test('INVITAR: abre la hoja con el nombre en mayúsculas; COPIAR INVITACIÓN genera el link personal, lo copia y confirma por nombre', async () => {
-  const written = [];
+test('INVITAR (V04.41): abre la hoja con el nombre en mayúsculas; ENVIAR POR WHATSAPP genera el link /invitacion/{token}, arma el mensaje y abre wa.me con todo el texto', async () => {
+  const opened = [];
   const env = makeEnv();
-  env.sb.navigator.clipboard = { write: async (items) => { written.push(await items[0]._p); }, writeText: async (t) => written.push(t) };
-  env.sb.window.ClipboardItem = undefined;
-  // El código usa window.ClipboardItem: se prueba primero el camino writeText.
-  env.fns.openInviteSheet('prov1', 'Pedro');
-  assert.equal(env.$('#invite-sheet-title').textContent, 'INVITÁ A PEDRO A BRAMU');
-  assert.match(env.$('#invite-sheet-text').textContent, /enviásela solo a Pedro\.$/);
-  await env.fns.copyInviteLink();
-  assert.deepEqual(written, ['https://app.test/bramulab/?claim=tok123']);
-  assert.equal(env.$('#invite-sheet-feedback').textContent, 'Invitación copiada. Enviásela a Pedro.');
-  assert.equal(env.$('#invite-sheet-feedback').hidden, false);
-  assert.equal(env.$('#invite-sheet-link').hidden, true);
+  env.sb.window.open = (url) => { opened.push(url); return {}; };
+  env.$('#invite-sheet-wa-btn').textContent = 'ENVIAR POR WHATSAPP';
+  env.fns.openInviteSheet('prov1', 'Pedro', 'm1', true);
+  assert.equal(env.$('#invite-sheet-title').textContent, 'INVITÁ A PEDRO A BRAMULAB');
+  await env.fns.inviteViaWhatsApp();
+  const msg = '¡Buenas! Cargué nuestro partido en BRAMUlab. Te dejo el link para que puedas entrar, reclamar tu lugar y recuperarlo en tu historial.\nhttps://app.test/invitacion/tok123';
+  assert.deepEqual(opened, [`https://wa.me/?text=${encodeURIComponent(msg)}`]);
+  assert.equal(env.$('#invite-sheet-wa-open').href, `https://wa.me/?text=${encodeURIComponent(msg)}`);
+  assert.equal(env.$('#invite-sheet-wa-open').hidden, true, 'si el navegador abrió WhatsApp no hace falta el botón de respaldo');
+  assert.match(env.$('#invite-sheet-feedback').textContent, /elegí en WhatsApp a quién enviárselo/);
+  assert.equal(env.$('#invite-sheet-wa-btn').textContent, 'ENVIAR POR WHATSAPP', 'restaura el rótulo tras «PREPARANDO…»');
 });
 
-test('COPIAR ENLACE: sin portapapeles muestra el enlace para copia manual; errores del servidor se explican sin romper', async () => {
-  const manual = makeEnv();
-  manual.fns.openInviteSheet('prov1', 'Pedro');
-  await manual.fns.copyInviteLink();
-  assert.equal(manual.$('#invite-sheet-link').hidden, false);
-  assert.equal(manual.$('#invite-sheet-link').value, 'https://app.test/bramulab/?claim=tok123');
-  assert.match(manual.$('#invite-sheet-feedback').textContent, /Copiá la invitación y enviásela a Pedro\./);
+test('Mensaje: un párrafo breve + enlace aparte, sin el nombre del invitado; si quien comparte no cargó el partido no se le atribuye la carga', () => {
+  const env = makeEnv();
+  const own = env.fns.buildInviteMessage('https://x/invitacion/t', true);
+  const other = env.fns.buildInviteMessage('https://x/invitacion/t', false);
+  assert.equal(own, '¡Buenas! Cargué nuestro partido en BRAMUlab. Te dejo el link para que puedas entrar, reclamar tu lugar y recuperarlo en tu historial.\nhttps://x/invitacion/t');
+  assert.equal(other, '¡Buenas! Nuestro partido ya está cargado en BRAMUlab. Te dejo el link para que puedas entrar, reclamar tu lugar y recuperarlo en tu historial.\nhttps://x/invitacion/t');
+  assert.doesNotMatch(other, /Cargué/);
+  assert.equal(own.split('\n').length, 2, 'párrafo + enlace en su propia línea');
+  assert.equal(env.fns.buildInviteWhatsAppUrl('hola\nhttps://x/?a=1&b=2'), 'https://wa.me/?text=hola%0Ahttps%3A%2F%2Fx%2F%3Fa%3D1%26b%3D2');
+});
 
+test('WhatsApp bloqueado (popup): deja el botón ABRIR WHATSAPP ya preparado; un segundo CTA reutiliza el MISMO enlace (no rota dos veces)', async () => {
+  let created = 0;
+  const env = makeEnv({ auth: { createClaimLink: async () => { created += 1; return { ok: true, token: 'tokZ' }; } } });
+  env.sb.window.open = () => null;
+  env.sb.navigator.share = async () => {};
+  env.fns.openInviteSheet('prov1', 'Pedro', null, false);
+  await env.fns.inviteViaWhatsApp();
+  assert.equal(env.$('#invite-sheet-wa-open').hidden, false);
+  assert.match(env.$('#invite-sheet-wa-open').href, /^https:\/\/wa\.me\/\?text=/);
+  assert.match(decodeURIComponent(env.$('#invite-sheet-wa-open').href), /Nuestro partido ya está cargado en BRAMUlab/);
+  assert.match(env.$('#invite-sheet-feedback').textContent, /Tocá ABRIR WHATSAPP/);
+  await env.fns.inviteViaShare();
+  assert.equal(created, 1, 'WhatsApp + compartir = un solo enlace generado');
+});
+
+test('COMPARTIR DE OTRA MANERA: usa el menú nativo (texto completo); cancelar no es error; sin menú copia el mensaje; sin portapapeles lo muestra para copia manual', async () => {
+  const shared = [];
+  const nat = makeEnv();
+  nat.sb.navigator.share = async (d) => { shared.push(d); };
+  nat.fns.openInviteSheet('prov1', 'Pedro', null, true);
+  await nat.fns.inviteViaShare();
+  assert.equal(shared.length, 1);
+  assert.match(shared[0].text, /^¡Buenas! Cargué nuestro partido en BRAMUlab\./);
+  assert.match(shared[0].text, /\nhttps:\/\/app\.test\/invitacion\/tok123$/);
+  assert.equal(shared[0].url, undefined, 'el enlace viaja DENTRO del texto (no duplicado como url)');
+
+  const cancel = makeEnv();
+  cancel.sb.navigator.share = async () => { const e = new Error('x'); e.name = 'AbortError'; throw e; };
+  cancel.fns.openInviteSheet('prov1', 'Pedro', null, true);
+  await cancel.fns.inviteViaShare();
+  assert.doesNotMatch(cancel.$('#invite-sheet-feedback').textContent, /No pudimos|copiado/, 'cancelar el menú no se informa como error ni copia nada');
+
+  const written = [];
+  const copy = makeEnv();
+  copy.sb.navigator.clipboard = { writeText: async (t) => written.push(t) };
+  copy.fns.openInviteSheet('prov1', 'Pedro', null, true);
+  await copy.fns.inviteViaShare();
+  assert.equal(written.length, 1);
+  assert.match(written[0], /reclamar tu lugar y recuperarlo en tu historial\.\nhttps:\/\/app\.test\/invitacion\/tok123$/);
+  assert.equal(copy.$('#invite-sheet-feedback').textContent, 'Mensaje copiado. Pegalo donde quieras enviarlo.');
+  assert.equal(copy.$('#invite-sheet-message').hidden, true);
+
+  const manual = makeEnv();
+  manual.fns.openInviteSheet('prov1', 'Pedro', null, true);
+  await manual.fns.inviteViaShare();
+  assert.equal(manual.$('#invite-sheet-message').hidden, false);
+  assert.match(manual.$('#invite-sheet-message').value, /^¡Buenas! Cargué nuestro partido/);
+
+  // iOS: el gesto del toque puede vencer mientras se genera el enlace → el enlace queda listo y el segundo toque abre el menú.
+  const gesture = makeEnv();
+  gesture.sb.navigator.share = async () => { const e = new Error('x'); e.name = 'NotAllowedError'; throw e; };
+  gesture.fns.openInviteSheet('prov1', 'Pedro', null, true);
+  await gesture.fns.inviteViaShare();
+  assert.match(gesture.$('#invite-sheet-feedback').textContent, /Tocá de nuevo COMPARTIR DE OTRA MANERA/);
+});
+
+test('Errores del servidor al invitar: se explican sin romper; si la identidad ya no está disponible las CTA quedan deshabilitadas', async () => {
   for (const [code, re] of [['rate_limited', /muchas invitaciones seguidas/], ['provisional_not_found', /ya no está disponible/], ['unknown', /No pudimos generar la invitación/]]) {
     const env = makeEnv({ auth: { createClaimLink: async () => ({ ok: false, code }) } });
-    env.fns.openInviteSheet('prov1', 'Pedro');
-    await env.fns.copyInviteLink();
+    env.fns.openInviteSheet('prov1', 'Pedro', null, true);
+    await env.fns.inviteViaWhatsApp();
     assert.match(env.$('#invite-sheet-feedback').textContent, re);
-    // V04.31: si la identidad ya no está disponible, la CTA queda deshabilitada (no parece válida); el resto permite reintentar.
-    assert.equal(env.$('#invite-sheet-copy-btn').disabled, code === 'provisional_not_found');
+    assert.equal(env.$('#invite-sheet-wa-btn').disabled, code === 'provisional_not_found');
+    assert.equal(env.$('#invite-sheet-share-btn').disabled, code === 'provisional_not_found');
   }
 });
 
@@ -186,7 +248,7 @@ test('NO SOY YO: solo limpia la intención local — NO llama a claim_provisiona
   const p = env.fns.handlePendingInvitation({ onboardingDone: true });
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(env.$('#invitation-confirm-overlay').hidden, false, 'se muestra el modal');
-  assert.equal(env.$('#invitation-confirm-title').textContent, '¿SOS PEDRO?');
+  assert.equal(env.$('#invitation-confirm-title').textContent, '¿JUGASTE ESTOS PARTIDOS?', 'sin partido fuente la pregunta sigue siendo neutral (nunca «¿SOS PEDRO?»)');
   env.$('#invitation-confirm-no').onclick();
   const r = await p;
   assert.equal(r.outcome, 'declined');
