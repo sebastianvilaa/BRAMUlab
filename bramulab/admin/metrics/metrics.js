@@ -23,7 +23,10 @@
   const CACHE_TTL_MS = 60 * 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
+  /* «Hoy» NO es un período de días completos: reutiliza el bloque `today` (parcial) que ya devuelve cada sección. Al servidor se le pide
+     un rango válido cualquiera ('7d', sin comparación): el contrato de rangos del backend no cambia. */
   const RANGES = [
+    { id: 'today', label: 'Hoy', partial: true },
     { id: '7d', label: '7 días' },
     { id: '30d', label: '30 días' },
     { id: '90d', label: '90 días' },
@@ -39,6 +42,15 @@
     { id: 'web', label: 'Web', section: 'web', hash: '#/web' },
     { id: 'explorar', label: 'Explorar', section: 'explore', hash: '#/explorar' },
   ];
+  const TODAY_API_RANGE = '7d';
+  /* Qué pestañas tienen dato REAL del día en curso (nada se inventa para las demás): campos de `today` + si suma Web. */
+  const TODAY_TABS = {
+    inicio: { fields: ['signups', 'matchesCreated', 'matchesValidated', 'activePlayers'], web: true },
+    usuarios: { fields: ['signups'], web: false },
+    partidos: { fields: ['matchesCreated', 'matchesValidated'], web: false },
+    uso: { fields: ['activePlayers'], web: false },
+    web: { fields: [], web: true },
+  };
   const SECTION_TITLES = { users: 'Usuarios', matches: 'Partidos', activation: 'Activación', community: 'Comunidad', usage: 'Uso' };
   const DEFAULT_EXPLORE_METRIC = 'users.signups';
   const METRIC_RE = /^[a-z]+\.[a-z0-9_]{1,48}$/;
@@ -204,6 +216,48 @@
     return { items, upTo: today.asOf ? fmtBA(today.asOf, { hour: '2-digit', minute: '2-digit', hour12: false }) : null, date: today.date || null };
   }
 
+  /** `range` de la UI -> `range` que se envía al servidor. «Hoy» pide un rango válido cualquiera y lee solo el bloque `today`. */
+  function apiRangeFor(range) { return range === 'today' ? TODAY_API_RANGE : range; }
+  function todayTab(view) { return Object.prototype.hasOwnProperty.call(TODAY_TABS, view) ? TODAY_TABS[view] : null; }
+
+  /** Fecha y hora BA del corte de «Hoy · parcial». `data.today.asOf` si existe; si no (sección Web), el instante de generación. */
+  function todayStamp(meta, data) {
+    const t = data && data.today;
+    const at = (t && t.asOf) || (meta && meta.generatedAt) || null;
+    const date = (t && t.date) || (data && data.web && data.web.today && data.web.today.date) || (at ? baDate(at) : null);
+    return { date: date ? fmtDayMonth(date) : null, upTo: at ? fmtBA(at, { hour: '2-digit', minute: '2-digit', hour12: false }) : null };
+  }
+
+  /** Medición Web de un período (o de hoy). Nunca devuelve ceros inventados: sin instrumentación, o sin ningún día completo medido, es `none`. */
+  function webMeasure(web, meta, today) {
+    if (!web || typeof web !== 'object') return { state: 'unavailable' };
+    if (!web.instrumented) return { state: 'none', since: null };
+    const ok = (v) => Number.isSafeInteger(v) && v >= 0;
+    if (today) {
+      const t = web.today;
+      if (!t || !ok(t.views) || !ok(t.clicks)) return { state: 'none', since: null };
+      return { state: 'ok', views: t.views, clicks: t.clicks, since: null };
+    }
+    const since = meta && meta.webSince ? String(meta.webSince).slice(0, 10) : null;
+    const winStart = meta && meta.window && meta.window[0] ? baDate(meta.window[0]) : null;
+    const winEnd = meta && meta.window && meta.window[1] ? baDate(meta.window[1]) : null;
+    if (since && winEnd && since >= winEnd) return { state: 'none', since };
+    if (!ok(web.views) || !ok(web.clicks)) return { state: 'unavailable' };
+    return { state: since && winStart && since > winStart ? 'partial' : 'ok', views: web.views, clicks: web.clicks, since };
+  }
+
+  /** Cómo se dibuja una tarjeta Web: valor, rótulo de estado y tono (usa las clases de estado de las tarjetas KPI). */
+  function webCardView(kind, m) {
+    const key = kind === 'views' ? 'views' : 'clicks';
+    if (!m || m.state === 'unavailable') return { value: '—', empty: true, state: { tone: 'sample', text: 'No disponible por ahora' } };
+    if (m.state === 'none') return { value: '—', empty: true, state: { tone: 'none', text: m.since ? `Sin medición · empezó el ${fmtDayMonth(m.since)}` : 'Sin medición' } };
+    return { value: fmtNum(m[key]), empty: false, state: m.state === 'partial' ? { tone: 'partial', text: `Medición desde ${fmtDayMonth(m.since)}` } : null };
+  }
+  const WEB_CARDS = {
+    views: { label: 'Visitas a la web', hint: 'Aperturas de página · no son personas únicas' },
+    clicks: { label: 'Clics hacia la app', hint: 'Intentos de abrir la app · no son ingresos ni instalaciones' },
+  };
+
   /** Etiqueta legible de una opción de filtro (el valor técnico viaja tal cual al servidor). */
   function optionLabel(filterId, value) {
     const maps = { level_status: LEVEL_LABELS, platform: PLATFORM_LABELS, match_status: STATUS_LABELS };
@@ -326,7 +380,7 @@
     return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(String(hostname || ''));
   }
 
-  const pure = { fmtNum, formatValue, toneFor, deltaView, previousText, availabilityView, fmtDayMonth, fmtBA, baDate, windowLabel, todayView, measurementView, seriesFor, niceStep, chartModel, parseHash, apiErrorKind, qaAllowed, dateLabelFor,
+  const pure = { apiRangeFor, todayTab, todayStamp, webMeasure, webCardView, WEB_CARDS, TODAY_TABS, fmtNum, formatValue, toneFor, deltaView, previousText, availabilityView, fmtDayMonth, fmtBA, baDate, windowLabel, todayView, measurementView, seriesFor, niceStep, chartModel, parseHash, apiErrorKind, qaAllowed, dateLabelFor,
     RANGES, VIEWS, KPI_SERIES, GOOD_UP, GOOD_DOWN, TODAY_FIELDS, FUNNEL_IDS, parseExplore, exploreHash, optionLabel, groupCatalog, seriesMessage, DEFAULT_EXPLORE_METRIC };
 
   /* ====================================================================== */
@@ -364,20 +418,20 @@
   const QA = params.get('qa') === '1' && qaAllowed(env, global.location.hostname);
   const QA_STATE = params.get('qastate') || '';
 
-  const S = { range: '30d', compare: true, internal: false, route: { view: 'inicio' }, lastTab: 'inicio', data: null, seq: 0, meta: null };
+  const S = { range: '30d', lastRange: '30d', compare: true, internal: false, route: { view: 'inicio' }, lastTab: 'inicio', data: null, seq: 0, meta: null };
   const cache = new Map();
   let client = null;
 
   function loadPrefs() {
     try {
       const p = JSON.parse(global.localStorage.getItem(PREF_KEY) || '{}');
-      if (RANGES.some((r) => r.id === p.range)) S.range = p.range;
+      if (RANGES.some((r) => r.id === p.range && !r.partial)) { S.range = p.range; S.lastRange = p.range; }
       if (typeof p.compare === 'boolean') S.compare = p.compare;
       if (typeof p.internal === 'boolean') S.internal = p.internal;
     } catch (e) { /* storage bloqueado o JSON inválido: se usan los defaults */ }
   }
   function savePrefs() {
-    try { global.localStorage.setItem(PREF_KEY, JSON.stringify({ range: S.range, compare: S.compare, internal: S.internal })); } catch (e) { /* noop */ }
+    try { global.localStorage.setItem(PREF_KEY, JSON.stringify({ range: S.range === 'today' ? S.lastRange : S.range, compare: S.compare, internal: S.internal })); } catch (e) { /* noop */ }
   }
 
   /* ---------- Gate (acceso / errores globales) ---------- */
@@ -430,12 +484,19 @@
     if (!res.data || res.data.ok !== true) throw apiError(null, res.data && res.data.code);
     return res.data;
   }
-  function cacheKey(section) { return [section, S.range, S.compare, S.internal].join('|'); }
+  /** Web no cambia con «comparar» ni con «cuentas internas» (no hay cuentas ni período previo): una sola entrada de caché por rango. «Hoy» pide un rango válido sin comparación. */
+  function sectionArgs(section) {
+    const range = apiRangeFor(S.range);
+    if (section === 'web') return { range, compare: false, includeInternal: false };
+    return { range, compare: S.range === 'today' ? false : S.compare, includeInternal: S.internal };
+  }
+  function cacheKey(section) { const a = sectionArgs(section); return [section, a.range, a.compare, a.includeInternal].join('|'); }
   async function getSection(section, force) {
     const k = cacheKey(section);
     const c = cache.get(k);
     if (!force && c && Date.now() - c.at < CACHE_TTL_MS) return c.data;
-    const data = await callServer({ section, range: S.range, compare: S.compare, includeInternal: S.internal });
+    const a = sectionArgs(section);
+    const data = await callServer({ section, range: a.range, compare: a.compare, includeInternal: a.includeInternal });
     if (!QA && (!data.meta || !env || data.meta.environment !== env.name)) throw Object.assign(new Error('env_mismatch'), { kind: 'env' });
     cache.set(k, { at: Date.now(), data });
     return data;
@@ -487,6 +548,28 @@
       deltaChip(kpi),
       prev ? h('div', { class: 'mx-prev', text: prev }) : null,
       stateLine(kpi, meta),
+    ]);
+  }
+  /** Tarjeta Web (misma anatomía que una tarjeta KPI): enlaza a la pestaña Web. Sin medición = «—» + rótulo, jamás un 0 inventado. */
+  function webCard(kind, m, opts) {
+    const o = opts || {}; const def = WEB_CARDS[kind]; const v = webCardView(kind, m);
+    const props = { class: 'mx-card mx-card--web' + (o.hero ? ' mx-card--hero' : '') + (o.partial ? ' mx-card--today' : '') };
+    if (o.link) { props.href = '#/web'; props['aria-label'] = `${def.label}: abrir Web`; }
+    return h(o.link ? 'a' : 'div', props, [
+      o.link ? h('span', { class: 'mx-card__chev', 'aria-hidden': 'true', text: '›' }) : null,
+      h('div', { class: 'mx-card__label', text: def.label }),
+      h('div', { class: 'mx-card__value' + (v.empty ? ' is-empty' : ''), text: v.value }),
+      v.state ? h('div', { class: `mx-state mx-state--${v.state.tone}`, text: v.state.text }) : null,
+      h('div', { class: 'mx-card__hint', text: def.hint }),
+    ]);
+  }
+  /** Tarjeta de «Hoy · parcial» (sin enlace: no hay detalle del día). `it` = ítem de todayView. */
+  function todayCard(label, text, pending, hint) {
+    return h('div', { class: 'mx-card mx-card--today' }, [
+      h('div', { class: 'mx-card__label', text: label }),
+      h('div', { class: 'mx-card__value' + (pending ? ' is-empty' : ''), text: pending ? '—' : text }),
+      pending ? h('div', { class: 'mx-state mx-state--wait', text: text }) : null,
+      hint ? h('div', { class: 'mx-card__hint', text: hint }) : null,
     ]);
   }
   function skeletonView() {
@@ -610,9 +693,12 @@
   function pick(data, ids) { return ids.map((id) => data.kpis.find((k) => k.id === id)).filter(Boolean); }
 
   /* ---------- Vistas ---------- */
-  function viewInicio(data) {
+  function viewInicio(data, webData) {
     const meta = data.meta; const out = [];
-    out.push(...section('Indicadores clave', cardGrid(data.kpis, meta, 'mx-grid--6', true)));
+    const wm = webData ? webMeasure(webData.web, webData.meta, false) : { state: 'unavailable' };
+    const keyGrid = cardGrid(data.kpis, meta, 'mx-grid--kpi', true);
+    keyGrid.appendChild(webCard('views', wm, { hero: true, link: true })); keyGrid.appendChild(webCard('clicks', wm, { hero: true, link: true }));
+    out.push(...section('Indicadores clave', keyGrid));
     const sig = data.series && data.series.signups; const mc = data.series && data.series.matches_created; const act = data.series && data.series.active_players;
     const presenceOn = !!meta.presenceSince;
     const actNode = presenceOn
@@ -628,6 +714,40 @@
     out.push(...section('Activación de las altas', funnelPanel(data.funnel || [], meta)));
     out.push(...section('Estado de la recolección', factsPanel(meta)));
     return h('div', null, out);
+  }
+
+  /** «Hoy · parcial»: solo lo que el servidor devuelve para el día en curso, aparte de todo período y de toda comparación. */
+  function todayHead(meta, data) {
+    const st = todayStamp(meta, data);
+    return h('section', { class: 'mx-panel mx-today' }, [
+      h('div', { class: 'mx-today__head' }, [
+        h('span', { class: 'mx-today__badge', text: 'HOY · PARCIAL' }),
+        h('span', { class: 'mx-today__upto', text: [st.date, st.upTo ? `hasta las ${st.upTo}` : null].filter(Boolean).join(' · ') }),
+      ]),
+      h('p', { class: 'mx-note', style: 'margin:0', text: 'Hora de Buenos Aires. El día en curso todavía no terminó: no se compara con otros períodos ni entra en los 7, 30 o 90 días.' }),
+    ]);
+  }
+  function viewHoy(route, data, webData) {
+    const spec = todayTab(route.view);
+    const meta = data.meta; const out = [todayHead(meta, data)];
+    const cards = [];
+    const tv = spec.fields.length ? todayView(data.today, spec.fields) : null;
+    (tv ? tv.items : []).forEach((it) => cards.push(todayCard(it.label, it.text, it.pending)));
+    if (spec.web) {
+      const wm = webMeasure((webData || data).web, (webData || data).meta, true);
+      const link = route.view !== 'web';
+      cards.push(webCard('views', wm, { partial: true, link }), webCard('clicks', wm, { partial: true, link }));
+    }
+    out.push(h('div', { class: 'mx-h', text: 'Hoy' }));
+    out.push(h('div', { class: 'mx-grid mx-grid--kpi' }, cards));
+    return h('div', null, out);
+  }
+  function viewHoySinDatos(name) {
+    return h('section', { class: 'mx-panel mx-today' }, [
+      h('div', { class: 'mx-today__head' }, [h('span', { class: 'mx-today__badge', text: 'HOY · PARCIAL' })]),
+      h('p', { style: 'margin:0 0 12px', text: `${name} se calcula con días completos y no tiene datos del día en curso. No se inventan cifras de hoy.` }),
+      h('button', { class: 'mx-btn', type: 'button', text: 'Ver últimos 7 días', onclick: () => setRange('7d') }),
+    ]);
   }
 
   function funnelPanel(funnel, meta) {
@@ -763,28 +883,23 @@
         h('p', { class: 'mx-note', text: 'Sin medición todavía. Los contadores comenzarán cuando se publique bramulab.com con la integración activada. No se inventan visitas anteriores.' }),
       ]);
     }
-    const views = Number(w.views);
-    const clicks = Number(w.clicks);
-    const valid = Number.isSafeInteger(views) && Number.isSafeInteger(clicks) && views >= 0 && clicks >= 0;
-    const card = (label, value, explanation) => h('section', { class: 'mx-panel' }, [
-      h('h2', { class: 'mx-h', text: label }),
-      h('div', { class: 'mx-detail__value' }, h('span', { class: 'big', text: value })),
-      h('p', { class: 'mx-note', text: explanation }),
-    ]);
-    out.push(...section('De la web a BRAMUlab', h('div', { class: 'mx-grid mx-grid--charts' }, [
-      card('Visitas a la web', valid ? fmtNum(views) : '—', 'Cargas de página registradas; puede incluir varias visitas de una misma persona.'),
-      card('Clics hacia la app', valid ? fmtNum(clicks) : '—', 'Intentos de abrir app.bramulab.com desde la web; no son instalaciones ni sesiones confirmadas.'),
-    ])));
-    const ratio = valid && views > 0 ? (clicks * 100 / views).toLocaleString('es-AR', { maximumFractionDigits: 1 }) : null;
-    out.push(h('section', { class: 'mx-panel' }, [
-      h('h2', { class: 'mx-h', text: 'Interés generado' }),
-      h('p', { text: ratio === null ? 'Sin base suficiente para calcular la relación.' : ratio + ' clics hacia la app por cada 100 visitas de la web.' }),
-      h('p', { class: 'mx-note', text: 'Relación entre eventos, no porcentaje de personas convertidas. Puede superar 100 si hay varios clics por visita. No podemos saber cuántas personas cerraron sin entrar a la app.' }),
-    ]));
-    if (w.today && w.today.views !== null && w.today.clicks !== null) {
+    const wm = webMeasure(w, data.meta, false);
+    const cards = [webCard('views', wm, { hero: true }), webCard('clicks', wm, { hero: true })];
+    out.push(...section('De la web a BRAMUlab', h('div', { class: 'mx-grid mx-grid--kpi' }, cards)));
+    if (wm.state === 'ok' || wm.state === 'partial') {
+      const views = Number(w.views); const clicks = Number(w.clicks);
+      const ratio = views > 0 ? (clicks * 100 / views).toLocaleString('es-AR', { maximumFractionDigits: 1 }) : null;
       out.push(h('section', { class: 'mx-panel' }, [
-        h('h2', { class: 'mx-h', text: 'Hoy · parcial' }),
-        h('p', { text: fmtNum(w.today.views) + ' visitas · ' + fmtNum(w.today.clicks) + ' clics' }),
+        h('h2', { class: 'mx-h', text: 'Interés generado' }),
+        h('p', { text: ratio === null ? 'Sin base suficiente para calcular la relación.' : ratio + ' clics hacia la app por cada 100 visitas de la web.' }),
+        h('p', { class: 'mx-note', text: 'Relación entre eventos, no porcentaje de personas convertidas. Puede superar 100 si hay varios clics por visita. No podemos saber cuántas personas cerraron sin entrar a la app.' }),
+      ]));
+    }
+    const wt = webMeasure(w, data.meta, true);
+    if (wt.state === 'ok') {
+      out.push(h('section', { class: 'mx-panel mx-today' }, [
+        h('div', { class: 'mx-today__head' }, [h('span', { class: 'mx-today__badge', text: 'HOY · PARCIAL' })]),
+        h('p', { style: 'margin:0', text: fmtNum(wt.views) + ' visitas · ' + fmtNum(wt.clicks) + ' clics' }),
       ]));
     }
     out.push(h('p', { class: 'mx-note', text: 'Datos anónimos agregados desde la activación. Ventana de días completos hasta ayer; la medición puede omitir visitas con bloqueo de scripts. BRAMU Metrics no conecta estos datos con las cuentas de jugadores.' }));
@@ -937,22 +1052,43 @@
   /* ---------- Orquestación ---------- */
   function renderControls() {
     const rg = $('mx-range'); rg.textContent = '';
-    RANGES.forEach((r) => rg.appendChild(h('button', { type: 'button', 'aria-pressed': String(S.range === r.id), text: r.label, onclick: () => { if (S.range !== r.id) { S.range = r.id; savePrefs(); renderControls(); load(false); } } })));
+    RANGES.forEach((r) => rg.appendChild(h('button', {
+      type: 'button', class: r.partial ? 'is-partial' : null, 'aria-pressed': String(S.range === r.id), text: r.label,
+      'aria-label': r.partial ? 'Hoy, parcial: el día en curso todavía no terminó' : null, onclick: () => setRange(r.id),
+    })));
     $('mx-compare').checked = S.compare; $('mx-internal').checked = S.internal;
     const tabs = $('mx-tabs'); tabs.textContent = '';
     const active = S.route.view === 'kpi' ? S.lastTab : S.route.view;
     VIEWS.forEach((v) => tabs.appendChild(h('a', { href: v.hash, 'aria-current': v.id === active ? 'page' : null, text: v.label })));
-    // Web pública no tiene cuentas internas ni comparación de personas: controles inaplicables.
+    // en pantallas angostas las pestañas se desplazan: la activa queda a la vista (sin mover la página)
+    const cur = tabs.querySelector('[aria-current="page"]');
+    if (cur && tabs.scrollWidth > tabs.clientWidth) tabs.scrollLeft = Math.max(0, cur.offsetLeft - (tabs.clientWidth - cur.offsetWidth) / 2);
+    // Web pública no tiene cuentas internas ni período previo; «Hoy» no se compara nunca (D8): controles inaplicables.
+    const noInternal = S.route.view === 'web'; const noCompare = noInternal || S.range === 'today';
+    $('mx-compare-wrap').hidden = noCompare; $('mx-internal-wrap').hidden = noInternal;
     const toggles = document.querySelector('.mx-toggles');
-    if (toggles) toggles.hidden = S.route.view === 'web';
+    if (toggles) toggles.hidden = noCompare && noInternal;
   }
-  function renderWindowLine(meta) {
+  function setRange(id) {
+    if (S.range === id) return;
+    S.range = id; if (id !== 'today') S.lastRange = id;
+    savePrefs(); renderControls(); load(false);
+  }
+  function renderWindowLine(meta, data) {
     const w = $('mx-window'); w.textContent = '';
     if (!meta) return;
+    if (S.range === 'today') {
+      const st = todayStamp(meta, data);
+      w.appendChild(h('span', { class: 'mx-today__badge', text: 'HOY · PARCIAL' }));
+      w.appendChild(document.createTextNode(` ${[st.date, st.upTo ? `hasta las ${st.upTo}` : null].filter(Boolean).join(' · ')} · sin comparación`));
+      return;
+    }
     w.appendChild(h('i', { class: 'mx-dot' }));
     w.appendChild(document.createTextNode('Actual '));
     w.appendChild(h('b', { text: windowLabel(meta.window) }));
-    if (S.compare && meta.previousWindow) {
+    if (S.route.view === 'web') {
+      // Web no tiene período previo ni comparación: no se menciona
+    } else if (S.compare && meta.previousWindow) {
       w.appendChild(h('i', { class: 'mx-dot mx-dot--prev' }));
       w.appendChild(document.createTextNode('Anterior '));
       w.appendChild(h('b', { text: windowLabel(meta.previousWindow) }));
@@ -979,24 +1115,38 @@
     const route = S.route;
     const isExplore = route.view === 'explorar';
     const sel = isExplore ? { metric: route.metric || DEFAULT_EXPLORE_METRIC, filter: route.filter, value: route.value } : null;
+    const isToday = S.range === 'today';
+    const todaySpec = isToday && !isExplore && route.view !== 'kpi' ? todayTab(route.view) : null;
+    if (isToday && !todaySpec) {
+      // Activación, Comunidad, Explorar y fichas de indicador usan días completos: no existe dato de hoy y no se inventa.
+      view.textContent = ''; $('mx-window').textContent = '';
+      const name = isExplore ? 'Explorar' : route.view === 'kpi' ? 'Este indicador' : VIEWS.find((v) => v.id === route.view).label;
+      view.appendChild(viewHoySinDatos(name));
+      view.setAttribute('aria-busy', 'false'); $('mx-refresh').classList.remove('is-spinning');
+      return;
+    }
     const sectionName = isExplore ? null : route.view === 'kpi' ? SECTION_OF_PREFIX[route.kpiId.split('.')[0]] : VIEWS.find((v) => v.id === route.view).section;
     const hadData = cache.has(isExplore ? exploreKey(sel) : cacheKey(sectionName));
-    if (!hadData || force) { view.textContent = ''; view.appendChild(skeletonView()); }
+    if (!hadData || force) { view.textContent = ''; view.appendChild(skeletonView()); if (isToday) $('mx-window').textContent = ''; }
     $('mx-refresh').classList.add('is-spinning');
     try {
-      let data; let catalog = null;
+      let data; let catalog = null; let webData = null;
       if (isExplore) {
         catalog = await getCatalog(!!force);
         if (!catalog.catalog.some((e) => e.id === sel.metric)) { sel.metric = DEFAULT_EXPLORE_METRIC; sel.filter = null; sel.value = null; }
         data = await getExplore(sel, !!force);
+      } else if (route.view === 'inicio') {
+        // Inicio suma las 2 tarjetas Web: se piden en paralelo y, si Web falla, el resto de Inicio se muestra igual («No disponible por ahora»).
+        const pair = await Promise.all([getSection(sectionName, !!force), getSection('web', !!force).catch((e) => (e.kind === 'session' || e.kind === 'forbidden' ? Promise.reject(e) : null))]);
+        data = pair[0]; webData = pair[1];
       } else data = await getSection(sectionName, !!force);
       if (seq !== S.seq) return;
       S.meta = data.meta; setEnvBanner(data.meta);
-      renderWindowLine(data.meta);
+      renderWindowLine(data.meta, data);
       $('mx-updated').textContent = `Actualizado ${fmtBA(data.meta.generatedAt, { hour: '2-digit', minute: '2-digit' })}`;
       view.textContent = '';
       const RENDER = { inicio: viewInicio, usuarios: viewUsuarios, partidos: viewPartidos, activacion: viewActivacion, comunidad: viewComunidad, uso: viewUso, web: viewWeb };
-      view.appendChild(isExplore ? viewExplorar(catalog, data, sel) : route.view === 'kpi' ? viewKpi(route.kpiId, data) : RENDER[route.view](data));
+      view.appendChild(isExplore ? viewExplorar(catalog, data, sel) : route.view === 'kpi' ? viewKpi(route.kpiId, data) : isToday ? viewHoy(route, data, webData) : RENDER[route.view](data, webData));
       if (!isExplore) global.scrollTo(0, 0);
     } catch (err) {
       if (seq !== S.seq) return;

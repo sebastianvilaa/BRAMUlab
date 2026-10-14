@@ -5,7 +5,7 @@
  *
  * F6 Explorar: `catalog` + `metric` (+ filtro) con la misma forma que `metrics_explore*`; ESPECIFICACIÓN = copia exacta de `_metrics_explore_spec()` (un test falla si divergen).
  * D8: las ventanas son DÍAS COMPLETOS hasta ayer; `today` (parcial) viaja aparte.
- * Estados forzables: ?qa=1&qastate=empty | nopresence | error | forbidden | nosession | loading | sparse
+ * Estados forzables: ?qa=1&qastate=empty | nopresence | error | forbidden | nosession | loading | sparse | noweb | webstart | webdown
  */
 (function (g) {
   'use strict';
@@ -224,7 +224,26 @@
     };
   }
 
+  /* Web pública (metrics_web): contadores agregados de visitas y clics. `noweb` = sin instrumentar; `webstart` = la medición empezó HOY (sin día completo); `webdown` = falla solo Web. */
+  function respondWeb(body, st) {
+    var range = body.range || '30d'; var w = windows(range); var f = FACTOR[range];
+    var first = st === 'webstart' ? w.today : range === 'all' ? addDays(w.today, -9) : addDays(w.today, -40);
+    var instrumented = st !== 'noweb';
+    var from = range === 'all' ? first : w.fromD;
+    var days = Math.max(0, Math.round((w.today - from) / 86400000));
+    var measured = st === 'webstart' ? 0 : Math.max(0, Math.round((w.today - (first > from ? first : from)) / 86400000));
+    var views = instrumented ? Math.round(measured * 38) : null; var clicks = instrumented ? Math.round(measured * 7) : null;
+    var daily = []; for (var i = 0; i < days; i += 1) daily.push({ date: ymd(addDays(from, i)), views: first <= addDays(from, i) ? 38 : 0, clicks: first <= addDays(from, i) ? 7 : 0 });
+    return {
+      ok: true, section: 'web',
+      meta: { environment: 'qa', generatedAt: new Date().toISOString(), window: [isoAtBaMidnight(from), isoAtBaMidnight(w.today)], webSince: instrumented ? ymd(first) : null, timeZone: 'America/Argentina/Buenos_Aires' },
+      web: { instrumented: instrumented, views: views, clicks: clicks, sources: instrumented ? { hero: Math.round(clicks * 0.6), final: clicks - Math.round(clicks * 0.6) } : {}, daily: daily,
+        today: { date: ymd(w.today), views: instrumented ? 21 : null, clicks: instrumented ? 4 : null } }
+    };
+  }
+
   function respond(body, st) {
+    if (body && body.section === 'web') return respondWeb(body, st);
     var range = body.range || '30d'; var compare = body.compare !== false; var w = windows(range); var f = FACTOR[range]; var empty = st === 'empty';
     var cmp = compare && !!w.prevFrom;
     var sec = body.section;
@@ -342,6 +361,7 @@
         if (st === 'forbidden') { var f = new Error('forbidden'); f.kind = 'forbidden'; f.status = 403; throw f; }
         if (body && body.catalog === true) return exploreCatalog();
         if (body && body.metric) { var rx = respondExplore(body, st || ''); if (!rx.ok) { var e2 = new Error(rx.code); e2.kind = 'bad'; e2.status = 400; throw e2; } return rx; }
+        if (st === 'webdown' && body && body.section === 'web') { var e3 = new Error('server'); e3.kind = 'server'; e3.status = 500; throw e3; }
         return respond(body || {}, st || '');
       });
     },

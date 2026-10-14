@@ -197,7 +197,8 @@ test('contrato: el armado de KPI del fixture coincide con _metrics_kpi del SQL r
 test('HTML: privado y no indexable, NO es PWA, supabase-js fijado con el MISMO SRI que la app, rutas absolutas', () => {
   const html = read('admin/metrics/index.html');
   assert.match(html, /<meta name="robots" content="noindex, nofollow, noarchive">/);
-  assert.ok(!/rel="manifest"/.test(html) && !/serviceWorker/.test(html) && !/apple-touch-icon/.test(html), 'sin manifest ni registro de SW');
+  assert.ok(!/rel="manifest"/.test(html) && !/serviceWorker/.test(html), 'sin manifest ni registro de SW');
+  assert.ok(/rel="apple-touch-icon"/.test(html), 'ícono propio de Metrics (ver metrics-hoy-web-icono.test.mjs)');
   const tag = (src) => /<script src="(https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@[^"]+)" integrity="([^"]+)"/.exec(src);
   const [, u1, i1] = tag(html); const [, u2, i2] = tag(read('index.html'));
   assert.deepEqual([u1, i1], [u2, i2], 'pin exacto + SRI idénticos a los de la app');
@@ -300,7 +301,7 @@ test('versionado: V04.40-h1 sincronizado (ronda visible: Bienvenida, invitación
 /* ====================================================================== */
 
 test('F4 · pestañas y rutas: Activación, Comunidad y Uso existen, mapean a su sección del Edge y las rutas no aceptan basura', () => {
-  assert.deepEqual(plain(M.VIEWS.map((v) => [v.id, v.section])), [['inicio', 'overview'], ['usuarios', 'users'], ['partidos', 'matches'], ['activacion', 'activation'], ['comunidad', 'community'], ['uso', 'usage'], ['explorar', 'explore']]);
+  assert.deepEqual(plain(M.VIEWS.map((v) => [v.id, v.section])), [['inicio', 'overview'], ['usuarios', 'users'], ['partidos', 'matches'], ['activacion', 'activation'], ['comunidad', 'community'], ['uso', 'usage'], ['web', 'web'], ['explorar', 'explore']]);
   for (const [hash, view] of [['#/activacion', 'activacion'], ['#/comunidad', 'comunidad'], ['#/uso', 'uso']]) assert.deepEqual(plain(M.parseHash(hash)), { view });
   assert.deepEqual(plain(M.parseHash('#/kpi/community.ranking_eligible_players')), { view: 'kpi', kpiId: 'community.ranking_eligible_players' });
   assert.deepEqual(plain(M.parseHash('#/kpi/usage.ret_w1')), { view: 'kpi', kpiId: 'usage.ret_w1' });
