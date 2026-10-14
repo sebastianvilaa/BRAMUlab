@@ -121,7 +121,7 @@ test('app.js: el consentimiento se resuelve DESPUÉS del gate legal, nunca bloqu
   assert.match(appJs, /Auth\.signUp\(email, \$\('#signup-password'\)\.value, legal\.legalVersion, activityChoice\)/);
 });
 
-test('versionado en cuarteto consistente (V04.41 / 04.41-h1)', () => {
+test('versionado en cuarteto consistente (V04.41 / 04.41-h2)', () => {
   const v = JSON.parse(read('version.json'));
   assert.match(String(v.bundle || v.version || JSON.stringify(v)), /04\.41-h\d+/);
   assert.match(read('store.js'), /BRAMUlab V04\.41/);

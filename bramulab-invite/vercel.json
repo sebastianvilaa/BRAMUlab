@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/i/:c", "destination": "/api/invitacion?c=:c" },
+    { "source": "/i/:c/og.png", "destination": "/api/og?c=:c" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    }
+  ],
+  "functions": {
+    "api/og.js": {
+      "includeFiles": "{og/**,node_modules/@resvg/resvg-wasm/index_bg.wasm,node_modules/harfbuzzjs/**}",
+      "maxDuration": 10
+    }
+  }
+}

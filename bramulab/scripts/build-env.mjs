@@ -79,12 +79,21 @@ function main() {
     }
   }
 
+  // V04.41 — base PÚBLICA de los enlaces de invitación (servicio `bramulab-invite`). Opcional: sin ella la app comparte `{origen}/invitacion/{token}`.
+  // Solo se acepta un origen https sin ruta (nunca un valor arbitrario dentro del bundle).
+  const inviteBase = (process.env.BRAMU_INVITE_BASE || '').trim().replace(/\/+$/, '');
+  if (inviteBase && !/^https:\/\/[a-z0-9][a-z0-9.-]*(:\d{1,5})?$/.test(inviteBase)) {
+    console.error('[build-env] Build detenido: BRAMU_INVITE_BASE debe ser un origen https sin ruta (p. ej. https://bramu-i.vercel.app).');
+    process.exit(1);
+  }
+
   const fileContents =
     '// Generado por scripts/build-env.mjs — no editar a mano ni commitear.\n' +
     'window.__BRAMU_ENV__ = Object.freeze({\n' +
     `  name: ${JSON.stringify(envName)},\n` +
     `  supabaseUrl: ${JSON.stringify(supabaseUrl)},\n` +
     `  supabaseAnonKey: ${JSON.stringify(supabaseAnonKey)},\n` +
+    (inviteBase ? `  inviteBase: ${JSON.stringify(inviteBase)},\n` : '') +
     '});\n';
 
   writeFileSync(OUTPUT_FILE, fileContents, 'utf8');

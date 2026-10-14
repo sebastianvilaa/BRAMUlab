@@ -1,21 +1,17 @@
-// V04.41 — Tarjeta de vista previa de la invitación con el PARTIDO REAL: `/invitacion/{token}/og.png` (Vercel reescribe a esta función).
+// V04.41 — Tarjeta de vista previa de la invitación con el PARTIDO REAL (servicio público `bramulab-invite`).
 //
 // Decisión de producto (Sebastián, 14/10/2026): quien posea un enlace personal VÁLIDO ve, sin sesión, un resumen mínimo del partido que
-// originó la invitación: nombres de los cuatro participantes + games por set (la pareja de la identidad invitada primero). Es lo único
-// que sale: la RPC `get_invitation_card` (anon, por token de 256 bits) no devuelve ids, usuarios, fotos, fechas ni estado, y responde
-// `{ok:false}` idéntico para cualquier enlace inválido, vencido, rotado, usado o sin partido vigente.
+// originó la invitación: nombres de los cuatro participantes + games por set (la pareja de la identidad invitada primero). La RPC
+// `get_invitation_card` (anon, por token de 256 bits) no devuelve ids, usuarios, fotos, fechas ni estado, y responde `{ok:false}` idéntico para
+// cualquier enlace inválido, vencido, rotado, usado o sin partido vigente.
 //
-// Cualquier problema (token mal formado, RPC sin responder, migración sin aplicar, error de render) cae a la tarjeta de MARCA estática
-// (`/assets/invitacion-og.png`, sin datos): una invitación nunca queda sin imagen ni muestra un error.
-//
-// Render: `satori` (árbol → SVG) + `@resvg/resvg-wasm` (SVG → PNG, WebAssembly: sin binarios nativos) con Inter y el logo oficial de `og/`. Nunca lee ni escribe base de datos
-// por otra vía; solo usa SUPABASE_URL y SUPABASE_ANON_KEY (la clave pública que ya usa api/health.js).
+// Render: `satori` (árbol → SVG con Inter) + `@resvg/resvg-wasm` (SVG → PNG, WebAssembly: sin binarios nativos). Solo usa SUPABASE_URL y
+// SUPABASE_ANON_KEY (la clave publishable que ya viaja en el bundle de la app); nunca una clave de servicio.
 
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 export const TOKEN_RE = /^[0-9a-f]{64}$/;
-export const FALLBACK_PATH = '/assets/invitacion-og.png?v=1';
 const W = 1200;
 const H = 630;
 const C = { bg: '#050A12', surface: '#0D1A2A', text: '#F8FAFC', dim: '#9AA7B5', faint: '#687482', lime: '#95FF19', cyan: '#199FFF', line: 'rgba(183,211,235,0.20)' };
@@ -107,7 +103,7 @@ export async function fetchCard(token, env = process.env, fetchImpl = globalThis
 let assets = null;
 function loadAssets() {
   if (assets) return assets;
-  const dir = new URL('../og/', import.meta.url);
+  const dir = new URL('../../og/', import.meta.url);
   const font = (f) => { const b = fs.readFileSync(new URL(f, dir)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
   assets = {
     fonts: [
@@ -139,26 +135,7 @@ export async function renderCardPng(card) {
   return Buffer.from(new resvg.Resvg(svg, { fitTo: { mode: 'width', value: W } }).render().asPng());
 }
 
-export default async function handler(req, res) {
-  const raw = (req.query && req.query.t) || new URL(req.url, 'http://x').searchParams.get('t') || '';
-  const token = String(raw).toLowerCase();
-  const card = await fetchCard(token);
-  try {
-    if (card) {
-      const png = await renderCardPng(card);
-      res.setHeader('Content-Type', 'image/png');
-      // Un enlace personal no se guarda en cachés compartidas (si se rota o se usa, la imagen deja de salir).
-      res.setHeader('Cache-Control', 'private, no-store');
-      res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
-      res.setHeader('Referrer-Policy', 'no-referrer');
-      res.status(200).end(png);
-      return;
-    }
-  } catch (e) {
-    // cae a la tarjeta de marca (el motivo queda en los logs de la función; nunca incluye el token ni datos del partido)
-    console.error('invitacion-og: render falló →', e && e.message ? e.message : String(e));
-  }
-  res.setHeader('Cache-Control', 'private, no-store');
-  res.setHeader('Location', FALLBACK_PATH);
-  res.status(302).end();
+/** Tarjeta de MARCA estática (sin datos): la que sale cuando el enlace no sirve o algo falla. Nunca lanza: si faltara el archivo, devuelve null. */
+export function brandPng() {
+  try { return fs.readFileSync(new URL('../../og/marca.png', import.meta.url)); } catch (e) { return null; }
 }

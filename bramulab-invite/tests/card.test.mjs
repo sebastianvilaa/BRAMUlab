@@ -1,5 +1,5 @@
-// BRAMUlab — V04.41 (2.ª parte): tarjeta de vista previa con el PARTIDO REAL (api/invitacion-og.mjs + RPC get_invitation_card).
-// Ejecutar con: node --test bramulab/tests/v0441-invitacion-og.test.mjs   (el render real necesita `npm ci` en bramulab/)
+// BRAMUlab — V04.41: tarjeta de vista previa con el PARTIDO REAL (bramulab-invite: api/_lib/card.js + api/og.js + RPC get_invitation_card).
+// Ejecutar con: node --test bramulab-invite/tests/*.test.mjs   (el render real necesita `npm ci` en bramulab-invite/)
 // El RPC se verifica contra Postgres real (PGlite) en supabase/tests/verify-v0441-invitation-card.sql (verify-clean-room.mjs).
 
 import test from 'node:test';
@@ -7,10 +7,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import handler, { parseCard, buildCardTree, fetchCard, renderCardPng, TOKEN_RE, FALLBACK_PATH } from '../api/invitacion-og.mjs';
+import handler from '../api/og.js';
+import { parseCard, buildCardTree, fetchCard, renderCardPng, TOKEN_RE, brandPng } from '../api/_lib/card.js';
+import { hexToCode } from '../api/_lib/token.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOKEN = 'a1b2c3d4'.repeat(8);
+const CODE = hexToCode(TOKEN);
 const CARD = { ok: true, teams: [{ names: ['Seba', 'Marcos'], sets: [6, 3, 6] }, { names: ['Esteban', 'Matu'], sets: [4, 6, 4] }] };
 const hasDeps = fs.existsSync(path.join(root, 'node_modules', 'satori')) && fs.existsSync(path.join(root, 'node_modules', '@resvg', 'resvg-wasm'));
 
@@ -70,19 +73,29 @@ test('diseño: logo, dos parejas (una por fila) en lima/celeste, games por set c
   assert.match(flat, /"color":"#687482","fontSize":50,"fontWeight":800\},"children":"3"/);
 });
 
-test('handler: sin RPC utilizable → 302 a la tarjeta de MARCA (nunca error ni imagen rota); sin caché compartida', async () => {
+test('handler: enlace inválido o sin RPC utilizable → 200 con la tarjeta de MARCA (mismo formato; el bot nunca ve un error ni aprende por qué)', async () => {
   const saved = { u: process.env.SUPABASE_URL, k: process.env.SUPABASE_ANON_KEY };
   delete process.env.SUPABASE_URL; delete process.env.SUPABASE_ANON_KEY;
+  const realFetch = globalThis.fetch; let fetched = 0;
+  globalThis.fetch = async () => { fetched += 1; return { ok: true, json: async () => ({ ok: false }) }; };
   try {
-    for (const query of [{ t: TOKEN }, { t: 'basura' }, {}]) {
+    for (const query of [{ c: CODE }, { c: 'basura' }, { c: `${CODE}x` }, { c: 'x' }, {}]) {
       const res = fakeRes();
-      await handler({ url: '/api/invitacion-og', query }, res);
-      assert.equal(res.code, 302);
-      assert.equal(res.headers.location, FALLBACK_PATH);
+      await handler({ url: '/api/og', query }, res);
+      assert.equal(res.code, 200, JSON.stringify(query));
+      assert.equal(res.headers['content-type'], 'image/png');
+      assert.deepEqual(res.body, brandPng(), 'idéntica a la tarjeta de marca');
       assert.equal(res.headers['cache-control'], 'private, no-store');
     }
-  } finally { if (saved.u) process.env.SUPABASE_URL = saved.u; if (saved.k) process.env.SUPABASE_ANON_KEY = saved.k; }
-  assert.ok(fs.existsSync(path.join(root, 'assets', 'invitacion-og.png')), 'el respaldo existe');
+    // RPC que responde {ok:false} (vencido/rotado/usado): también la tarjeta de marca, indistinguible
+    process.env.SUPABASE_URL = 'https://x.supabase.co'; process.env.SUPABASE_ANON_KEY = 'k';
+    const res = fakeRes();
+    await handler({ url: '/api/og', query: { c: CODE } }, res);
+    assert.deepEqual(res.body, brandPng());
+    assert.equal(fetched, 1, 'solo el enlace con formato válido llega a consultar la base');
+  } finally { globalThis.fetch = realFetch; delete process.env.SUPABASE_URL; delete process.env.SUPABASE_ANON_KEY; if (saved.u) process.env.SUPABASE_URL = saved.u; if (saved.k) process.env.SUPABASE_ANON_KEY = saved.k; }
+  const brand = brandPng();
+  assert.equal(brand.subarray(1, 4).toString(), 'PNG'); assert.equal(brand.readUInt32BE(16), 1200); assert.equal(brand.readUInt32BE(20), 630); assert.ok(brand.length < 300 * 1024);
 });
 
 test('render real (satori + resvg-wasm): PNG 1200×630, liviano; nombres largos y 2/3/5 sets no rompen', { skip: !hasDeps && 'faltan dependencias: correr `npm ci` en bramulab/' }, async () => {
@@ -99,9 +112,10 @@ test('handler con datos: imagen/png con cache privada (el enlace personal no se 
   globalThis.fetch = async () => ({ ok: true, json: async () => CARD });
   try {
     const res = fakeRes();
-    await handler({ url: '/api/invitacion-og', query: { t: TOKEN } }, res);
+    await handler({ url: '/api/og', query: { c: CODE } }, res);
     assert.equal(res.code, 200);
     assert.equal(res.headers['content-type'], 'image/png'); assert.equal(res.headers['cache-control'], 'private, no-store');
     assert.equal(res.body.subarray(1, 4).toString(), 'PNG');
+    assert.notDeepEqual(res.body, brandPng(), 'con datos válidos NO es la tarjeta de marca');
   } finally { globalThis.fetch = realFetch; delete process.env.SUPABASE_URL; delete process.env.SUPABASE_ANON_KEY; }
 });

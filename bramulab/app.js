@@ -15906,7 +15906,16 @@
   async function createInviteUrl(playerId, sourceMatchId) {
     const created = await Auth.createClaimLink(playerId, sourceMatchId);
     if (!created.ok || !created.token) return { ok: false, code: created.code || 'unknown' };
-    return { ok: true, url: `${window.location.origin}/invitacion/${created.token}` };
+    return { ok: true, url: buildInviteLinkUrl(created.token) };
+  }
+  /** V04.41 — enlace compartible. Con `inviteBase` (servicio público `bramulab-invite`, configurado por entorno) es `{base}/i/{43 caracteres}`: el MISMO
+   *  token de 256 bits recodificado en base64url (lossless, sin segundo sistema de tokens). Sin base configurada (p. ej. Production hasta que se
+   *  decida) sigue siendo `{origen}/invitacion/{64 hex}`, que la app redirige a la captura de siempre. Función pura (probada). */
+  function buildInviteLinkUrl(token) {
+    const base = String((window.__BRAMU_ENV__ && window.__BRAMU_ENV__.inviteBase) || '').replace(/\/+$/, '');
+    if (!base || !/^[0-9a-f]{64}$/.test(String(token))) return `${window.location.origin}/invitacion/${token}`;
+    const bytes = String(token).match(/../g).map((h) => String.fromCharCode(parseInt(h, 16))).join('');
+    return `${base}/i/${btoa(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
   }
   /** Prepara (una sola vez por apertura de la hoja) el enlace + mensaje + URL de WhatsApp. Un fallo no se cachea: el reintento vuelve a generar. */
   function prepareInvite(cur) {

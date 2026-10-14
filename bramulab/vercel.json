@@ -7,14 +7,6 @@
     {
       "source": "/robots.txt",
       "destination": "/robots.generated.txt"
-    },
-    {
-      "source": "/invitacion/:token",
-      "destination": "/api/invitacion?t=:token"
-    },
-    {
-      "source": "/invitacion/:token/og.png",
-      "destination": "/api/invitacion-og?t=:token"
     }
   ],
   "headers": [
@@ -36,10 +28,11 @@
       ]
     }
   ],
-  "functions": {
-    "api/invitacion-og.mjs": {
-      "includeFiles": "{og/**,node_modules/@resvg/resvg-wasm/index_bg.wasm,node_modules/harfbuzzjs/**}",
-      "maxDuration": 10
+  "redirects": [
+    {
+      "source": "/invitacion/:token",
+      "destination": "/?claim=:token",
+      "permanent": false
     }
-  }
+  ]
 }

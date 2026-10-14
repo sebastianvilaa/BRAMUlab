@@ -10,3 +10,6 @@ bramulab/.env
 bramulab/.env.*
 !bramulab/.env.example
 node_modules/
+# bramulab-invite (servicio público de invitaciones): vínculo local con Vercel y dependencias
+bramulab-invite/.vercel/
+bramulab-invite/.env*

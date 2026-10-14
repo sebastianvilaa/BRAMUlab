@@ -101,7 +101,7 @@ function makeEnv({ token = 'a'.repeat(64), auth = {}, store = {}, matches = {}, 
     renderPlayerHome() { log.calls.push('renderPlayerHome'); }, renderHistory() { log.calls.push('renderHistory'); },
     syncServerLevelState() { log.calls.push('syncServerLevelState'); },
     isServerBackedSession: () => serverBacked, analysisCurrent: null, currentUserId: 'me', MSync: null, provisionalIdSet: new Set(),
-    window: { location: { origin: 'https://app.test', pathname: '/bramulab/' }, open: () => ({}) },
+    window: { location: { origin: 'https://app.test', pathname: '/bramulab/' }, open: () => ({}) }, btoa: (x) => Buffer.from(x, 'latin1').toString('base64'),
     navigator: {}, requestAnimationFrame: (f) => f(), setTimeout, Promise, Map, Set, String, Array, Intl, Date, Blob, JSON, Math,
   };
   const code = between(appJs, '  const INVITATION_ERROR_TEXT = {', '  function initInvitationFlow() {');
