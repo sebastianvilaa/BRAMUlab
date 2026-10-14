@@ -8,11 +8,17 @@ import { codeToHex } from './_lib/token.js';
 
 const APP_URL_RE = /^https:\/\/[a-z0-9][a-z0-9.-]*(:\d{1,5})?$/;
 
-export function resolveOrigin(host) {
+const FORCED_ORIGIN_RE = /^https:\/\/[a-z0-9][a-z0-9.-]*$/;
+
+/** Origen público de las URLs absolutas (og:image). Si la instancia tiene `BRAMU_INVITE_ORIGIN` (p. ej. Production = `https://bramulab.com`, donde la web
+ *  reescribe `/invitacion/*` hacia esta instancia) se usa ESE valor y nunca el Host del pedido; si no (Staging), se deduce del Host solo para dominios propios. */
+export function resolveOrigin(host, forced = process.env.BRAMU_INVITE_ORIGIN) {
+  const f = String(forced || '').trim().replace(/\/+$/, '');
+  if (FORCED_ORIGIN_RE.test(f)) return f;
   const h = String(host || '').toLowerCase().split(',')[0].trim();
   if (/^[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)*\.vercel\.app$/.test(h)) return `https://${h}`;
   if (/^(localhost|127\.0\.0\.1)(:\d{1,5})?$/.test(h)) return `http://${h}`;
-  if (/^[a-z0-9][a-z0-9.-]*\.bramulab\.com$/.test(h)) return `https://${h}`;
+  if (/^([a-z0-9-]+\.)*bramulab\.com$/.test(h)) return `https://${h}`;
   return null;
 }
 

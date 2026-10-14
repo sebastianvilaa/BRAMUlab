@@ -28,11 +28,16 @@ test('token compacto: 64 hex ↔ 43 base64url SIN pérdida (mismos 256 bits); so
   assert.equal(hexToCode('xyz'), null);
 });
 
-test('origen de las URLs absolutas: solo *.vercel.app, *.bramulab.com y localhost; cualquier otro host → null (404)', () => {
-  assert.equal(resolveOrigin('bramu-i.vercel.app'), 'https://bramu-i.vercel.app');
-  assert.equal(resolveOrigin('i.bramulab.com'), 'https://i.bramulab.com');
-  assert.equal(resolveOrigin('localhost:3000'), 'http://localhost:3000');
-  for (const bad of ['evil.com', 'bramu-i.vercel.app.evil.com', 'bramulab.com.evil.com', '', undefined, 'a b.vercel.app']) assert.equal(resolveOrigin(bad), null, String(bad));
+test('origen de las URLs absolutas: BRAMU_INVITE_ORIGIN manda (Production = https://bramulab.com); sin él, solo *.vercel.app, bramulab.com (y subdominios) y localhost; cualquier otro host → null (404)', () => {
+  assert.equal(resolveOrigin('bramu-i.vercel.app', ''), 'https://bramu-i.vercel.app');
+  assert.equal(resolveOrigin('i.bramulab.com', ''), 'https://i.bramulab.com');
+  assert.equal(resolveOrigin('bramulab.com', ''), 'https://bramulab.com', 'el apex también');
+  assert.equal(resolveOrigin('localhost:3000', ''), 'http://localhost:3000');
+  for (const bad of ['evil.com', 'bramu-i.vercel.app.evil.com', 'bramulab.com.evil.com', 'evilbramulab.com', '', undefined, 'a b.vercel.app']) assert.equal(resolveOrigin(bad, ''), null, String(bad));
+  // con origen forzado (instancia de Production) el Host del pedido no influye: ni siquiera un host ajeno
+  assert.equal(resolveOrigin('bramu-i-prod.vercel.app', 'https://bramulab.com'), 'https://bramulab.com');
+  assert.equal(resolveOrigin('evil.com', 'https://bramulab.com/'), 'https://bramulab.com');
+  for (const bad of ['http://bramulab.com', 'bramulab.com', 'https://bramulab.com/x?y', 'javascript:1']) assert.equal(resolveOrigin('evil.com', bad), null, `forzado inválido ${bad} no se usa`);
 });
 
 test('destino de las personas: solo un origen https sin ruta de BRAMU_APP_URL (servidor); con token válido lleva ?claim= (la captura existente)', () => {
