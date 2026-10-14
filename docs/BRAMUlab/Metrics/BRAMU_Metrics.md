@@ -6,6 +6,12 @@
 
 
 
+## 14/10/2026 — Módulo «Web» ACTIVO en Production
+
+Activado con autorización expresa de Sebastián. Detalle completo (migración, `admin-metrics` v2, hotfix administrativo de la app, variables de `bramulab-web`, prueba real y eventos de prueba incluidos) en `README.md` de esta documentación, sección «14/10/2026 — BRAMU Metrics Web ACTIVO en Production». Reemplaza el estado «Staging, sin activar» de las dos secciones siguientes. Contrato web: `bramulab-web/docs/BRAMUlab_Web.md` §10–§11. Mide visitas y clics hacia la entrada de la app; no mide personas, instalaciones ni sesiones. Política de Privacidad actualizada (§20 de `Operacion/Privacidad_Legal.md`).
+
+---
+
 ## 13/10/2026 — Corrección de clics hacia la app (Staging, sin activar)
 
 **RESUELTO EN CÓDIGO:** `bramulab-web/js/web-metrics.js` v1.1 (commit `0e4fbed5ba2d15d0a4697bb7ee92a54b614f6b6c`) cuenta clics solo en la entrada principal `https://app.bramulab.com/` o `/index.html`, no rutas legales como `/terminos/` o `/privacidad/` del mismo origen. **16 pruebas puntuales** PASS en `bramulab/tests/web-analytics-outbound-links.test.mjs`. No cambia enlaces, tabla, RPC, dashboard, activación ni Production. **Coordinación Desarrollo Web:** la copia local aún desactivada debe sincronizar exactamente este script desde `staging` antes del futuro lanzamiento; contrato y SHA del archivo en `bramulab-web/docs/BRAMUlab_Web.md` §10. Hasta sincronizar la copia local, no afirmar que ambos árboles coinciden.

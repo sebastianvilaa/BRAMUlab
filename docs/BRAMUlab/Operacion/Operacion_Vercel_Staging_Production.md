@@ -83,3 +83,12 @@ Consolida lo que antes vivía en los informes de G3/G4 y del primer deploy (reti
 2. Seguimiento del expediente AAIP (ver arriba).
 3. Decisión G4: plan de Supabase / backups gestionados (ver `Runbook_Operacion_y_Salida.md`, «Backup»).
 4. Repositorio público, GitHub Pages viejo y logo de emails en `raw.githubusercontent.com`: **intervención independiente** (ver `Implementacion/Pre_Production/138_…` y `139_…`); nada de eso se cambia sin autorización específica y verificación de BRAMUlive/Pages.
+
+## Sitio web `bramulab.com` — proyecto Vercel `bramulab-web` (14/10/2026)
+
+Proyecto **independiente** del proyecto `bramulab` (app): `bramulab-web`, `prj_fv2HrqEPa5jhCc59ONtSRljJluOb`, mismo equipo `bramu-lab`. Sin Git conectado: se publica por **carga directa desde `bramulab-web/`** con la CLI (`npx vercel deploy --prod --scope bramu-lab`). Dominios `bramulab.com` y `www.bramulab.com` (308 al apex); DNS en Cloudflare solo-DNS (`A @ → 216.198.79.1`, `CNAME www → aa138c660d16aecf.vercel-dns-017.com`); el registro `app` no se tocó. Protección «todas excepto dominios personalizados» (previews y URL únicas protegidas). Variables de servidor de Production (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `WEB_METRICS_ALLOWED_ORIGIN`) para `/api/metrics`: nunca en archivos. Detalle, deployments y la medición: `bramulab-web/README.md` y `README.md` de esta documentación (14/10/2026).
+
+**Aviso Vercel:** el primer deploy de un proyecto nuevo se asigna a Production aunque se pida preview.
+
+**Hotfix administrativo de la app por CLI (14/10/2026).** Con autorización expresa, `dpl_EgQRqW8zFqx1FPZmvEXX9KmqNaSq` se creó con `vercel deploy --prod` desde una copia del árbol del commit `a7456908` más dos archivos (`admin/metrics/metrics.js` y `privacidad/index.html`), sin push ni merge; el resultado se verificó comparando 31 archivos servidos (solo cambiaron esos dos). Ese contenido equivale a `staging` (commits `13b3c8c` y el de la Política), por lo que no queda diferencia de código entre lo publicado y lo versionado, salvo pruebas y documentación.
+

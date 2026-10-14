@@ -17,6 +17,25 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
+## 14/10/2026 — BRAMU Metrics Web ACTIVO en Production (estado vigente)
+
+**Autorizado por Sebastián.** Mide solo **visitas a `bramulab.com`** (cada apertura, recargas incluidas; no son personas únicas) y **clics hacia la entrada de `app.bramulab.com`** (`/` o `/index.html`; Términos y Privacidad no cuentan), como contadores diarios agregados en `public.web_analytics_daily`, sin IP, cookies, IDs ni historial individual. No cambia nada de cuentas, jugadores, partidos, Nivel ni Ranking.
+
+**Qué se hizo en Production (14/10/2026):**
+- **Supabase Production** (`bgnnnfbdywefftvoqiss`): migración `20261013220000_web_public_daily_analytics` aplicada en una transacción (tabla con RLS, `anon`/`authenticated` sin acceso, RPC solo `service_role`; registrada en `schema_migrations`). Antes y después: 8 perfiles, 3 partidos, 1 administrador. Edge Function `admin-metrics` **v2** (`verify_jwt=true`): el código de Production era idéntico a `a7456908` y solo se agregó la ruta `web → metrics_web`; sin sesión responde 401.
+- **App (proyecto Vercel `bramulab`)**: hotfix administrativo sobre `04.40-h3` (commit `a7456908`), deployment `dpl_EgQRqW8zFqx1FPZmvEXX9KmqNaSq`, alias `app.bramulab.com`. **Solo dos archivos cambiaron**: `admin/metrics/metrics.js` (pestaña «Web», commit `13b3c8c`) y `privacidad/index.html` (información sobre la medición web). De 31 archivos servidos, los demás conservan el mismo hash. La versión sigue siendo `04.40-h3`. Se desplegó desde una copia del commit por la CLI de Vercel (sin push ni merge a `main`).
+- **Web (proyecto Vercel `bramulab-web`)**: variables **solo de servidor** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `WEB_METRICS_ALLOWED_ORIGIN=https://bramulab.com` (Production; no hay valores en archivos ni en el chat); `web-metrics.js` v1.1 activado en `bramulab.com`, deployment `dpl_emRfBF96jkFZNPFCnApuiPpm2JBm`. Antes, el lanzamiento de la web fue `dpl_4v5EbqYZKBeRTU5HzBiL9qA4dvgb`.
+
+**Inicio de la medición:** 14/10/2026 (la primera fila de `web_analytics_daily` es de ese día, hora de Buenos Aires).
+
+**Prueba real:** una visita y un clic al CTA del hero desde `bramulab.com`, más un clic en «Términos» (no contó). Resultado en Production: 1 vista (`page`) y 1 clic (`hero`) del 14/10; `metrics_web` los devuelve como «hoy parcial». **Esos dos eventos de prueba quedan incluidos en el contador** (no se borraron).
+
+**Lectura desde el panel (verificada el 14/10/2026 con sesión de administrador):** la pestaña «Web» renderiza; los períodos 7/30/90 días terminan ayer y hoy muestran 0, y «Hoy · parcial» mostró **4 visitas · 1 clic**, igual a la tabla de Production (`view/page` = 4, `click/hero` = 1). Las 3 visitas adicionales a la de la prueba provienen de otras aperturas de `bramulab.com` durante la verificación (no se pueden atribuir a personas); todo el conteo del 14/10 incluye esas aperturas de prueba.
+
+**Pendiente / decisión abierta:** la actualización informativa de la Política (misma versión `legal_v2`, sin reaceptación) fue evaluada internamente como cambio no material; **la validación legal humana y, si corresponde, la regularización ante la AAIP siguen abiertas** (ver `Operacion/Privacidad_Legal.md` §20).
+
+---
+
 ## 13/10/2026 — Hotfix de homónimos `04.40-h3` PUBLICADO en Production (estado vigente)
 
 Se corrigió el selector de compañero/rivales en Cargar partido: una coincidencia exacta de nombre con una cuenta registrada **o una identidad provisional** no oculta «Agregar a “nombre”». Si ya existe otra persona con ese nombre, la acción identifica «Otra persona sin cuenta». Se conserva la selección por `player_id`, sin fusionar identidades ni asignar dos lugares al mismo `player_id`. Cinco pruebas de regresión ejecutadas satisfactoriamente contra el código de Staging; backend de creación provisional inspeccionado en **Staging y Production** (siempre crea un UUID; sin matching por nombre). Sin migraciones ni escrituras en bases de datos.
@@ -59,7 +78,7 @@ Con autorización explícita del responsable se publicó **solo** el hotfix `04.
 | Frente | Estado |
 |---|---|
 | **Producto** | BRAMUlab **V04.37**. Backend Bloques 1–8, Pre-Bloque 9, 9A/9B, G1–G3 y todos los frentes P0 de salida **cerrados**. |
-| **Production** | **ACTIVA**, V04.40 / `04.40-h3` publicada el 13/10/2026, deployment `dpl_C94TxYd6QSr6tHx4dSZeZ7nmbZNK` desde SHA `a7456908`; homónimos en Cargar partido. Privacidad y seguimiento AAIP: `Operacion/Privacidad_Legal.md` §19. |
+| **Production** | **ACTIVA**, V04.40 / `04.40-h3` publicada el 13/10/2026, deployment `dpl_C94TxYd6QSr6tHx4dSZeZ7nmbZNK` desde SHA `a7456908` (14/10/2026: hotfix administrativo `dpl_EgQRqW8zFqx1FPZmvEXX9KmqNaSq` con pestaña Web de Metrics y Política actualizada, ver arriba); homónimos en Cargar partido. Privacidad y seguimiento AAIP: `Operacion/Privacidad_Legal.md` §19. |
 | **Staging** | **V04.40 / bundle `04.40-h3`**: normalización de @usuario y hotfix de homónimos publicados; build READY y alias independiente. Próximos cambios siguen naciendo en Staging. |
 | **Pendientes reales** | Seguimiento del expediente AAIP, smoke humano mínimo de Production, decisión de backups (G4), QA humano de la fecha de nacimiento en Android, y el frente independiente de repositorio público/GitHub Pages. Detalle: `Operacion/Pre_Production.md` §2. Ideas futuras y riesgos conocidos: `Producto/BRAMUlab_Backlog.md`. |
 | **BRAMU Metrics** | **EN CURSO — protegido** (ver §3). |

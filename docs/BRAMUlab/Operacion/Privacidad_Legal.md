@@ -477,3 +477,11 @@ El texto vigente (Política §2 «eventos internos de producto», §3 finalidade
 2. Tratarlo como **cambio no material** (no pide reaceptación ni opt-in/opt-out): usa datos ya tratados, con los mismos destinatarios y sin información adicional visible. Si la revisión legal interna lo considerara material, se integraría en la próxima actualización de `legal_v2` junto con la medición, sin segunda pantalla.
 3. Verificar que la finalidad declarada ante AAIP/RNBDP (expediente en curso, ver §18.5) alcance «facilitar la interacción entre jugadores»; si no, incluirlo en el mismo trámite de actualización.
 4. No agregar opt-out por ahora; reevaluar si aparecen reclamos de usuarios reales.
+
+## 20. Medición agregada del sitio web `bramulab.com` — publicada el 14/10/2026
+
+**Qué se publicó.** La Política (`bramulab/privacidad/index.html`, misma versión `legal_v2`, «Actualizada: 14 de octubre de 2026») agrega: sección «Sitio web bramulab.com» (§2), una finalidad «Medición del sitio web» (§3), el alojamiento del sitio en Vercel y el guardado de los contadores en Supabase (§5) y una entrada en el Historial de cambios (§9). Dice que se cuentan visitas y clics hacia la app como contadores diarios agregados sin IP, cookies propias ni identificadores, que no se distinguen personas únicas, que no se vinculan con cuentas, que no hay analítica ni publicidad de terceros, que bloquear scripts evita el conteo y que los proveedores pueden procesar registros técnicos transitorios de infraestructura (no se afirma que no existan).
+
+**Cómo se trató.** Como cambio informativo (no material): datos no personales agregados, sin nueva categoría de datos de cuentas, sin pantalla ni reaceptación; mismo criterio que la aclaración del 10/10/2026 (§19). Publicada antes de activar `web-metrics.js`.
+
+**DECISIÓN ABIERTA (humana, no resuelta aquí):** (1) confirmar con revisión legal interna que no corresponde reaceptación ni nuevo consentimiento; (2) evaluar si la medición agregada del sitio exige mencionarla o regularizarla en el expediente AAIP (`EX-2026-97673851-APN-DNDPD#AAIP`); (3) la Política sigue describiendo Vercel y Supabase con los textos ya vigentes; no se verificó la constancia privada de la AAIP. *Evaluación interna de producto, no asesoramiento legal.*
