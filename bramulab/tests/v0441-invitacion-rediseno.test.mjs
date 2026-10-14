@@ -66,7 +66,7 @@ test('el cliente arma el enlace con buildInviteLinkUrl y los ?claim= anteriores 
 });
 
 /* ================= Hoja + animación ================= */
-test('hoja (V04.44): pop-up que crece sin pantalla completa; microhistoria con el componente REAL, estado final como base, sin rótulos por etapa, reduced-motion y ≤ 4 s', () => {
+test('hoja (V04.45): pop-up que crece sin pantalla completa; microhistoria con el componente REAL, estado final como base, sin rótulos por etapa, reduced-motion y ≤ 4 s', () => {
   assert.match(css, /#invite-sheet\{ max-height: 92dvh; overflow-y: auto;[^}]*touch-action: pan-y;/);
   const sheet = between(indexHtml, '<div id="invite-sheet-scrim"', 'V04.29 — RECEPTOR DE UNA INVITACIÓN');
   assert.match(sheet, /<div class="result-card result-card--compact"><div class="result-card__rows" id="invite-anim-rows">/, 'la tarjeta es el componente real .result-card');
@@ -80,11 +80,18 @@ test('hoja (V04.44): pop-up que crece sin pantalla completa; microhistoria con e
   assert.match(css, /\.ia2-card\{[^}]*box-shadow: 0 0 0 1\.5px rgba\(149,255,25,0\.55\)/, 'estado final: la tarjeta con el aro lima en el historial');
   const durations = [...css.matchAll(/\.invite-anim\.is-playing \.ia2-(?:hist|card|wabig|badge)\{ animation: [\w-]+ ([\d.]+)s/g)].map((m) => Number(m[1]));
   assert.ok(durations.length >= 4 && Math.max(...durations) >= 4 && Math.max(...durations) <= 4.6, `duración ${durations} (breve: ~4,4 s)`);
-  // V04.44: la tarjeta NO se encoge a una miniatura ilegible; el ícono de WhatsApp (grande) viaja sobre la propia tarjeta
+  // V04.45: la tarjeta NO se encoge a una miniatura ilegible; el ícono de WhatsApp (grande) viaja sobre la propia tarjeta
   const card = css.match(/@keyframes ia2-card \{([\s\S]*?)\}\n@keyframes ia2-ring/)[1];
   const scales = [...card.matchAll(/scale\(([\d.]+)\)/g)].map((m) => Number(m[1]));
   assert.ok(Math.min(...scales) >= 0.8, `escala mínima ${Math.min(...scales)} (V04.43 llegaba a .45)`);
   assert.doesNotMatch(css, /\.ia2-chip|\.ia2-wa\{/, 'sin la píldora diminuta de V04.43');
+  // V04.45: la tarjeta NO se desplaza lateralmente; el envío se representa con un avioncito de papel propio que sale de ella
+  assert.doesNotMatch(card, /translate\(/, 'la tarjeta no se mueve: solo escala/aro');
+  assert.match(sheet, /<span class="ia2-plane"><svg viewBox="0 0 24 24"[^>]*aria-hidden="true">/);
+  assert.match(css, /\.invite-anim\.is-playing \.ia2-plane\{ animation: ia2-plane 4\.4s linear both; \}/);
+  assert.match(css, /\.ia2-plane\{[^}]*opacity:0;/, 'el avioncito solo existe durante el envío (estado final sin él)');
+  assert.doesNotMatch(css.match(/@keyframes ia2-plane \{[\s\S]*?\n\}?\n/)[0], /scale\((0\.[0-3])/, 'sin elementos diminutos');
+  assert.doesNotMatch(sheet.replace(/<!--[\s\S]*?-->/g, '').replace(/<path[^>]*>/g, ''), />\s*(Enviado|Enviando|Entregado)/i, 'sin confirmación funcional de envío');
   assert.match(sheet, /<div class="ia2-card" id="invite-anim-card">[\s\S]*<span class="ia2-wabig"><svg viewBox="0 0 24 24"[^>]*aria-hidden="true"><path d="M17\.472 14\.382/);
   assert.match(css, /.ia2-wabig\{[^}]*width:40px; height:40px;[^}]*background:#25D366;[^}]*opacity:0;/, 'el ícono de WhatsApp solo vive durante la transformación y el viaje');
   assert.match(css, /\.invite-anim\.is-playing \.ia2-wabig\{ animation: ia2-wabig 4\.4s/);
@@ -94,7 +101,7 @@ test('hoja (V04.44): pop-up que crece sin pantalla completa; microhistoria con e
   assert.match(css, /cubic-bezier\(\.22,\.8,\.24,1\)/);
 });
 
-test('hoja (V04.44): composición limpia — todo centrado, WhatsApp principal, «Compartir de otra manera» como texto discreto y aclaración chica al pie', () => {
+test('hoja (V04.45): composición limpia — todo centrado, WhatsApp principal, «Compartir de otra manera» como texto discreto y aclaración chica al pie', () => {
   assert.match(css, /\.invite-sheet__body\{ align-items: stretch; text-align: center;/);
   assert.match(css, /\.invite-sheet__more\{[^}]*background:none; border:0;[^}]*text-decoration: underline;/);
   assert.match(css, /\.invite-sheet__note\{[^}]*font-size: 11\.5px;[^}]*text-align: center;/);
@@ -189,10 +196,10 @@ test('privacidad: el mensaje compartido no incluye el nombre del invitado; la fu
   assert.doesNotMatch(sql.replace(/--[^\n]*/g, ''), /grant\s+select|create\s+policy|alter\s+table/i, 'ningún permiso de tablas');
 });
 
-test('versionado V04.44 en cuarteto (número de producto simple, sin sufijos h1/h2) + referencias ?v=', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.44', bundle: '04.44' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.44'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.44'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-44'/);
-  assert.match(indexHtml, /app\.js\?v=04\.44"/); assert.match(read('sw.js'), /app\.js\?v=04\.44'/);
+test('versionado V04.45 en cuarteto (número de producto simple, sin sufijos h1/h2) + referencias ?v=', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.45', bundle: '04.45' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.45'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.45'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-45'/);
+  assert.match(indexHtml, /app\.js\?v=04\.45"/); assert.match(read('sw.js'), /app\.js\?v=04\.45'/);
   assert.doesNotMatch(indexHtml, /\?v=04\.4[01]-h\d/);
 });

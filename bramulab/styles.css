@@ -4143,25 +4143,29 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
   background: var(--brand-lime); color: var(--bg); box-shadow: 0 0 0 3px var(--surface-2), 0 6px 14px -4px rgba(149,255,25,0.6); }
 .ia2-wabig{ position:absolute; left:50%; margin-left:-20px; top:-20px; z-index:2; width:40px; height:40px; border-radius:50%; display:grid; place-items:center; background:#25D366; color:#fff; opacity:0;
   box-shadow: 0 0 0 3px var(--surface-2), 0 8px 18px -4px rgba(37,211,102,0.7); }
-.ia2-trail{ position:absolute; left:50%; top:50%; width:0; height:0; }
-.ia2-trail i{ position:absolute; top:-3px; width:6px; height:6px; border-radius:50%; background: var(--brand-lime); box-shadow: 0 0 10px rgba(149,255,25,0.8); opacity:0; }
-.ia2-trail i:nth-child(1){ left:60px; } .ia2-trail i:nth-child(2){ left:84px; top:-8px; } .ia2-trail i:nth-child(3){ left:108px; top:-13px; }
+.ia2-plane{ position:absolute; left:50%; margin-left:-13px; top:50px; width:26px; height:26px; z-index:3; color: var(--brand-lime); opacity:0; filter: drop-shadow(0 0 8px rgba(149,255,25,0.55)); }
+.ia2-plane svg{ display:block; width:100%; height:100%; }
+.ia2-trail{ position:absolute; left:50%; top:63px; width:0; height:0; }
+.ia2-trail i{ position:absolute; width:5px; height:5px; border-radius:50%; background: var(--brand-lime); box-shadow: 0 0 10px rgba(149,255,25,0.8); opacity:0; }
+.ia2-trail i:nth-child(1){ left:18px; top:-13px; } .ia2-trail i:nth-child(2){ left:44px; top:-24px; } .ia2-trail i:nth-child(3){ left:72px; top:-36px; }
 
-/* V04.44 — transición reajustada: el partido NO se encoge a una miniatura; baja apenas de escala (queda legible), se tiñe del verde de WhatsApp, el ícono de
-   WhatsApp aparece grande sobre la tarjeta y la lleva (con estela) hacia el destinatario; llega al historial con aro lima y el check de «recuperado». Total 4,4 s. */
-@keyframes ia2-card { 0%{opacity:0;transform:translateY(16px) scale(.94)} 11%{opacity:1;transform:translateY(0) scale(1)} 30%{opacity:1;transform:translate(0,0) scale(1)}
-  40%{opacity:1;transform:translate(0,0) scale(.86)} 51%{opacity:1;transform:translate(0,0) scale(.86)} 63%{opacity:1;transform:translate(150px,-6px) scale(.84)}
-  66%{opacity:0;transform:translate(290px,-12px) scale(.8)} 68%{opacity:0;transform:translate(70px,-24px) scale(.92)}
-  85%{opacity:1;transform:translate(0,0) scale(1.025)} 93%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:1;transform:translate(0,0) scale(1)} }
+/* V04.45 — la tarjeta NO se desplaza: se transforma en invitación (aro verde de WhatsApp + ícono grande sobre ella), un avioncito de papel (símbolo
+   propio de BRAMUlab, no el de otra app) sale de ella en un arco breve con estela, y la tarjeta se asienta en el historial con aro lima y check. Total 4,4 s. */
+@keyframes ia2-card { 0%{opacity:0;transform:translateY(16px) scale(.94)} 11%{opacity:1;transform:translateY(0) scale(1)} 30%{opacity:1;transform:scale(1)}
+  40%{opacity:1;transform:scale(.9)} 50%{opacity:1;transform:scale(.9)} 54%{opacity:1;transform:scale(.87)} 61%{opacity:1;transform:scale(.9)} 68%{opacity:1;transform:scale(.9)}
+  72%{opacity:1;transform:scale(.95)} 85%{opacity:1;transform:scale(1.03)} 93%{opacity:1;transform:scale(1)} 100%{opacity:1;transform:scale(1)} }
 @keyframes ia2-ring { 0%,29%{box-shadow:0 0 0 1.5px rgba(183,211,235,0.14),0 0 0 rgba(149,255,25,0)} 40%{box-shadow:0 0 0 2px rgba(37,211,102,0.95),0 0 28px rgba(37,211,102,0.5)}
-  64%{box-shadow:0 0 0 2px rgba(37,211,102,0.95),0 0 28px rgba(37,211,102,0.5)} 67%{box-shadow:0 0 0 1.5px rgba(183,211,235,0.14),0 0 0 rgba(149,255,25,0)}
-  85%{box-shadow:0 0 0 2px rgba(149,255,25,0.95),0 0 30px rgba(149,255,25,0.55)} 100%{box-shadow:0 0 0 1.5px rgba(149,255,25,0.55),0 0 22px -4px rgba(149,255,25,0.38)} }
-@keyframes ia2-hist { 0%,58%{opacity:0;transform:translateY(8px)} 78%,100%{opacity:1;transform:none} }
+  66%{box-shadow:0 0 0 2px rgba(37,211,102,0.95),0 0 28px rgba(37,211,102,0.5)} 85%{box-shadow:0 0 0 2px rgba(149,255,25,0.95),0 0 30px rgba(149,255,25,0.55)}
+  100%{box-shadow:0 0 0 1.5px rgba(149,255,25,0.55),0 0 22px -4px rgba(149,255,25,0.38)} }
+@keyframes ia2-hist { 0%,62%{opacity:0;transform:translateY(8px)} 80%,100%{opacity:1;transform:none} }
 @keyframes ia2-wabig { 0%,31%{opacity:0;transform:scale(0) rotate(-12deg);box-shadow:0 0 0 3px var(--surface-2),0 8px 18px -4px rgba(37,211,102,0.7),0 0 0 0 rgba(37,211,102,0.6)}
   38%{opacity:1;transform:scale(1.22) rotate(0)} 42%{opacity:1;transform:scale(1);box-shadow:0 0 0 3px var(--surface-2),0 8px 18px -4px rgba(37,211,102,0.7),0 0 0 0 rgba(37,211,102,0.6)}
   56%{opacity:1;transform:scale(1);box-shadow:0 0 0 3px var(--surface-2),0 8px 18px -4px rgba(37,211,102,0.7),0 0 0 14px rgba(37,211,102,0)}
-  63%{opacity:1;transform:scale(1)} 66%,100%{opacity:0;transform:scale(.6)} }
-@keyframes ia2-dot { 0%,50%{opacity:0;transform:scale(.4)} 58%{opacity:.95;transform:scale(1)} 68%,100%{opacity:0;transform:scale(.5)} }
+  66%{opacity:1;transform:scale(1)} 70%,100%{opacity:0;transform:scale(.6)} }
+@keyframes ia2-plane { 0%,46%{opacity:0;transform:translate(0,0) rotate(-8deg) scale(.5)} 51%{opacity:1;transform:translate(6px,-4px) rotate(-14deg) scale(1)}
+  57%{opacity:1;transform:translate(46px,-20px) rotate(-24deg) scale(1)} 63%{opacity:1;transform:translate(96px,-40px) rotate(-30deg) scale(1)}
+  69%{opacity:1;transform:translate(150px,-58px) rotate(-34deg) scale(.95)} 72%,100%{opacity:0;transform:translate(190px,-68px) rotate(-36deg) scale(.85)} }
+@keyframes ia2-dot { 0%,52%{opacity:0;transform:scale(.4)} 60%{opacity:.95;transform:scale(1)} 72%,100%{opacity:0;transform:scale(.5)} }
 @keyframes ia2-sheen { 0%,12%{opacity:0} 14%{opacity:1} 27%{opacity:1} 29%,100%{opacity:0} }
 @keyframes ia2-sweep { 0%,12%{left:-50%} 27%,100%{left:120%} }
 @keyframes ia2-pop { 0%{opacity:0;transform:scale(.55)} 100%{opacity:1;transform:none} }
@@ -4171,6 +4175,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .invite-anim.is-playing .ia2-hist{ animation: ia2-hist 4.4s var(--ia-ease, cubic-bezier(.22,.8,.24,1)) both; }
 .invite-anim.is-playing .ia2-card{ animation: ia2-card 4.4s cubic-bezier(.22,.8,.24,1) both, ia2-ring 4.4s linear both; }
 .invite-anim.is-playing .ia2-wabig{ animation: ia2-wabig 4.4s cubic-bezier(.22,.8,.24,1) both; }
+.invite-anim.is-playing .ia2-plane{ animation: ia2-plane 4.4s linear both; }
 .invite-anim.is-playing .ia2-trail i{ animation: ia2-dot 4.4s ease-out both; }
 .invite-anim.is-playing .ia2-trail i:nth-child(2){ animation-delay: .12s; } .invite-anim.is-playing .ia2-trail i:nth-child(3){ animation-delay: .24s; }
 .invite-anim.is-playing .ia2-sheen{ animation: ia2-sheen 4.4s linear both; }
