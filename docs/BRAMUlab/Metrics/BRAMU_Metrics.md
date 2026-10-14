@@ -6,6 +6,24 @@
 
 
 
+## 13/10/2026 — Módulo «Web» mínimo (STAGING, sin publicación)
+
+**Autorización del responsable:** preparar ahora un módulo Web en Metrics, exclusivamente con visitas a `bramulab.com`, clics hacia `app.bramulab.com` y su relación informativa; **sin pagar Pro ni otras herramientas**. El módulo NO afirma medir personas únicas, quién cerró, instalaciones ni accesos efectivos a la app.
+
+**AGREGAR (solo Staging):**
+- Tabla independiente `public.web_analytics_daily` y RPCs `web_analytics_increment`/`metrics_web` mediante `supabase/migrations/20261013220000_web_public_daily_analytics.sql`: agregados por día/acción/origen, sin perfiles individuales, ID, IP, email ni cookies. Solo `service_role` puede leer/escribir; `anon` y `authenticated` denegados.
+- Título «Web» en la navegación de `bramulab/admin/metrics/metrics.js`. Dos cifras: visitas (recargas incluidas) y clics de salida; relación «clics por cada 100 visitas», **no conversión de personas**; períodos existentes, hoy parcial aparte.
+- Ruta `web -> metrics_web` en mapa cerrado `supabase/functions/_shared/admin-metrics-core.mjs`. Se mantiene la autorización **JWT + metrics_admins + límite de solicitudes** del Edge endpoint `admin-metrics`; ninguna salida identificable.
+- Integración futura en web independiente: `bramulab-web/js/web-metrics.js`, `bramulab-web/api/metrics.js`, aún sin sitio ni despliegue. El enlace a app permanece nativo; evento no bloqueante por `sendBeacon`, si falla no interrumpe la navegación.
+
+**Comprobado:** migración aplicada exclusivamente en Supabase Staging; transacción con 2 vistas y 1 clic verificada con `ROLLBACK`, sin eventos de prueba persistidos; guardias anon/auth y validación del evento verificadas; Edge Function `admin-metrics` versión 3 desplegada en **Supabase Staging**, `verify_jwt=true`; pruebas de enrutamiento y rechazo a no administradores aprobadas. Código web validado con dobles de navegador y endpoint; aún **NO HAY prueba integral de web real** porque el sitio no existe.
+
+**REEMPLAZAR** la idea de que hace falta Pro/Web Analytics API: para este MVP, el propio contador agregado guarda hasta 90 días o más y no requiere eventos personalizados Vercel. La cantidad de **personas únicas** NO se puede inferir de ese contador; si algún día se quiere, deberá considerarse otra fuente y declararlo estimación.
+
+**NO TOCAR / PENDIENTE:** `main`, Production, BRAMUlive, captura de aperturas de cuentas y núcleo de métricas deportivas. No publicar Metrics ni habilitar captura web hasta revisar aviso de privacidad propio de `bramulab.com`, autorizar backend Production y proyecto Vercel web separado, y conectar/testear en una web real. No afirmar ausencia absoluta de costo ante exceso de cuotas: la implementación reutiliza niveles gratuitos vigentes y debe respetar sus límites. El contrato para Desarrollo Web vive en `bramulab-web/docs/BRAMUlab_Web.md` §10.
+
+---
+
 ## 09/10/2026 — Hotfix `04.38-h6` PUBLICADO en Production (cierre)
 
 **Autorización explícita del responsable en el chat Central:** «si», en respuesta directa al pedido de publicar *únicamente* el hotfix de reintentos de aperturas `04.38-h6`.
