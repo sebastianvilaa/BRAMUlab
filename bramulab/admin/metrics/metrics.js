@@ -1,4 +1,4 @@
-/* BRAMU Metrics V1 · F3 — consola privada /admin/metrics.
+/* BRAMUlab Metrics V1 · F3 — consola privada /admin/metrics.
  *
  * Página estática SIN datos: todo sale de la Edge Function `admin-metrics`, que verifica el JWT y autoriza al administrador EN SERVIDOR
  * (lista metrics_admins por UUID). Nada de acá decide quién es administrador: ni el @usuario, ni el email, ni el nombre.
@@ -254,9 +254,75 @@
     return { value: fmtNum(m[key]), empty: false, state: m.state === 'partial' ? { tone: 'partial', text: `Medición desde ${fmtDayMonth(m.since)}` } : null };
   }
   const WEB_CARDS = {
-    views: { label: 'Visitas a la web', hint: 'Aperturas de página · no son personas únicas' },
-    clicks: { label: 'Clics hacia la app', hint: 'Intentos de abrir la app · no son ingresos ni instalaciones' },
+    views: { label: 'Visitas a la web', hint: 'No son personas únicas' },
+    clicks: { label: 'Clics hacia la app', hint: 'No son instalaciones ni ingresos' },
   };
+
+  /** Rótulos de PRESENTACIÓN en castellano corriente. Cambian el título que se lee, nunca la definición ni el cálculo del indicador. */
+  const LABEL_OVERRIDES = { 'users.registered_now': 'Jugadores registrados', 'users.signups': 'Nuevas altas', 'usage.wau': 'Jugadores activos' };
+  function kpiLabel(kpi) { return (kpi && LABEL_OVERRIDES[kpi.id]) || (kpi && kpi.label) || ''; }
+  const PERIOD_ROW = { '7d': 'Últimos 7 días', '30d': '30 días', '90d': '90 días', all: 'Histórico' };
+  /** Fila «período» de las tarjetas Hoy + período: el período elegido; si se eligió «Hoy», los últimos 7 días (la fila de hoy ya es la otra). */
+  function periodRowLabel(range) { return PERIOD_ROW[range === 'today' ? '7d' : range] || ''; }
+
+  const LACK = { insufficient_sample: 1, not_instrumented: 1, immature: 1 };
+  /** En tarjetas compactas solo viajan variaciones con número («▲ +3 · +33 %»); «Sin cambios» y avisos tipo «Sin datos suficientes para comparar» no compiten con el valor. */
+  function quietDelta(d) { return d && d.tone !== 'info' && d.tone !== 'flat' ? d : null; }
+  /** Celda de una tarjeta a partir de un KPI del período. Sin dato = «—» + motivo; jamás un cero inventado. */
+  function cellFromKpi(kpi, meta, compareOn) {
+    if (!kpi) return { text: '—', empty: true, note: 'Sin dato', tone: 'none', delta: null };
+    const a = availabilityView(kpi, meta);
+    if (LACK[kpi.availability]) return { text: '—', empty: true, note: a ? a.text : 'Sin dato', tone: a ? a.tone : 'none', delta: null };
+    const quiet = kpi.availability === 'no_evidence'; // el 0 real ya lo dice: no hace falta repetirlo como aviso
+    return { text: formatValue(kpi, kpi.value), empty: false, note: a && !quiet ? a.text : null, tone: a && !quiet ? a.tone : null, delta: kpi.kind === 'stock' || kpi.snapshot ? null : quietDelta(deltaView(kpi, compareOn)) };
+  }
+  /** Celda de «hoy» (bloque `today` del servidor). null = no medible, no 0. */
+  function cellFromToday(today, field) {
+    const v = today ? today[field] : undefined;
+    if (v === null || v === undefined) {
+      const wait = field === 'activePlayers';
+      return { text: '—', empty: true, note: wait ? 'Todavía no medible' : 'Sin dato de hoy', tone: wait ? 'wait' : 'none', delta: null };
+    }
+    return { text: fmtNum(v), empty: false, note: null, tone: null, delta: null };
+  }
+  function cellFromWeb(wm, kind) {
+    const v = webCardView(kind, wm);
+    return { text: v.value, empty: v.empty, note: v.state ? v.state.text : null, tone: v.state ? v.state.tone : null, delta: null };
+  }
+  /** Modelo de las tarjetas del tablero de Inicio. `ctx` = { range, compare, wmToday, wmPeriod }. Hoy y el período van en la MISMA tarjeta y nunca se suman. */
+  function homeCards(data, ctx) {
+    const meta = data.meta; const kp = (id) => (data.kpis || []).find((k) => k.id === id) || null;
+    const cmp = !!ctx.compare && ctx.range !== 'today';
+    const period = periodRowLabel(ctx.range); const week = PERIOD_ROW['7d'];
+    const pair = (todayCell, periodCell, label) => [{ key: 'today', label: 'Hoy', cell: todayCell }, { key: 'period', label: label || period, cell: periodCell }];
+    return [
+      { id: 'web.views', kind: 'dual', label: WEB_CARDS.views.label, href: '#/web', hint: WEB_CARDS.views.hint, rows: pair(cellFromWeb(ctx.wmToday, 'views'), cellFromWeb(ctx.wmPeriod, 'views')) },
+      { id: 'web.clicks', kind: 'dual', label: WEB_CARDS.clicks.label, href: '#/web', hint: WEB_CARDS.clicks.hint, rows: pair(cellFromWeb(ctx.wmToday, 'clicks'), cellFromWeb(ctx.wmPeriod, 'clicks')) },
+      { id: 'users.registered_now', kind: 'total', label: kpiLabel(kp('users.registered_now')) || 'Jugadores registrados', href: '#/kpi/users.registered_now', caption: 'Total actual',
+        total: cellFromKpi(kp('users.registered_now'), meta, false), subLabel: kpiLabel(kp('users.signups')) || 'Nuevas altas',
+        rows: pair(cellFromToday(data.today, 'signups'), cellFromKpi(kp('users.signups'), meta, cmp)) },
+      { id: 'matches.created', kind: 'dual', label: 'Partidos cargados', href: '#/kpi/matches.created', rows: pair(cellFromToday(data.today, 'matchesCreated'), cellFromKpi(kp('matches.created'), meta, cmp)) },
+      { id: 'matches.validated', kind: 'dual', label: 'Partidos validados', href: '#/kpi/matches.validated', rows: pair(cellFromToday(data.today, 'matchesValidated'), cellFromKpi(kp('matches.validated'), meta, cmp)) },
+      // «Activos» es SIEMPRE una ventana de 7 días completos (definición del indicador): su fila lo dice, aunque el período elegido sea otro.
+      { id: 'usage.wau', kind: 'dual', label: kpiLabel({ id: 'usage.wau' }), href: '#/kpi/usage.wau', hint: 'Solo cuentas que aceptaron la medición', rows: pair(cellFromToday(data.today, 'activePlayers'), cellFromKpi(kp('usage.wau'), meta, cmp && ctx.range === '7d'), week) },
+      { id: 'community.groups_active', kind: 'stock', label: 'Grupos vigentes', href: '#/kpi/community.groups_active', caption: 'Total actual', total: cellFromKpi(kp('community.groups_active'), meta, false) },
+    ];
+  }
+  /** ¿La medición tiene límites que conviene tener a mano? (presencia sin captura, apagada o solo quienes aceptaron). */
+  function measurementWarn(meta) {
+    if (!meta) return false;
+    if (!meta.presenceSince) return true;
+    const m = meta.measurement;
+    return !!(m && (!m.enabled || m.consenting === null || m.consenting === undefined || m.consenting < m.accounts));
+  }
+  /** Etiqueta corta del entorno (el aviso largo queda en `title`/aria). Staging y Production se distinguen por texto Y por color. */
+  function envView(envObj, qa) {
+    if (qa) return { cls: 'qa', short: 'QA · PRUEBA', full: 'DATOS DE PRUEBA (QA) · NO PRODUCTION · no son datos reales' };
+    if (envObj && envObj.name === 'staging') return { cls: 'staging', short: 'STAGING · PRUEBA', full: 'STAGING · datos de prueba · no son datos de Production' };
+    if (envObj && envObj.name === 'production') return { cls: 'production', short: 'PRODUCTION', full: 'PRODUCTION · datos reales' };
+    if (envObj) return { cls: 'staging', short: String(envObj.name).toUpperCase(), full: `${String(envObj.name).toUpperCase()} · entorno de desarrollo` };
+    return null;
+  }
 
   /** Etiqueta legible de una opción de filtro (el valor técnico viaja tal cual al servidor). */
   function optionLabel(filterId, value) {
@@ -380,7 +446,7 @@
     return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(String(hostname || ''));
   }
 
-  const pure = { apiRangeFor, todayTab, todayStamp, webMeasure, webCardView, WEB_CARDS, TODAY_TABS, fmtNum, formatValue, toneFor, deltaView, previousText, availabilityView, fmtDayMonth, fmtBA, baDate, windowLabel, todayView, measurementView, seriesFor, niceStep, chartModel, parseHash, apiErrorKind, qaAllowed, dateLabelFor,
+  const pure = { kpiLabel, periodRowLabel, cellFromKpi, cellFromToday, cellFromWeb, homeCards, measurementWarn, envView, LABEL_OVERRIDES, apiRangeFor, todayTab, todayStamp, webMeasure, webCardView, WEB_CARDS, TODAY_TABS, fmtNum, formatValue, toneFor, deltaView, previousText, availabilityView, fmtDayMonth, fmtBA, baDate, windowLabel, todayView, measurementView, seriesFor, niceStep, chartModel, parseHash, apiErrorKind, qaAllowed, dateLabelFor,
     RANGES, VIEWS, KPI_SERIES, GOOD_UP, GOOD_DOWN, TODAY_FIELDS, FUNNEL_IDS, parseExplore, exploreHash, optionLabel, groupCatalog, seriesMessage, DEFAULT_EXPLORE_METRIC };
 
   /* ====================================================================== */
@@ -418,7 +484,7 @@
   const QA = params.get('qa') === '1' && qaAllowed(env, global.location.hostname);
   const QA_STATE = params.get('qastate') || '';
 
-  const S = { range: '30d', lastRange: '30d', compare: true, internal: false, route: { view: 'inicio' }, lastTab: 'inicio', data: null, seq: 0, meta: null };
+  const S = { range: '7d', lastRange: '7d', compare: true, internal: false, route: { view: 'inicio' }, lastTab: 'inicio', data: null, seq: 0, meta: null };
   const cache = new Map();
   let client = null;
 
@@ -456,14 +522,11 @@
   function hideGate() { $('mx-gate').hidden = true; $('mx-app').hidden = false; $('mx-refresh').hidden = false; }
 
   function setEnvBanner(meta) {
-    const b = $('mx-env');
-    let cls = ''; let text = '';
-    if (QA) { cls = 'qa'; text = 'DATOS DE PRUEBA (QA) · NO PRODUCTION · no son datos reales'; }
-    else if (env && env.name === 'staging') { cls = 'staging'; text = 'STAGING · datos de prueba · no son datos de Production'; }
-    else if (env && env.name === 'production') { cls = 'production'; text = 'PRODUCTION · datos reales'; }
-    else if (env) { cls = 'staging'; text = `${String(env.name).toUpperCase()} · entorno de desarrollo`; }
-    b.className = 'mx-env' + (cls ? ` mx-env--${cls}` : '');
-    b.textContent = text; b.hidden = !text;
+    const e = $('mx-env'); const bar = $('mx-envbar');
+    const v = envView(env, QA);
+    if (!v) { e.hidden = true; bar.hidden = true; return; }
+    e.className = `mx-env mx-env--${v.cls}`; e.textContent = v.short; e.title = v.full; e.setAttribute('aria-label', v.full); e.hidden = false;
+    bar.className = `mx-envbar mx-envbar--${v.cls}`; bar.hidden = false;
   }
 
   /* ---------- Acceso a datos ---------- */
@@ -540,13 +603,12 @@
     return h('div', { class: 'mx-card__value' + (shown ? ' is-empty' : '') }, txt);
   }
   function kpiCard(kpi, meta, hero) {
-    const prev = previousText(kpi, S.compare);
-    return h('a', { class: 'mx-card' + (hero ? ' mx-card--hero' : ''), href: `#/kpi/${kpi.id}`, 'aria-label': `${kpi.label}: ver detalle` }, [
+    const prev = previousText(kpi, S.compare); const chip = deltaChip(kpi);
+    return h('a', { class: 'mx-card' + (hero ? ' mx-card--hero' : ''), href: `#/kpi/${kpi.id}`, 'aria-label': `${kpiLabel(kpi)}: ver detalle` }, [
       h('span', { class: 'mx-card__chev', 'aria-hidden': 'true', text: '›' }),
-      h('div', { class: 'mx-card__label', text: kpi.label }),
+      h('div', { class: 'mx-card__label', text: kpiLabel(kpi) }),
       valueNode(kpi),
-      deltaChip(kpi),
-      prev ? h('div', { class: 'mx-prev', text: prev }) : null,
+      chip || prev ? h('div', { class: 'mx-card__meta' }, [chip, prev ? h('span', { class: 'mx-prev', text: prev }) : null]) : null,
       stateLine(kpi, meta),
     ]);
   }
@@ -572,8 +634,39 @@
       hint ? h('div', { class: 'mx-card__hint', text: hint }) : null,
     ]);
   }
+  /** Fila de una tarjeta Hoy + período: rótulo a la izquierda, número a la derecha; variación (si hay) debajo y más chica que el número. */
+  function dualRow(r) {
+    const c = r.cell; const d = c.delta;
+    return h('div', { class: `mx-dual__row mx-dual__row--${r.key}` }, [
+      h('span', { class: 'mx-dual__lab', text: r.label }),
+      h('span', { class: 'mx-dual__val' + (c.empty ? ' is-empty' : ''), text: c.text }),
+      d ? h('span', { class: `mx-dual__delta mx-dual__delta--${d.tone}`, text: `${d.arrow ? d.arrow + ' ' : ''}${d.text}${d.sub ? ' · ' + d.sub : ''}` }) : null,
+    ]);
+  }
+  function dualNotes(cells) {
+    const seen = new Set(); const out = [];
+    cells.forEach((c) => { if (c && c.note && !seen.has(c.note)) { seen.add(c.note); out.push(h('div', { class: `mx-state mx-state--${c.tone || 'none'}`, text: c.note })); } });
+    return out;
+  }
+  /** Una tarjeta del tablero. `total` = saldo actual (stock) con sus altas debajo; `dual` = Hoy + período; `stock` = solo saldo. */
+  function homeCard(def) {
+    const label = h('div', { class: 'mx-card__label', text: def.label });
+    const chev = h('span', { class: 'mx-card__chev', 'aria-hidden': 'true', text: '›' });
+    const common = { href: def.href, 'aria-label': `${def.label}: ver detalle` };
+    if (def.kind === 'stock') {
+      return h('a', Object.assign({ class: 'mx-card mx-home mx-home--stock' }, common), [chev, label,
+        h('div', { class: 'mx-card__value' + (def.total.empty ? ' is-empty' : ''), text: def.total.text }), h('div', { class: 'mx-card__hint', text: def.caption }), ...dualNotes([def.total])]);
+    }
+    if (def.kind === 'total') {
+      return h('a', Object.assign({ class: 'mx-card mx-home mx-home--total' }, common), [chev,
+        h('div', { class: 'mx-home__main' }, [label, h('div', { class: 'mx-card__value' + (def.total.empty ? ' is-empty' : ''), text: def.total.text }), h('div', { class: 'mx-card__hint', text: def.caption })]),
+        h('div', { class: 'mx-home__side' }, [h('div', { class: 'mx-home__sub', text: def.subLabel }), ...def.rows.map(dualRow), ...dualNotes(def.rows.map((r) => r.cell).concat([def.total]))]),
+      ]);
+    }
+    return h('a', Object.assign({ class: 'mx-card mx-home' }, common), [chev, label, ...def.rows.map(dualRow), ...dualNotes(def.rows.map((r) => r.cell)), def.hint ? h('div', { class: 'mx-card__hint', text: def.hint }) : null]);
+  }
   function skeletonView() {
-    const grid = h('div', { class: 'mx-grid' }, [1, 2, 3, 4, 5, 6, 7, 8].map(() => h('div', { class: 'mx-skel' })));
+    const grid = h('div', { class: 'mx-grid mx-grid--kpi' }, [1, 2, 3, 4, 5, 6, 7, 8].map(() => h('div', { class: 'mx-skel' })));
     return h('div', null, [h('div', { class: 'mx-h', text: 'Cargando…' }), grid, h('div', { class: 'mx-h' }), h('div', { class: 'mx-grid mx-grid--charts' }, [h('div', { class: 'mx-skel mx-skel--chart' }), h('div', { class: 'mx-skel mx-skel--chart' })])]);
   }
   function panel(title, sub, body, note) {
@@ -695,24 +788,29 @@
   /* ---------- Vistas ---------- */
   function viewInicio(data, webData) {
     const meta = data.meta; const out = [];
-    const wm = webData ? webMeasure(webData.web, webData.meta, false) : { state: 'unavailable' };
-    const keyGrid = cardGrid(data.kpis, meta, 'mx-grid--kpi', true);
-    keyGrid.appendChild(webCard('views', wm, { hero: true, link: true })); keyGrid.appendChild(webCard('clicks', wm, { hero: true, link: true }));
-    out.push(...section('Indicadores clave', keyGrid));
-    const sig = data.series && data.series.signups; const mc = data.series && data.series.matches_created; const act = data.series && data.series.active_players;
-    const presenceOn = !!meta.presenceSince;
-    const actNode = presenceOn
-      ? chartPanel('Jugadores activos (abrieron la app)', null, act, { meta, title: 'Jugadores activos', note: `Presencia medida desde ${fmtBA(meta.presenceSince, { day: '2-digit', month: '2-digit', year: 'numeric' })}. Antes de esa fecha no hay dato: no se estima.` })
-      : panel('Jugadores activos (abrieron la app)', null, h('div', { class: 'mx-empty', text: 'Todavía no medible: la presencia diaria recién empieza a registrarse cuando la captura está activa en este entorno. No se estima hacia atrás.' }));
-    const tp = todayPanel(data, ['signups', 'matchesCreated', 'activePlayers']);
-    if (tp) out.push(...section('Hoy', tp));
-    out.push(...section('Evolución', h('div', { class: 'mx-grid mx-grid--charts' }, [
-      chartPanel('Altas', null, sig, { meta, title: 'Altas' }),
-      chartPanel('Partidos cargados', null, mc, { meta, title: 'Partidos cargados' }),
-      actNode,
-    ])));
-    out.push(...section('Activación de las altas', funnelPanel(data.funnel || [], meta)));
-    out.push(...section('Estado de la recolección', factsPanel(meta)));
+    const isToday = S.range === 'today';
+    const none = { state: 'unavailable' };
+    const wmP = webData ? webMeasure(webData.web, webData.meta, false) : none;
+    const wmT = webData ? webMeasure(webData.web, webData.meta, true) : none;
+    const defs = homeCards(data, { range: S.range, compare: S.compare, wmToday: wmT, wmPeriod: wmP });
+    const st = todayStamp(meta, data);
+    out.push(h('div', { class: 'mx-h', text: 'Actividad' }));
+    out.push(h('p', { class: 'mx-sub', text: `Hoy es parcial${st.upTo ? ` (hasta las ${st.upTo})` : ''}. «${periodRowLabel(S.range)}» son días completos, hasta ayer. No se suman.` }));
+    out.push(h('div', { class: 'mx-grid mx-grid--home' }, defs.map(homeCard)));
+    if (!isToday) {
+      const sig = data.series && data.series.signups; const mc = data.series && data.series.matches_created; const act = data.series && data.series.active_players;
+      const presenceOn = !!meta.presenceSince;
+      const actNode = presenceOn
+        ? chartPanel('Jugadores activos (abrieron la app)', null, act, { meta, title: 'Jugadores activos', note: `Presencia medida desde ${fmtBA(meta.presenceSince, { day: '2-digit', month: '2-digit', year: 'numeric' })}. Antes no hay dato: no se estima.` })
+        : panel('Jugadores activos (abrieron la app)', null, h('div', { class: 'mx-empty', text: 'Todavía no medible: la presencia diaria recién empieza cuando la captura está activa. No se estima hacia atrás.' }));
+      out.push(...section('Evolución', h('div', { class: 'mx-grid mx-grid--charts' }, [
+        chartPanel('Nuevas altas', null, sig, { meta, title: 'Nuevas altas' }),
+        chartPanel('Partidos cargados', null, mc, { meta, title: 'Partidos cargados' }),
+        actNode,
+      ])));
+      out.push(...section('Activación de las altas', funnelPanel(data.funnel || [], meta)));
+    }
+    out.push(infoDetails(meta));
     return h('div', null, out);
   }
 
@@ -754,7 +852,7 @@
     const cohort = funnel.find((k) => k.id === 'activation.cohort');
     const rows = funnel.filter((k) => k.id !== 'activation.cohort');
     if (!cohort || cohort.value === 0 || cohort.value === null) {
-      return panel('Del alta al 5.º partido', 'Altas con al menos 7 días de antigüedad', h('div', { class: 'mx-empty', text: 'Todavía no hay altas maduras en este período para medir la activación.' }));
+      return h('section', { class: 'mx-panel mx-panel--slim' }, [h('h3', { class: 'mx-panel__title', text: 'Del alta al 5.º partido' }), h('p', { class: 'mx-note', style: 'margin:4px 0 0', text: 'Todavía no hay altas con 7 días de antigüedad en este período para medir la activación.' })]);
     }
     const body = h('div', { class: 'mx-hbars' }, rows.map((k) => {
       const lack = k.availability === 'insufficient_sample' || k.availability === 'not_instrumented' || k.availability === 'immature';
@@ -769,6 +867,13 @@
       'Las altas más recientes todavía no tuvieron tiempo de activarse y no entran en los porcentajes.');
   }
 
+  /** «Información de medición»: útil para diagnosticar la calidad del dato, pero contraída de entrada. Avisa si hay límites reales de captura. */
+  function infoDetails(meta) {
+    return h('details', { class: 'mx-info' }, [
+      h('summary', null, [h('span', { text: 'Información de medición' }), measurementWarn(meta) ? h('span', { class: 'mx-info__warn', text: 'Con avisos' }) : null]),
+      factsPanel(meta),
+    ]);
+  }
   function factsPanel(meta) {
     const win = meta.window ? windowLabel(meta.window) : '—';
     const facts = [
@@ -789,9 +894,9 @@
 
   function viewUsuarios(data) {
     const meta = data.meta; const out = [];
-    out.push(...section('Cuentas', cardGrid(data.kpis, meta, '', false)));
     const tpU = todayPanel(data, ['signups']);
     if (tpU) out.push(...section('Hoy', tpU));
+    out.push(...section('Cuentas', cardGrid(data.kpis, meta, '', false)));
     out.push(...section('Evolución y perfil', h('div', { class: 'mx-grid mx-grid--charts' }, [
       chartPanel('Altas', null, data.series && data.series.signups, { meta, title: 'Altas', note: 'Altas brutas: incluyen cuentas que luego se eliminaron.' }),
       breakdownPanel('Localidad declarada', 'Cuentas actuales · «sin localidad» no equivale a otra localidad', data.breakdowns && data.breakdowns.location),
@@ -801,13 +906,13 @@
 
   function viewPartidos(data) {
     const meta = data.meta; const out = [];
+    const tpM = todayPanel(data, ['matchesCreated', 'matchesValidated']);
+    if (tpM) out.push(...section('Hoy', tpM));
     out.push(...section('Volumen', cardGrid(pick(data, ['matches.created', 'matches.real', 'matches.annulled', 'matches.validated']), meta, '', false)));
     out.push(...section('Pendientes y vencidos (estado al corte)', cardGrid(pick(data, ['matches.pending_validable', 'matches.pending_waiting_counterpart', 'matches.expired_derived']), meta, '', false)));
     out.push(...section('Validación', cardGrid(pick(data, ['matches.validation_rate_closed', 'matches.validation_p50_hours', 'matches.validation_p90_hours']), meta, '', false)));
     out.push(...section('Participación', cardGrid(pick(data, ['matches.authors', 'matches.registered_participants']), meta, '', false)));
     const ser = data.series || {};
-    const tpM = todayPanel(data, ['matchesCreated', 'matchesValidated']);
-    if (tpM) out.push(...section('Hoy', tpM));
     out.push(...section('Evolución', h('div', { class: 'mx-grid mx-grid--charts' }, [
       chartPanel('Partidos cargados', 'Fecha en que se registraron', ser.created, { meta, title: 'Partidos cargados', note: 'Fecha de carga: cuándo se registró el partido en BRAMU.' }),
       chartPanel('Partidos jugados', 'Fecha en que se jugaron (sin anulados)', ser.played, { meta, title: 'Partidos jugados', note: 'Los últimos 14 días pueden crecer: la carga retroactiva admite hasta 14 días.' }),
@@ -902,7 +1007,7 @@
         h('p', { style: 'margin:0', text: fmtNum(wt.views) + ' visitas · ' + fmtNum(wt.clicks) + ' clics' }),
       ]));
     }
-    out.push(h('p', { class: 'mx-note', text: 'Datos anónimos agregados desde la activación. Ventana de días completos hasta ayer; la medición puede omitir visitas con bloqueo de scripts. BRAMU Metrics no conecta estos datos con las cuentas de jugadores.' }));
+    out.push(h('p', { class: 'mx-note', text: 'Datos anónimos agregados desde la activación. Ventana de días completos hasta ayer; la medición puede omitir visitas con bloqueo de scripts. BRAMUlab Metrics no conecta estos datos con las cuentas de jugadores.' }));
     return h('div', null, out);
   }
 
@@ -936,7 +1041,7 @@
       cardGrid(pick(data, ['usage.wau_with_action', 'usage.mau_with_action']), meta, '', false),
       h('p', { class: 'mx-note', text: 'Jugadores con una acción persistida (cargar, validar, grupos, Nivel). No es presencia: sirve para mirar hacia atrás, antes de que existiera la captura.' }),
     ]));
-    out.push(...section('Estado de la recolección', factsPanel(meta)));
+    out.push(infoDetails(meta));
     return h('div', null, out);
   }
 
@@ -1065,9 +1170,17 @@
     if (cur && tabs.scrollWidth > tabs.clientWidth) tabs.scrollLeft = Math.max(0, cur.offsetLeft - (tabs.clientWidth - cur.offsetWidth) / 2);
     // Web pública no tiene cuentas internas ni período previo; «Hoy» no se compara nunca (D8): controles inaplicables.
     const noInternal = S.route.view === 'web'; const noCompare = noInternal || S.range === 'today';
-    $('mx-compare-wrap').hidden = noCompare; $('mx-internal-wrap').hidden = noInternal;
-    const toggles = document.querySelector('.mx-toggles');
-    if (toggles) toggles.hidden = noCompare && noInternal;
+    $('mx-compare-wrap').hidden = noCompare;
+    // «Opciones avanzadas» (cuentas internas): panel secundario; si está en un valor NO predeterminado se avisa en el propio botón
+    const adv = $('mx-adv-btn'); const panelAdv = $('mx-adv');
+    adv.hidden = noInternal; if (noInternal) panelAdv.hidden = true;
+    adv.textContent = 'Opciones avanzadas' + (S.internal ? ' · internas incluidas' : '');
+    adv.setAttribute('aria-expanded', String(!panelAdv.hidden));
+    renderAdvNote();
+  }
+  function renderAdvNote() {
+    const n = S.meta && S.meta.internalExcluded;
+    $('mx-adv-note').textContent = 'Las cuentas internas son del equipo y de prueba. Por defecto no se cuentan' + (n ? ` (${fmtNum(n)} excluidas).` : '.');
   }
   function setRange(id) {
     if (S.range === id) return;
@@ -1080,22 +1193,22 @@
     if (S.range === 'today') {
       const st = todayStamp(meta, data);
       w.appendChild(h('span', { class: 'mx-today__badge', text: 'HOY · PARCIAL' }));
-      w.appendChild(document.createTextNode(` ${[st.date, st.upTo ? `hasta las ${st.upTo}` : null].filter(Boolean).join(' · ')} · sin comparación`));
+      w.appendChild(document.createTextNode(` ${st.date || ''} · sin comparación`));
       return;
     }
+    const cur = windowLabel(meta.window);
+    w.title = `Período actual ${cur}${S.compare && meta.previousWindow ? ` · anterior ${windowLabel(meta.previousWindow)}` : ''} · días completos, hasta ayer`;
     w.appendChild(h('i', { class: 'mx-dot' }));
-    w.appendChild(document.createTextNode('Actual '));
-    w.appendChild(h('b', { text: windowLabel(meta.window) }));
+    w.appendChild(h('b', { text: cur }));
     if (S.route.view === 'web') {
       // Web no tiene período previo ni comparación: no se menciona
     } else if (S.compare && meta.previousWindow) {
       w.appendChild(h('i', { class: 'mx-dot mx-dot--prev' }));
-      w.appendChild(document.createTextNode('Anterior '));
+      w.appendChild(document.createTextNode('vs '));
       w.appendChild(h('b', { text: windowLabel(meta.previousWindow) }));
     } else if (S.compare) {
-      w.appendChild(document.createTextNode(' · sin período anterior (histórico)'));
+      w.appendChild(document.createTextNode(' · sin período anterior'));
     }
-    w.appendChild(document.createTextNode(' · días completos, hasta ayer'));
   }
 
   function errorView(err) {
@@ -1141,12 +1254,12 @@
         data = pair[0]; webData = pair[1];
       } else data = await getSection(sectionName, !!force);
       if (seq !== S.seq) return;
-      S.meta = data.meta; setEnvBanner(data.meta);
+      S.meta = data.meta; setEnvBanner(data.meta); renderAdvNote();
       renderWindowLine(data.meta, data);
-      $('mx-updated').textContent = `Actualizado ${fmtBA(data.meta.generatedAt, { hour: '2-digit', minute: '2-digit' })}`;
+      $('mx-updated').textContent = `Actualizado ${fmtBA(data.meta.generatedAt, { hour: '2-digit', minute: '2-digit', hour12: false })}`;
       view.textContent = '';
       const RENDER = { inicio: viewInicio, usuarios: viewUsuarios, partidos: viewPartidos, activacion: viewActivacion, comunidad: viewComunidad, uso: viewUso, web: viewWeb };
-      view.appendChild(isExplore ? viewExplorar(catalog, data, sel) : route.view === 'kpi' ? viewKpi(route.kpiId, data) : isToday ? viewHoy(route, data, webData) : RENDER[route.view](data, webData));
+      view.appendChild(isExplore ? viewExplorar(catalog, data, sel) : route.view === 'kpi' ? viewKpi(route.kpiId, data) : isToday && route.view !== 'inicio' ? viewHoy(route, data, webData) : RENDER[route.view](data, webData));
       if (!isExplore) global.scrollTo(0, 0);
     } catch (err) {
       if (seq !== S.seq) return;
@@ -1171,6 +1284,7 @@
     $('mx-compare').addEventListener('change', (e) => { S.compare = e.target.checked; savePrefs(); load(false); });
     $('mx-internal').addEventListener('change', (e) => { S.internal = e.target.checked; savePrefs(); load(false); });
     $('mx-refresh').addEventListener('click', () => load(true));
+    $('mx-adv-btn').addEventListener('click', () => { const p = $('mx-adv'); p.hidden = !p.hidden; $('mx-adv-btn').setAttribute('aria-expanded', String(!p.hidden)); });
     global.addEventListener('hashchange', onRoute);
   }
 
