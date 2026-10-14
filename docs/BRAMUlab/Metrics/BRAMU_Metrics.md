@@ -1,7 +1,7 @@
 # BRAMU Metrics V1 — definición inicial de producto y ejecución
 
 **Fecha:** 08/10/2026  
-**Estado:** propuesta funcional confirmada para iniciar diseño/implementación en Staging; **NO autoriza Production**.  
+**Estado vigente (14/10/2026):** BRAMUlab Metrics está **publicado en Production y aprobado por Sebastián** (ver las secciones del 14/10/2026 más abajo). *Antecedente (08/10/2026): propuesta funcional confirmada para iniciar diseño/implementación en Staging; no autorizaba Production.*  
 **Producto:** consola privada de análisis de BRAMUlab; BRAMUlive fuera de alcance.
 
 
@@ -25,7 +25,7 @@
 
 **Diferencias respecto de Production:** `bramulab/` de Production (`a7456908` + `metrics.js`/`privacidad` del 14/10) equivale a `cf62e1f`. Esta ronda cambia **solo** `bramulab/admin/metrics/` (`index.html`, `metrics.js`, `metrics.css`, `qa-fixture.js` —no se publica en Production—, `icons/*`) y tests.
 
-**Decisiones abiertas.** (1) Aprobación visual final de Sebastián, incluido el ícono en un iPhone real («Agregar a pantalla de inicio»). (2) El defecto del selector pasó de 30 a **7 días** para que el tablero muestre «Hoy + últimos 7 días» tal como se pidió; es una línea para volver. (3) «Jugadores activos» depende del consentimiento de medición (hoy cubre solo a quienes aceptaron) y se rotula así; no se estimó nada. (4) Sigue sin existir «Hoy» para Activación, Comunidad y Explorar (no se amplió el backend).
+**Decisiones (cerradas el 14/10/2026 con la publicación y aprobación; el texto siguiente es el registro de entonces).** (1) Aprobación visual final de Sebastián, incluido el ícono en un iPhone real («Agregar a pantalla de inicio»). (2) El defecto del selector pasó de 30 a **7 días** para que el tablero muestre «Hoy + últimos 7 días» tal como se pidió; es una línea para volver. (3) «Jugadores activos» depende del consentimiento de medición (hoy cubre solo a quienes aceptaron) y se rotula así; no se estimó nada. (4) Sigue sin existir «Hoy» para Activación, Comunidad y Explorar (no se amplió el backend).
 
 **Procedimiento de publicación (ejecutado tras autorización del 14/10/2026; conservar como referencia de verificación/rollback).** Mismo procedimiento de 8 pasos de la sección siguiente, con estos valores: base de comparación `cf62e1f`; `git diff --stat cf62e1f <SHA> -- bramulab` debe listar únicamente `admin/metrics/{index.html,metrics.js,metrics.css,qa-fixture.js}`, `admin/metrics/icons/*` y los tests `bramulab/metrics-*.test.mjs`; el `dist` de Production debe diferir del publicado solo en `admin/metrics/index.html`, `metrics.js`, `metrics.css` y los 5 PNG; sin Supabase; reversión = promover `dpl_EgQRqW8zFqx1FPZmvEXX9KmqNaSq`.
 

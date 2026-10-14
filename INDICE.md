@@ -15,7 +15,7 @@ Un solo documento por tema. Si dos documentos se contradicen, manda el maestro. 
 | **Experiencia inicial** | [Producto/Experiencia_Inicial.md](docs/BRAMUlab/Producto/Experiencia_Inicial.md) |
 | **BRAMU Intelligence** | [Producto/BRAMU_Intelligence.md](docs/BRAMUlab/Producto/BRAMU_Intelligence.md) |
 | **Emails** | [Producto/Comunicaciones_Emails.md](docs/BRAMUlab/Producto/Comunicaciones_Emails.md) |
-| **BRAMU Metrics** (en desarrollo, protegido) | [Metrics/README.md](docs/BRAMUlab/Metrics/README.md) → [BRAMU_Metrics.md](docs/BRAMUlab/Metrics/BRAMU_Metrics.md) |
+| **BRAMUlab Metrics** (publicado y aprobado) | [Metrics/README.md](docs/BRAMUlab/Metrics/README.md) → [BRAMU_Metrics.md](docs/BRAMUlab/Metrics/BRAMU_Metrics.md) |
 | **Identidad visual** | [Identidad_Visual/Identidad_Visual.md](docs/BRAMUlab/Identidad_Visual/Identidad_Visual.md) (archivos de marca que usa la app: [Marca/](docs/BRAMUlab/Identidad_Visual/Marca/)) |
 | **Backend e infraestructura** | [Operacion/Backend_Infraestructura.md](docs/BRAMUlab/Operacion/Backend_Infraestructura.md) |
 | **Operación, deploy y Production** | [Operacion/Runbook_Operacion_y_Salida.md](docs/BRAMUlab/Operacion/Runbook_Operacion_y_Salida.md) · [Operacion/Operacion_Vercel_Staging_Production.md](docs/BRAMUlab/Operacion/Operacion_Vercel_Staging_Production.md) · [Operacion/Pre_Production.md](docs/BRAMUlab/Operacion/Pre_Production.md) (salida a Production y pendientes) |

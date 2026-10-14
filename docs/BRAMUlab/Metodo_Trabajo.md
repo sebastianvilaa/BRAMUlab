@@ -101,6 +101,7 @@ Carpeta de Dropbox `/Otros Trabajos/BRAMU/Trabajo en curso/`, **fuera del reposi
 6. **Sin secretos:** ninguna credencial, token, clave ni dato personal; el espacio es legible por ChatGPT. Material sensible → `Documentos privados/`.
 7. **Cierre del frente:** (a) trasladar las decisiones y resultados definitivos a su fuente maestra en Git, al Informe de la versión y al Backlog según corresponda (checklist de «Higiene documental»); (b) comprobar que el documento **no contiene información única necesaria** — lo borrado de Dropbox no está en Git y las versiones borradas de Dropbox no son respaldo; (c) recién entonces retirarlo y marcar el frente Cerrado en el tablero.
 8. **No se migra el pasado:** los informes anteriores a esta regla no se trasladan ni se duplican acá.
+9. **CERRADO = cierre funcional + cierre documental.** Un trabajo solo se declara Cerrado cuando ambos están completos: fuente maestra actualizada, tablero, frente temporal y materiales intermedios (capturas, borradores). Si se publicó y aprobó pero quedan archivos por ordenar, el estado es **«cierre administrativo pendiente»**, no Cerrado. El coordinador responsable (Central / Mantenimiento y Orden) ejecuta o coordina esa limpieza sin esperar que Sebastián la recuerde. Los archivos temporales generados por agentes se retiran tras verificar que no contienen información única necesaria; las capturas, originales y demás archivos aportados por Sebastián requieren su autorización expresa antes de moverse o eliminarse, y un archivo de procedencia desconocida se trata como material protegido.
 
 ## Prompt único para Claude Code
 
@@ -206,7 +207,7 @@ Production es el producto real. Staging es el taller.
 
 ## Pruebas
 
-- **Dónde viven:** las pruebas de `bramulab/` están en `bramulab/tests/` (cada una trata `__dirname` como la raíz de `bramulab/`); las de Metrics siguen en la raíz hasta que termine su desarrollo; las de Edge y operación, junto a su código en `supabase/`. Comando completo y `npm ci` previo: `INDICE.md`.
+- **Dónde viven:** las pruebas de `bramulab/` están en `bramulab/tests/` (cada una trata `__dirname` como la raíz de `bramulab/`); las de Metrics (`metrics-*.test.mjs`) siguen en la raíz de `bramulab/` (el código y la documentación las citan por esa ruta); las de Edge y operación, junto a su código en `supabase/`. Comando completo y `npm ci` previo: `INDICE.md`.
 
 - Probar riesgos concretos, no todo por costumbre.
 - Repetir pruebas cuando exista riesgo real de datos, identidad, auth, seguridad, migraciones o regresión.
@@ -485,7 +486,6 @@ Objetivo: que la coordinación entre agentes **no produzca** una colección perm
 - **No existen `Archivo/` ni `Backup/`.** Nada «por inercia»: si un documento no es fuente maestra, evidencia con función o historia con valor concreto, se retira.
 - **Código, tests, migraciones y documentación normativa viven en Git.** No reorganizar código por estética ni borrar tests funcionales.
 - **Seguridad:** nada es privado por estar fuera de `dist/` si el repo es público. Cambios de visibilidad, GitHub Pages, URL de logos de email y cualquier efecto sobre BRAMUlive son una intervención aparte con verificación de dependencias.
-- **BRAMU Metrics** se trata como trabajo en curso: no consolidar ni mover sus archivos hasta que su responsable lo indique.
 
 ### Dropbox (originales y material no versionado)
 
@@ -503,4 +503,4 @@ No duplicar entre Dropbox y GitHub sin una razón concreta (ni repositorios, ni 
 
 ### Mantenimiento
 
-Al cierre de cada bloque (no semanalmente): `node docs/check-docs.mjs` (referencias rotas, `Archivo/`/`Backup/`, nombres tipo `final_v2`, README demasiado grande, documentos de `Implementacion/` que ninguna fuente vigente cita) y barrer handoffs consumidos con el checklist de arriba. Revisar también `Trabajo en curso/`: frentes marcados Cerrado sin retirar, o abiertos sin movimiento.
+Al cierre de cada bloque (no semanalmente): `node docs/check-docs.mjs` (referencias rotas, `Archivo/`/`Backup/`, nombres tipo `final_v2`, README demasiado grande, documentos de `Implementacion/` que ninguna fuente vigente cita) y barrer handoffs consumidos con el checklist de arriba. Revisar también `Trabajo en curso/`: frentes marcados Cerrado sin retirar, trabajos publicados con cierre administrativo pendiente (regla 9 de arriba), o abiertos sin movimiento.

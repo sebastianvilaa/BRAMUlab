@@ -8,7 +8,7 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 |---|---|---|
 | **`README.md`** y **`Metodo_Trabajo.md`** (esta carpeta) | Estado vigente y reglas de trabajo, commits, pruebas, deploys y orden documental | Entrada |
 | **[`Producto/`](Producto/)** | Qué hace BRAMUlab: Nivel, Ranking, Grupos, Cargar partido, Experiencia inicial (ciclo de partido, historial, invitados), BRAMU Intelligence, Emails y el Backlog | **Fuentes maestras** |
-| **[`Metrics/`](Metrics/)** | BRAMU Metrics (consola administrativa, **en desarrollo**) | Fuentes maestras de Metrics |
+| **[`Metrics/`](Metrics/)** | BRAMUlab Metrics (consola administrativa privada, **publicada y aprobada**) | Fuentes maestras de Metrics |
 | **[`Operacion/`](Operacion/)** | Backend e infraestructura, operación y runbook, Vercel/Production, privacidad y legal, salida a Production | **Fuentes maestras** |
 | **[`Identidad_Visual/`](Identidad_Visual/)** | Identidad visual y `Marca/` (SVG maestros que usa la app) | **Fuente maestra** |
 | **[`Implementacion/`](Implementacion/)** | Evidencia técnica que todavía se justifica conservar (cierres de Backend, seguridad, ensayos operativos, emails G1) | Evidencia |
@@ -87,7 +87,7 @@ Con autorización explícita del responsable se publicó **solo** el hotfix `04.
 | **Production** | **ACTIVA**, V04.40 / `04.40-h3` publicada el 13/10/2026, deployment `dpl_C94TxYd6QSr6tHx4dSZeZ7nmbZNK` desde SHA `a7456908` (14/10/2026: hotfix administrativo `dpl_EgQRqW8zFqx1FPZmvEXX9KmqNaSq` con pestaña Web de Metrics y Política actualizada, ver arriba); homónimos en Cargar partido. Privacidad y seguimiento AAIP: `Operacion/Privacidad_Legal.md` §19. |
 | **Staging** | **V04.40 / bundle `04.40-h3`**: normalización de @usuario y hotfix de homónimos publicados; build READY y alias independiente. Próximos cambios siguen naciendo en Staging. |
 | **Pendientes reales** | Seguimiento del expediente AAIP, smoke humano mínimo de Production, decisión de backups (G4), QA humano de la fecha de nacimiento en Android, y el frente independiente de repositorio público/GitHub Pages. Detalle: `Operacion/Pre_Production.md` §2. Ideas futuras y riesgos conocidos: `Producto/BRAMUlab_Backlog.md`. |
-| **BRAMU Metrics** | **EN CURSO — protegido** (ver §3). |
+| **BRAMUlab Metrics** | **CERRADO** — publicado en Production y aprobado por Sebastián el 14/10/2026 (§3). |
 
 Historia por ronda (V04.11 – V04.37): `Versiones/README.md` (mapa) y `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md`, sección «registro consolidado de rondas».
 
@@ -124,7 +124,7 @@ Una fuente maestra por sistema. Si una ronda cambia un sistema, **se actualiza s
 | **Experiencia inicial** (Estado Cero, Perfil progresivo) | [`Producto/Experiencia_Inicial.md`](Producto/Experiencia_Inicial.md) | Cerrada |
 | **BRAMU Intelligence** | [`Producto/BRAMU_Intelligence.md`](Producto/BRAMU_Intelligence.md) → [`BRAMU_Intelligence_Implementacion.md`](Producto/BRAMU_Intelligence_Implementacion.md) | V1 A–E cerrada; F generativa opcional y no bloqueante |
 | **Emails** | [`Producto/Comunicaciones_Emails.md`](Producto/Comunicaciones_Emails.md) (copy y HTML en `supabase/email-templates/`) | Cerrado e implementado (G1) |
-| **BRAMU Metrics** | [`Metrics/BRAMU_Metrics.md`](Metrics/BRAMU_Metrics.md) y su cadena (§3) | En curso, protegida |
+| **BRAMUlab Metrics** | [`Metrics/BRAMU_Metrics.md`](Metrics/BRAMU_Metrics.md) y su cadena (§3) | Cerrada: publicada y aprobada (14/10/2026) |
 | **Backend / Infraestructura** | [`Operacion/Backend_Infraestructura.md`](Operacion/Backend_Infraestructura.md) → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–8 y Pre-Production cerrados |
 | **Operación y deploy** | [`Operacion/Runbook_Operacion_y_Salida.md`](Operacion/Runbook_Operacion_y_Salida.md) · [`Operacion/Operacion_Vercel_Staging_Production.md`](Operacion/Operacion_Vercel_Staging_Production.md) | Vigentes |
 | **Privacidad / Legal** | [`Operacion/Privacidad_Legal.md`](Operacion/Privacidad_Legal.md) | Cerrada y publicada; resta el número definitivo de AAIP |
@@ -151,13 +151,13 @@ Ranking BRAMU vigente es **semanal**. Nivel puede cambiar partido a partido, per
 
 ---
 
-## 3. BRAMU Metrics — EN CURSO (protegida)
+## 3. BRAMUlab Metrics — CERRADO (publicado y aprobado el 14/10/2026)
 
-Consola administrativa privada de BRAMUlab. Sus documentos están juntos en [`Metrics/`](Metrics/) (índice propio: [`Metrics/README.md`](Metrics/README.md)); el plan y el resultado de implementación (`148_*`, `149_*`) **permanecen en `Implementacion/Post_Lanzamiento/`** porque el código protegido los cita por esa ruta. **No consolidar, retirar ni modificar el contenido de Metrics mientras esté en desarrollo** (`bramulab/admin/metrics/`, `bramulab/metrics-*.test.mjs`, migraciones/Edge `metrics`/`admin-metrics`).
+Consola administrativa privada de BRAMUlab. Sus documentos están juntos en [`Metrics/`](Metrics/) (índice propio: [`Metrics/README.md`](Metrics/README.md)); el plan y el resultado de implementación (`148_*`, `149_*`) **permanecen en `Implementacion/Post_Lanzamiento/`** porque el código los cita por esa ruta. **Estado vigente: publicado en Production y aprobado por Sebastián (commit `425fc5b`, `dpl_FfSp5UGuhQaxfqaTsuaVfNbS58HP`; ver la sección del 14/10/2026 arriba).** Ya no está «en desarrollo»: los cambios futuros nacen en Staging con las reglas normales. Se conservan sus documentos, pruebas (`bramulab/metrics-*.test.mjs`) y referencias técnicas (el código cita `148_*`/`149_*` por ruta).
 
-- BRAMU Metrics (consola privada `/admin/metrics`; F1–F4 y F6 implementadas en Staging, F5 —promoción a Production— sin autorizar): `Metrics/BRAMU_Metrics.md` (producto; marco en `BRAMU_Metrics_UX_V1.md`, `_Privacidad_V1.md` y `_Comparaciones_V1.md`) → `BRAMU_Metrics_Auditoria_V1.md` → `BRAMU_Metrics_Auditoria_Tecnica_V1.md` (fuentes, definiciones, consultas validadas) → `Implementacion/Post_Lanzamiento/148_Plan_Implementacion_BRAMU_Metrics_V1_08OCT.md` (arquitectura y fases).
+- BRAMUlab Metrics (consola privada `/admin/metrics`; F1–F4 y F6 implementadas; promovida a Production y aprobada el 14/10/2026): `Metrics/BRAMU_Metrics.md` (producto; marco en `BRAMU_Metrics_UX_V1.md`, `_Privacidad_V1.md` y `_Comparaciones_V1.md`) → `BRAMU_Metrics_Auditoria_V1.md` → `BRAMU_Metrics_Auditoria_Tecnica_V1.md` (fuentes, definiciones, consultas validadas) → `Implementacion/Post_Lanzamiento/148_Plan_Implementacion_BRAMU_Metrics_V1_08OCT.md` (arquitectura y fases).
 
-**Estado (08/10/2026, Staging; NO promovido, invisible para jugadores):** F1 presencia, F2 núcleo protegido, F3 consola, **F4** (Activación, Comunidad —Grupos · Nivel · Ranking—, Uso; **D8: comparaciones con días completos, hasta ayer, y «hoy» parcial aparte**) y **F6 Explorar** (selector de los 55 indicadores, series fiables y filtros declarados con k = 5 en SQL) implementadas. F4 aplicada y verificada por Central; **F6 (bundle `04.37-h31`, migración `20261008130000`) falta aplicar en Staging y redeployar `admin-metrics`**. Diseño y fases: `148_…` §11–§12; resultado y checklist de Central: `149_…` §7–§10. **Pendientes de ejecución humana** (sesiones reales de `@seba_qa` y de una cuenta común, y de Vercel porque Staging está tras Vercel Authentication): negativos 401/403 con token válido, headers/robots, presencia, iPhone/Android (`149_…` §7.4; los 401 sin credenciales ya se comprobaron). **Lo más urgente: la presencia diaria todavía NO se captura en Production** (decisiones D3 → D1). **Salida a Production preparada, NO ejecutada** (procedimiento y retiro: `Operacion/Runbook_Operacion_y_Salida.md` Parte D; evidencia, riesgos y decisiones: `149_…` §12). Cambios de bundle por ronda: `Metrics/README.md`.
+**Antecedente (08/10/2026, Staging; superado: Metrics se publicó y aprobó el 14/10/2026 — los pendientes que siguen eran de ese momento, no actuales):** F1 presencia, F2 núcleo protegido, F3 consola, **F4** (Activación, Comunidad —Grupos · Nivel · Ranking—, Uso; **D8: comparaciones con días completos, hasta ayer, y «hoy» parcial aparte**) y **F6 Explorar** (selector de los 55 indicadores, series fiables y filtros declarados con k = 5 en SQL) implementadas. F4 aplicada y verificada por Central; **F6 (bundle `04.37-h31`, migración `20261008130000`) falta aplicar en Staging y redeployar `admin-metrics`**. Diseño y fases: `148_…` §11–§12; resultado y checklist de Central: `149_…` §7–§10. **Pendientes de ejecución humana** (sesiones reales de `@seba_qa` y de una cuenta común, y de Vercel porque Staging está tras Vercel Authentication): negativos 401/403 con token válido, headers/robots, presencia, iPhone/Android (`149_…` §7.4; los 401 sin credenciales ya se comprobaron). **Lo más urgente: la presencia diaria todavía NO se captura en Production** (decisiones D3 → D1). **Salida a Production preparada, NO ejecutada** (procedimiento y retiro: `Operacion/Runbook_Operacion_y_Salida.md` Parte D; evidencia, riesgos y decisiones: `149_…` §12). Cambios de bundle por ronda: `Metrics/README.md`.
 
 ---
 
@@ -209,7 +209,7 @@ Una nueva versión mayor crea una nueva carpeta dentro de `Versiones/`. Una rond
 - **“Experiencia inicial / Estado Cero / invitados”** → `Producto/Experiencia_Inicial.md`.
 - **“BRAMU Intelligence”** → `Producto/BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
 - **“Emails / comunicaciones”** → `Producto/Comunicaciones_Emails.md`.
-- **“BRAMU Metrics / métricas / dashboard admin”** → `Metrics/README.md` → `Metrics/BRAMU_Metrics.md` + `BRAMU_Metrics_Auditoria_Tecnica_V1.md` + el plan `Implementacion/Post_Lanzamiento/148_…` (estado: ver `149_…`; Production no autorizada).
+- **“BRAMU Metrics / métricas / dashboard admin”** → `Metrics/README.md` → `Metrics/BRAMU_Metrics.md` + `BRAMU_Metrics_Auditoria_Tecnica_V1.md` + el plan `Implementacion/Post_Lanzamiento/148_…` (publicado en Production y aprobado el 14/10/2026; `149_…` = evidencia histórica).
 - **“Backend / producción / cuentas reales / staging”** → `Operacion/Backend_Infraestructura.md` + la sección del bloque en `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`; operación y deploy: `Operacion/Runbook_Operacion_y_Salida.md` y `Operacion/Operacion_Vercel_Staging_Production.md`.
 - **“Privacidad / legal / AAIP / eliminación de cuenta”** → `Operacion/Privacidad_Legal.md` + la sección «Production» de `Operacion/Operacion_Vercel_Staging_Production.md`.
 - **“Identidad visual / logo / marca”** → `Identidad_Visual/Identidad_Visual.md` (+ `Marca/`).
