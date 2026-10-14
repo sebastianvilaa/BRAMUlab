@@ -2,15 +2,35 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "outputDirectory": "public",
   "rewrites": [
-    { "source": "/invitacion/:c", "destination": "/api/invitacion?c=:c" },
-    { "source": "/invitacion/:c/og.png", "destination": "/api/og?c=:c" }
+    {
+      "source": "/invitacion/:c",
+      "destination": "/api/invitacion?c=:c"
+    },
+    {
+      "source": "/invitacion/:c/og.png",
+      "destination": "/api/og?c=:c"
+    },
+    {
+      "source": "/i/:c",
+      "destination": "/api/invitacion?c=:c"
+    },
+    {
+      "source": "/i/:c/og.png",
+      "destination": "/api/og?c=:c"
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
-        { "key": "Referrer-Policy", "value": "no-referrer" }
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
       ]
     }
   ],

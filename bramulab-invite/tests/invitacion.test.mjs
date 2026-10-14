@@ -89,9 +89,11 @@ test('handler: acepta el código compacto y el hex; hosts ajenos → 404; sin ca
   } finally { delete process.env.BRAMU_APP_URL; }
 });
 
-test('Vercel: SOLO /invitacion/:c y /invitacion/:c/og.png → funciones; sin otras rutas públicas; noindex global; includeFiles completo; sin Git, sin secretos en el repo', () => {
+test('Vercel: SOLO /invitacion/:c y /invitacion/:c/og.png (+ el alias legado /i/) → funciones; sin otras rutas públicas; noindex global; includeFiles completo; sin Git, sin secretos en el repo', () => {
   const v = JSON.parse(read('vercel.json'));
-  assert.deepEqual(v.rewrites, [{ source: '/invitacion/:c', destination: '/api/invitacion?c=:c' }, { source: '/invitacion/:c/og.png', destination: '/api/og?c=:c' }]);
+  assert.deepEqual(v.rewrites, [{ source: '/invitacion/:c', destination: '/api/invitacion?c=:c' }, { source: '/invitacion/:c/og.png', destination: '/api/og?c=:c' },
+    // enlaces `/i/…` ya compartidos durante la prueba V04.41 (no se rompen)
+    { source: '/i/:c', destination: '/api/invitacion?c=:c' }, { source: '/i/:c/og.png', destination: '/api/og?c=:c' }]);
   assert.equal(v.outputDirectory, 'public');
   assert.deepEqual(fs.readdirSync(path.join(root, 'public')), ['robots.txt'], 'la carpeta pública no tiene más que robots.txt');
   assert.match(read('public/robots.txt'), /Disallow: \//);
