@@ -29,7 +29,7 @@ Un solo documento por tema. Si dos documentos se contradicen, manda el maestro. 
 
 | Carpeta | Qué es |
 |---|---|
-| `bramulab/` | La app BRAMUlab. En la raíz: los archivos de la app (`app.js`, `index.html`, `styles.css`, `sw.js`…). `tests/`: **pruebas automáticas** de esa lógica. `scripts/`: herramientas de compilación y publicación. `assets/`, `icons/`, `icons-staging/`: recursos estáticos. `api/`, `terminos/`, `privacidad/`, `eliminar-cuenta/`, `admin/`: endpoints y páginas públicas. (Las 2 pruebas de Metrics siguen en la raíz hasta que termine su desarrollo.) |
+| `bramulab/` | La app BRAMUlab. En la raíz: los archivos de la app (`app.js`, `index.html`, `styles.css`, `sw.js`…). `tests/`: **pruebas automáticas** de esa lógica. `scripts/`: herramientas de compilación y publicación. `assets/`, `icons/`, `icons-staging/`: recursos estáticos. `api/`, `terminos/`, `privacidad/`, `eliminar-cuenta/`, `admin/`: endpoints y páginas públicas. (Las 2 pruebas de Metrics se conservan en la raíz porque el código y la documentación todavía las referencian allí.) |
 | `bramulive/` | La app BRAMUlive (separada). |
 | `supabase/` | El servidor: `migrations/` (cambios de la base de datos, en orden), `functions/` (procesos del servidor), `tests/` (verificaciones contra Staging) y `scripts/` (backup, ensayo de salida, `release-check`). |
 | `docs/BRAMUlab/` | Documentación, por función: **`Producto/`** (qué hace la app), **`Metrics/`**, **`Operacion/`** (backend, deploy, legal), **`Identidad_Visual/`** (+ `Marca/`), **`Implementacion/`** (evidencia técnica conservada), **`Versiones/`** (historia), `Auditorias/` (estudio Nivel/Ranking con sus simulaciones, que importan el motor y por eso no se mueven). |
