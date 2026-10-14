@@ -10,6 +10,8 @@ Autoridad visual: [`../Identidad_Visual.md`](../Identidad_Visual.md). El maestro
 | `BRAMUlab-IconoApp.svg` | Aplicación del isotipo para PWA/iconos digitales (incluye su fondo oscuro). |
 | `BRAMUlab-IconoApp-ST.svg` | **Icono de Staging** (azul `#199fff`, fuente `BRAMUlab-IconoApp ST.svg` de Sistema gráfico; solo se le quitó `<metadata>`). Nunca reemplaza al oficial. |
 | `BRAMUlab-Isotipo-ST.svg` | Isotipo ST, master de referencia (no se muestra en la UI). |
+| `BRAMUMetrics-IconoApp.svg` | **Ícono de BRAMU Metrics** (velocímetro, Opción B aprobada 14/10/2026). Es propio de `/admin/metrics/`; no reemplaza al de BRAMUlab ni al de Staging. Maestro vectorial generado por `generar-icono-metrics.py` (SVG + derivados PNG con la misma geometría; también deja `BRAMUMetrics-IconoApp-1080.png`). Derivados en `bramulab/admin/metrics/icons/`. |
+| `generar-icono-metrics.py` | Generador del ícono de Metrics (Python + Pillow): `python3 generar-icono-metrics.py`. Geometría y paleta en un solo lugar. |
 | `generar-derivados.html` | Herramienta sin dependencias que rasteriza los derivados técnicos desde estos SVG. |
 
 **Sanitizado (V04.36):** a los SVG se les quitó únicamente el bloque `<metadata>` (XMP/C2PA de Adobe). Geometría, colores, filtros y la imagen

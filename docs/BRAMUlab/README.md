@@ -17,6 +17,12 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
+## 14/10/2026 — BRAMU Metrics: mejoras visuales y UX en Staging (SIN publicar)
+
+Ícono propio, período «Hoy · parcial», tarjetas Visitas/Clics en Inicio y pulido móvil; solo `bramulab/admin/metrics/`, sin backend. **Production no se tocó.** Alcance, decisiones abiertas y procedimiento seguro de publicación: `Metrics/BRAMU_Metrics.md`.
+
+---
+
 ## 14/10/2026 — BRAMU Metrics Web ACTIVO en Production (estado vigente)
 
 **Autorizado por Sebastián.** Mide solo **visitas a `bramulab.com`** (cada apertura, recargas incluidas; no son personas únicas) y **clics hacia la entrada de `app.bramulab.com`** (`/` o `/index.html`; Términos y Privacidad no cuentan), como contadores diarios agregados en `public.web_analytics_daily`, sin IP, cookies, IDs ni historial individual. No cambia nada de cuentas, jugadores, partidos, Nivel ni Ranking.
