@@ -11,6 +11,7 @@ export const SECTION_FUNCTIONS = Object.freeze({
   activation: 'metrics_activation',
   community: 'metrics_community',
   usage: 'metrics_usage',
+  web: 'metrics_web', // vistas y clics agregados de la web pública, sin jugadores ni perfiles
 });
 /** `custom` queda reservado: la UI de rango manual llega en una fase posterior (BRAMU_Metrics_UX_V1.md). */
 export const RANGES = Object.freeze(['7d', '30d', '90d', 'all']);
