@@ -1,6 +1,6 @@
-// `/i/{código}` → página del enlace personal de invitación. Dos públicos con el mismo HTML:
+// `/invitacion/{código}` → página del enlace personal de invitación. Dos públicos con el mismo HTML:
 //   · bots de vista previa (WhatsApp, iMessage, Telegram…): leen los metadatos Open Graph — título/frase genéricos (sin nombres ni resultados) e
-//     imagen `/i/{código}/og.png` (el partido real si el enlace es válido; si no, la tarjeta de marca);
+//     imagen `/invitacion/{código}/og.png` (el partido real si el enlace es válido; si no, la tarjeta de marca);
 //   · personas: el script las lleva a la app (`BRAMU_APP_URL/?claim={token}`), que ya captura la invitación (localStorage → login/alta →
 //     «¿JUGASTE ESTE PARTIDO?»). La app de Staging sigue protegida por Vercel Authentication: este servicio solo redirige.
 // Esta función NO consulta datos. El token aparece solo en la URL de la imagen y en el destino de la redirección (la misma credencial del enlace).
@@ -25,7 +25,7 @@ export function buildTarget(appUrl, hex) {
 export function buildInvitationHtml({ origin, code, hex, appUrl }) {
   const title = 'Te invitaron a BRAMUlab';
   const description = 'Entrá, identificá tu lugar y recuperá tus partidos en tu historial.';
-  const image = hex ? `${origin}/i/${code}/og.png` : `${origin}/i/x/og.png`;
+  const image = hex ? `${origin}/invitacion/${code}/og.png` : `${origin}/invitacion/x/og.png`;
   const target = buildTarget(appUrl, hex);
   const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   return `<!doctype html>

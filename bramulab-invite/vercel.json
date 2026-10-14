@@ -2,8 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "outputDirectory": "public",
   "rewrites": [
-    { "source": "/i/:c", "destination": "/api/invitacion?c=:c" },
-    { "source": "/i/:c/og.png", "destination": "/api/og?c=:c" }
+    { "source": "/invitacion/:c", "destination": "/api/invitacion?c=:c" },
+    { "source": "/invitacion/:c/og.png", "destination": "/api/og?c=:c" }
   ],
   "headers": [
     {

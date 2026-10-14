@@ -2,7 +2,7 @@
   "name": "bramulab-invite",
   "private": true,
   "type": "module",
-  "description": "BRAMUlab — servicio PÚBLICO mínimo de invitaciones (proyecto Vercel independiente, sin Git conectado). Sirve /i/{código} (metadatos Open Graph + redirección a la app) y /i/{código}/og.png (tarjeta con el partido real de un enlace válido). No contiene la app. Deploy: `cd bramulab-invite && npx vercel deploy --prod --scope bramu-lab`.",
+  "description": "BRAMUlab — servicio PÚBLICO mínimo de invitaciones (proyecto Vercel independiente, sin Git conectado). Sirve /invitacion/{código} (metadatos Open Graph + redirección a la app) y /invitacion/{código}/og.png (tarjeta con el partido real de un enlace válido). No contiene la app. Deploy: `cd bramulab-invite && npx vercel deploy --prod --scope bramu-lab`.",
   "dependencies": {
     "@resvg/resvg-wasm": "2.4.1",
     "satori": "0.33.5"

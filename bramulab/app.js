@@ -15840,31 +15840,55 @@
     list.innerHTML = rows.map((p) => {
       const name = (invitable.get(p.userId).display_name || p.name || 'Jugador');
       return `<div class="guests-row"><div class="guests-row__head">${warnIcon}<span class="guests-row__name">${escapeHtml(name)}</span><span class="guests-row__tag">Sin cuenta</span></div>`
-        + `<button type="button" class="btn-secondary btn-secondary--accent guests-row__btn" data-guest-id="${escapeHtml(p.userId)}" data-guest-name="${escapeHtml(name)}" data-source-match-id="${escapeHtml(f.matchId || '')}" data-is-author="${f.createdByPlayerId && f.createdByPlayerId === currentUserId ? '1' : '0'}">INVITAR A ${escapeHtml(name.toLocaleUpperCase('es-AR'))}</button></div>`;
+        + `<button type="button" class="btn-secondary btn-secondary--accent guests-row__btn" data-guest-id="${escapeHtml(p.userId)}" data-guest-name="${escapeHtml(name)}" data-source-match-id="${escapeHtml(f.matchId || '')}">INVITAR A ${escapeHtml(name.toLocaleUpperCase('es-AR'))}</button></div>`;
     }).join('');
     list.querySelectorAll('[data-guest-id]').forEach((btn) => {
-      btn.addEventListener('click', () => openInviteSheet(btn.dataset.guestId, btn.dataset.guestName, btn.dataset.sourceMatchId, btn.dataset.isAuthor === '1'));
+      btn.addEventListener('click', () => openInviteSheet(btn.dataset.guestId, btn.dataset.guestName, btn.dataset.sourceMatchId, f));
     });
     section.hidden = false;
   }
 
-  /** V04.41 — mensaje de invitación (texto natural, un párrafo breve + el enlace aparte). Sin el nombre del invitado: puede ser un apodo
-   *  incómodo. Si quien comparte NO cargó el partido, la primera frase no le atribuye la carga. Función pura (probada). */
-  function buildInviteMessage(url, isAuthor) {
-    const first = isAuthor ? '¡Buenas! Cargué nuestro partido en BRAMUlab.' : '¡Buenas! Nuestro partido ya está cargado en BRAMUlab.';
-    return `${first} Te dejo el link para que puedas entrar, reclamar tu lugar y recuperarlo en tu historial.\n${url}`;
+  /** V04.42 — mensaje de invitación ÚNICO (lo aprobó Sebastián, texto exacto): igual para cualquiera que comparta el partido, sin explicaciones sobre
+   *  reclamar/recuperar/validar (la tarjeta de vista previa y el recorrido posterior lo explican) y sin el nombre del invitado (puede ser un apodo).
+   *  El enlace va en su propia línea. Función pura (probada). */
+  function buildInviteMessage(url) {
+    return `¡Buenas! Nuestro partido ya está cargado en BRAMUlab. Te dejo el link acá 👇\n${url}`;
   }
   /** `wa.me` abre la app de WhatsApp en iPhone/Android, WhatsApp Web en escritorio y la página de descarga si no está instalada. Nunca envía solo. */
   function buildInviteWhatsAppUrl(message) { return `https://wa.me/?text=${encodeURIComponent(message)}`; }
 
-  /** B2 — hoja "Invitá a {nombre} a BRAMULAB" (V04.41). El enlace se genera al tocar un CTA (rota solo el link propio del invitador) y se
-   *  reutiliza mientras la hoja siga abierta (WhatsApp y compartir no generan dos enlaces). */
-  function openInviteSheet(playerId, name, sourceMatchId, isAuthor) {
+  /** V04.42 — carga la microhistoria con el PARTIDO REAL (componente `.result-card` vía buildResultRowsHTML, mi pareja arriba como en el Resumen).
+   *  Sin datos utilizables se dibujan barras neutras: nunca se inventan nombres ni resultados. */
+  function fillInviteStage(f) {
+    const stage = $('#invite-anim-stage');
+    const rows = $('#invite-anim-rows');
+    let html = '';
+    let first = 'A';
+    try {
+      const sets = f && Array.isArray(f.sets) ? f.sets : [];
+      if (f && Array.isArray(f.players) && f.players.length >= 2 && sets.length) {
+        first = presentationFirstTeam(f);
+        html = buildResultRowsHTML(f.players, sets, null, first);
+      }
+    } catch (e) { html = ''; }
+    if (!html) {
+      const skel = (team) => `<div class="result-card__row" data-team="${team}"><span class="result-card__name ia2-skel"><i></i><i></i></span><span class="result-card__sets"><span class="result-card__set">&nbsp;</span><span class="result-card__set">&nbsp;</span></span></div>`;
+      html = `${skel('A')}<div class="result-card__divider-row" aria-hidden="true"></div>${skel('B')}`;
+    }
+    rows.innerHTML = html;
+    stage.classList.toggle('team-mine-b', first === 'B');
+  }
+
+  /** B2 — hoja "Invitá a {nombre} a BRAMULAB" (V04.42: pop-up corto — título, microhistoria, una frase, WhatsApp, «Compartir de otra manera» discreto y
+   *  la aclaración personal). El enlace se genera al tocar un CTA (rota solo el link propio del invitador) y se reutiliza mientras la hoja siga abierta. */
+  function openInviteSheet(playerId, name, sourceMatchId, matchF) {
     const cleanName = String(name || 'este jugador').trim() || 'este jugador';
-    // V04.33 — `sourceMatchId`: el partido desde el que se invita; el link lo recuerda para mostrarlo en "¿Sos X?".
-    inviteSheetCurrent = { playerId, name: cleanName, sourceMatchId: sourceMatchId || null, isAuthor: !!isAuthor, busy: false, preparing: null };
+    // V04.33 — `sourceMatchId`: el partido desde el que se invita; el link lo recuerda para mostrarlo en la tarjeta y en «¿Jugaste este partido?».
+    inviteSheetCurrent = { playerId, name: cleanName, sourceMatchId: sourceMatchId || null, busy: false, preparing: null };
     $('#invite-sheet-title').textContent = `INVITÁ A ${cleanName.toLocaleUpperCase('es-AR')} A BRAMULAB`;
-    $('#invite-sheet-text').textContent = 'BRAMUlab prepara el mensaje para que lo compartas. Quien lo reciba podrá sumarse y recuperar los partidos asociados a su identidad.';
+    $('#invite-sheet-text').textContent = `${cleanName} podrá recuperar este partido y sumarlo a su historial.`;
+    $('#invite-sheet-note').textContent = `Invitación personal. Enviásela solo a ${cleanName}.`;
+    fillInviteStage(matchF);
     resetInviteSheetFeedback();
     $('#invite-sheet-wa-btn').disabled = false;
     $('#invite-sheet-share-btn').disabled = false;
@@ -15872,7 +15896,7 @@
     scrim.hidden = false;
     requestAnimationFrame(() => {
       scrim.classList.add('is-open');
-      // La microanimación se reproduce UNA vez por apertura (sin `.is-playing` y con reduced-motion se ve el estado final).
+      // La microhistoria se reproduce UNA vez por apertura (sin `.is-playing` y con reduced-motion se ve el estado final).
       const anim = $('#invite-anim');
       anim.classList.remove('is-playing');
       void anim.getBoundingClientRect();
@@ -15908,21 +15932,21 @@
     if (!created.ok || !created.token) return { ok: false, code: created.code || 'unknown' };
     return { ok: true, url: buildInviteLinkUrl(created.token) };
   }
-  /** V04.41 — enlace compartible. Con `inviteBase` (servicio público `bramulab-invite`, configurado por entorno) es `{base}/i/{43 caracteres}`: el MISMO
+  /** V04.41 — enlace compartible. Con `inviteBase` (servicio público `bramulab-invite`, configurado por entorno) es `{base}/invitacion/{43 caracteres}`: el MISMO
    *  token de 256 bits recodificado en base64url (lossless, sin segundo sistema de tokens). Sin base configurada (p. ej. Production hasta que se
    *  decida) sigue siendo `{origen}/invitacion/{64 hex}`, que la app redirige a la captura de siempre. Función pura (probada). */
   function buildInviteLinkUrl(token) {
     const base = String((window.__BRAMU_ENV__ && window.__BRAMU_ENV__.inviteBase) || '').replace(/\/+$/, '');
     if (!base || !/^[0-9a-f]{64}$/.test(String(token))) return `${window.location.origin}/invitacion/${token}`;
     const bytes = String(token).match(/../g).map((h) => String.fromCharCode(parseInt(h, 16))).join('');
-    return `${base}/i/${btoa(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+    return `${base}/invitacion/${btoa(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
   }
   /** Prepara (una sola vez por apertura de la hoja) el enlace + mensaje + URL de WhatsApp. Un fallo no se cachea: el reintento vuelve a generar. */
   function prepareInvite(cur) {
     if (cur.preparing) return cur.preparing;
     cur.preparing = createInviteUrl(cur.playerId, cur.sourceMatchId).then((link) => {
       if (!link.ok) { cur.preparing = null; return link; }
-      const message = buildInviteMessage(link.url, cur.isAuthor);
+      const message = buildInviteMessage(link.url);
       return { ok: true, url: link.url, message, waUrl: buildInviteWhatsAppUrl(message) };
     }).catch(() => { cur.preparing = null; return { ok: false, code: 'unknown' }; });
     return cur.preparing;
@@ -15990,7 +16014,7 @@
       }
     });
   }
-  /** COMPARTIR DE OTRA MANERA: menú nativo de compartir si existe; si no existe o falla, copia el mensaje completo (y, si tampoco se puede,
+  /** «Compartir de otra manera»: menú nativo de compartir si existe; si no existe o falla, copia el mensaje completo (y, si tampoco se puede,
    *  lo muestra para copiarlo a mano). Cancelar el menú no es un error. */
   function inviteViaShare() {
     return runInviteAction($('#invite-sheet-share-btn'), async (cur) => {
@@ -16009,7 +16033,7 @@
           if (e && e.name === 'AbortError') return; // la persona cerró el menú
           if (e && e.name === 'NotAllowedError') {
             // iOS puede vencer el gesto del toque mientras se generaba el enlace; el enlace ya está listo y el segundo toque abre el menú al instante.
-            showInviteFeedback('Tu invitación está lista. Tocá de nuevo COMPARTIR DE OTRA MANERA para elegir cómo enviarla.');
+            showInviteFeedback('Tu invitación está lista. Tocá de nuevo «Compartir de otra manera» para elegir cómo enviarla.');
             return;
           }
           // otro fallo del menú nativo → copia

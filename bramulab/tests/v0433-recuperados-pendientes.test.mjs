@@ -367,7 +367,7 @@ test('¿SOS X? · muestra el partido de ORIGEN como MINI-PARTIDO (parejas con fo
 });
 test('Invitación · el link recuerda el partido desde el que se invita (INVITAR en el Resumen); el cliente solo lo envía, el servidor lo valida', async () => {
   assert.match(fnSrc('renderAnalysisGuests'), /data-source-match-id="\$\{escapeHtml\(f\.matchId \|\| ''\)\}"/);
-  assert.match(appJs, /openInviteSheet\(btn\.dataset\.guestId, btn\.dataset\.guestName, btn\.dataset\.sourceMatchId, btn\.dataset\.isAuthor === '1'\)/);
+  assert.match(appJs, /openInviteSheet\(btn\.dataset\.guestId, btn\.dataset\.guestName, btn\.dataset\.sourceMatchId, f\)/);
   assert.match(fnSrc('createInviteUrl'), /Auth\.createClaimLink\(playerId, sourceMatchId\)/);
   assert.match(fnSrc('prepareInvite'), /createInviteUrl\(cur\.playerId, cur\.sourceMatchId\)/);
   // auth.js: el argumento es opcional (clientes sin origen llaman igual que antes)

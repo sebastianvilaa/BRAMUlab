@@ -1,4 +1,4 @@
-// `/i/{código}/og.png` → imagen de la invitación. Con un enlace válido: el partido real; con cualquier otro caso (inválido, vencido, rotado,
+// `/invitacion/{código}/og.png` → imagen de la invitación. Con un enlace válido: el partido real; con cualquier otro caso (inválido, vencido, rotado,
 // usado, RPC sin responder, error de render): la tarjeta de MARCA, con 200 y el mismo formato (el bot nunca ve un error ni aprende por qué).
 import { codeToHex } from './_lib/token.js';
 import { fetchCard, renderCardPng, brandPng } from './_lib/card.js';

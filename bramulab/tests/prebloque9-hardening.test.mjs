@@ -113,7 +113,7 @@ test('SW: env.generated.js no está en CORE_ASSETS; el nombre de caché lleva el
   const sw = read('sw.js');
   const core = sw.slice(sw.indexOf('const CORE_ASSETS = ['), sw.indexOf('];', sw.indexOf('const CORE_ASSETS = [')));
   assert.ok(!/env\.generated/.test(core.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n')));
-  assert.match(sw, /const CACHE_NAME = 'bramulab-v\d{2}-\d{2}-h\d+'/);
+  assert.match(sw, /const CACHE_NAME = 'bramulab-v\d{2}-\d{2}(-h\d+)?'/);
   assert.match(sw, /k\.startsWith\('bramulab-v'\) && k !== CACHE_NAME/);
 });
 

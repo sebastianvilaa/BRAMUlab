@@ -29,53 +29,55 @@ export function parseCard(json) {
   return { teams };
 }
 
-/** Árbol de elementos (formato de satori) de la tarjeta 1200×630: logo, tabla de resultado (dos parejas, una por fila, sets a la derecha) y mensaje. */
+/** Árbol de elementos (formato de satori) de la tarjeta 1200×630 (V04.42): el PARTIDO es el protagonista — dos parejas (una por fila, nombres grandes
+ *  a la izquierda, games por set grandes a la derecha) — y debajo «Te invitaron a [logo oficial]» + una frase. El logo aparece UNA vez, integrado en el
+ *  título. Con `card === null` dibuja la tarjeta de MARCA (barras neutras, sin nombres ni números: nunca se inventan datos); `og/marca.png` sale de ahí. */
 export function buildCardTree(card, logoDataUri) {
   const el = (type, style, children, props) => ({ type, props: { ...(props || {}), style, children } });
-  const sets0 = card.teams[0].sets;
-  const sets1 = card.teams[1].sets;
-  const cellW = sets0.length > 3 ? 78 : 92;
+  const demo = !card;
+  const teams = card ? card.teams : [{ names: [null, null], sets: [null, null, null] }, { names: [null, null], sets: [null, null, null] }];
+  const n = teams[0].sets.length;
+  const cellW = n > 3 ? 100 : 128;
+  const cellH = n > 3 ? 100 : 112;
+  const gap = n > 3 ? 12 : 16;
   const row = (team, idx) => {
-    const mine = team.sets;
-    const other = idx === 0 ? sets1 : sets0;
+    const other = teams[idx === 0 ? 1 : 0].sets;
     const accent = idx === 0 ? C.lime : C.cyan;
-    const cells = mine.map((g, i) => {
-      const win = g > other[i];
-      const lose = g < other[i];
+    const cells = team.sets.map((g, i) => {
+      const win = !demo && g > other[i];
+      const lose = !demo && g < other[i];
       return el('div', {
-        display: 'flex', alignItems: 'center', justifyContent: 'center', width: cellW, height: 84, borderRadius: 20,
-        border: `2px solid ${win ? accent : 'rgba(183,211,235,0.22)'}`, background: win ? 'rgba(255,255,255,0.07)' : 'rgba(3,7,13,0.55)',
-        color: win ? C.text : (lose ? C.faint : C.dim), fontSize: 50, fontWeight: 800,
-      }, String(g));
+        display: 'flex', alignItems: 'center', justifyContent: 'center', width: cellW, height: cellH, borderRadius: 24,
+        border: `3px solid ${win ? accent : 'rgba(183,211,235,0.22)'}`, background: win ? 'rgba(255,255,255,0.09)' : 'rgba(3,7,13,0.55)',
+        color: win ? C.text : (lose ? C.faint : C.dim), fontSize: n > 3 ? 62 : 78, fontWeight: 800,
+      }, demo ? '' : String(g));
     });
-    return el('div', { display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 124, width: '100%' }, [
-      el('div', { display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, minWidth: 0, paddingRight: 28 },
-        team.names.map((n) => el('div', { display: 'block', maxWidth: 640, color: accent, fontSize: 36, fontWeight: 800, lineHeight: 1.18, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, n))),
-      el('div', { display: 'flex', gap: 14 }, cells),
+    const names = demo
+      ? team.names.map((_, k) => el('div', { display: 'flex', height: 26, width: k === 0 ? 330 : 250, borderRadius: 13, background: accent, opacity: k === 0 ? 0.85 : 0.5, marginTop: k === 0 ? 0 : 16 }, ''))
+      : team.names.map((nm) => el('div', { display: 'block', maxWidth: 600, color: accent, fontSize: 54, fontWeight: 800, lineHeight: 1.12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, nm));
+    return el('div', { display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 176, width: '100%' }, [
+      el('div', { display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, minWidth: 0, paddingRight: 24 }, names),
+      el('div', { display: 'flex', gap }, cells),
     ]);
   };
   return el('div', {
-    display: 'flex', flexDirection: 'column', width: W, height: H, padding: '52px 72px', color: C.text, fontFamily: 'Inter',
+    display: 'flex', flexDirection: 'column', justifyContent: 'center', width: W, height: H, padding: '0 56px', color: C.text, fontFamily: 'Inter',
     backgroundColor: C.bg,
-    backgroundImage: 'radial-gradient(circle at 88% 6%, rgba(25,159,255,0.24), rgba(25,159,255,0) 52%), radial-gradient(circle at 4% 100%, rgba(149,255,25,0.11), rgba(149,255,25,0) 48%)',
+    backgroundImage: 'radial-gradient(circle at 88% 4%, rgba(25,159,255,0.24), rgba(25,159,255,0) 50%), radial-gradient(circle at 4% 100%, rgba(149,255,25,0.11), rgba(149,255,25,0) 46%)',
   }, [
-    el('div', { display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 70 }, [
-      el('img', { width: 290, height: 67, marginLeft: -18 }, undefined, { src: logoDataUri, width: 290, height: 67 }),
-      el('div', { display: 'flex', color: C.faint, fontSize: 24, fontWeight: 700 }, 'Donde vive tu pádel.'),
-    ]),
     el('div', {
-      display: 'flex', flexDirection: 'column', marginTop: 26, padding: '0 38px', background: 'rgba(13,26,42,0.88)',
-      border: `2px solid ${C.line}`, borderRadius: 26, width: '100%',
+      display: 'flex', flexDirection: 'column', padding: '0 44px', background: 'rgba(13,26,42,0.90)',
+      border: `3px solid ${C.line}`, borderRadius: 32, width: '100%',
     }, [
-      row(card.teams[0], 0),
-      el('div', { display: 'flex', height: 2, background: C.line, width: '100%' }, ''),
-      row(card.teams[1], 1),
+      row(teams[0], 0),
+      el('div', { display: 'flex', height: 3, background: C.line, width: '100%' }, ''),
+      row(teams[1], 1),
     ]),
-    el('div', { display: 'flex', marginTop: 30, fontSize: 52, fontWeight: 800, letterSpacing: -1 }, [
-      el('span', { color: C.text, marginRight: 14 }, 'Te invitaron a'),
-      el('span', { color: C.lime }, 'BRAMUlab'),
+    el('div', { display: 'flex', alignItems: 'center', marginTop: 38, fontSize: 56, fontWeight: 800, letterSpacing: -1 }, [
+      el('span', { color: C.text, marginRight: -4 }, 'Te invitaron a'),
+      el('img', { width: 270, height: 62 }, undefined, { src: logoDataUri, width: 270, height: 62 }),
     ]),
-    el('div', { display: 'flex', marginTop: 8, fontSize: 28, fontWeight: 400, color: C.dim }, 'Entrá y recuperá este partido en tu historial.'),
+    el('div', { display: 'flex', marginTop: 10, fontSize: 31, fontWeight: 400, color: C.dim }, 'Entrá y recuperá este partido en tu historial.'),
   ]);
 }
 
@@ -126,7 +128,7 @@ function initResvg(mod) {
   return resvgReady;
 }
 
-/** PNG (Buffer) de la tarjeta con el partido real: satori (árbol → SVG con Inter) + resvg (SVG → PNG). */
+/** PNG (Buffer) de la tarjeta: con `card` el partido real; con `null` la tarjeta de MARCA. satori (árbol → SVG con Inter) + resvg (SVG → PNG). */
 export async function renderCardPng(card) {
   const [{ default: satori }, resvg] = await Promise.all([import('satori'), import('@resvg/resvg-wasm')]);
   const a = loadAssets();

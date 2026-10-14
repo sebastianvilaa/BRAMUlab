@@ -41,11 +41,11 @@ test('destino de las personas: solo un origen https sin ruta de BRAMU_APP_URL (s
   for (const bad of [undefined, '', 'http://x.vercel.app', 'https://x.vercel.app/ruta', 'javascript:alert(1)', 'https://x.vercel.app?a=1', '//x.com']) assert.equal(buildTarget(bad, HEX), null, String(bad));
 });
 
-test('HTML: título genérico; og:image = /i/{código}/og.png; og:url a la raíz; sin nombres ni resultados; token solo en la imagen y en el destino', () => {
+test('HTML: título genérico; og:image = /invitacion/{código}/og.png; og:url a la raíz; sin nombres ni resultados; token solo en la imagen y en el destino', () => {
   const html = buildInvitationHtml({ origin: 'https://bramu-i.vercel.app', code: CODE, hex: HEX, appUrl: APP });
   assert.match(html, /<meta property="og:title" content="Te invitaron a BRAMUlab">/);
-  assert.match(html, new RegExp(`<meta property="og:image" content="https://bramu-i\\.vercel\\.app/i/${CODE}/og\\.png">`));
-  assert.match(html, new RegExp(`<meta name="twitter:image" content="https://bramu-i\\.vercel\\.app/i/${CODE}/og\\.png">`));
+  assert.match(html, new RegExp(`<meta property="og:image" content="https://bramu-i\\.vercel\\.app/invitacion/${CODE}/og\\.png">`));
+  assert.match(html, new RegExp(`<meta name="twitter:image" content="https://bramu-i\\.vercel\\.app/invitacion/${CODE}/og\\.png">`));
   assert.match(html, /<meta property="og:url" content="https:\/\/bramu-i\.vercel\.app\/">/);
   assert.match(html, /<meta property="og:image:width" content="1200">/); assert.match(html, /<meta property="og:image:height" content="630">/);
   assert.match(html, /<meta name="twitter:card" content="summary_large_image">/);
@@ -56,7 +56,7 @@ test('HTML: título genérico; og:image = /i/{código}/og.png; og:url a la raíz
   assert.ok(!html.replace(/location\.replace\([^)]*\)/, '').replace(/<a id="go"[^>]*>/, '').includes(HEX), 'el hex no está en metadatos ni texto');
   // enlace inválido: imagen de marca por la misma ruta, sin redirección con token
   const bad = buildInvitationHtml({ origin: 'https://bramu-i.vercel.app', code: '', hex: null, appUrl: APP });
-  assert.match(bad, /og:image" content="https:\/\/bramu-i\.vercel\.app\/i\/x\/og\.png"/);
+  assert.match(bad, /og:image" content="https:\/\/bramu-i\.vercel\.app\/invitacion\/x\/og\.png"/);
   assert.doesNotMatch(bad, /claim=/);
   // sin BRAMU_APP_URL válido: sin redirección (nunca un destino inventado)
   assert.doesNotMatch(buildInvitationHtml({ origin: 'https://x.vercel.app', code: CODE, hex: HEX, appUrl: undefined }), /location\.replace|claim=/);
@@ -81,17 +81,17 @@ test('handler: acepta el código compacto y el hex; hosts ajenos → 404; sin ca
     const a = run({ c: CODE }, 'bramu-i.vercel.app');
     assert.equal(a.status, 200);
     assert.equal(run({ c: HEX }, 'bramu-i.vercel.app').body.includes(`claim=${HEX}`), true);
-    assert.match(a.body, new RegExp(`/i/${CODE}/og\\.png`));
+    assert.match(a.body, new RegExp(`/invitacion/${CODE}/og\\.png`));
     assert.equal(a.h['cache-control'], 'private, no-store'); assert.equal(a.h['referrer-policy'], 'no-referrer'); assert.match(a.h['x-robots-tag'], /noindex/);
     assert.equal(run({ c: CODE }, 'evil.com').status, 404);
     const inv = run({ c: 'basura' }, 'bramu-i.vercel.app');
-    assert.equal(inv.status, 200); assert.doesNotMatch(inv.body, /claim=/); assert.match(inv.body, /\/i\/x\/og\.png/);
+    assert.equal(inv.status, 200); assert.doesNotMatch(inv.body, /claim=/); assert.match(inv.body, /\/invitacion\/x\/og\.png/);
   } finally { delete process.env.BRAMU_APP_URL; }
 });
 
-test('Vercel: SOLO /i/:c y /i/:c/og.png → funciones; sin otras rutas públicas; noindex global; includeFiles completo; sin Git, sin secretos en el repo', () => {
+test('Vercel: SOLO /invitacion/:c y /invitacion/:c/og.png → funciones; sin otras rutas públicas; noindex global; includeFiles completo; sin Git, sin secretos en el repo', () => {
   const v = JSON.parse(read('vercel.json'));
-  assert.deepEqual(v.rewrites, [{ source: '/i/:c', destination: '/api/invitacion?c=:c' }, { source: '/i/:c/og.png', destination: '/api/og?c=:c' }]);
+  assert.deepEqual(v.rewrites, [{ source: '/invitacion/:c', destination: '/api/invitacion?c=:c' }, { source: '/invitacion/:c/og.png', destination: '/api/og?c=:c' }]);
   assert.equal(v.outputDirectory, 'public');
   assert.deepEqual(fs.readdirSync(path.join(root, 'public')), ['robots.txt'], 'la carpeta pública no tiene más que robots.txt');
   assert.match(read('public/robots.txt'), /Disallow: \//);

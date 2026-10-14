@@ -65,7 +65,7 @@ test('¿JUGASTE ESTE PARTIDO? (V04.41) · SÍ, ESE SOY YO verde / NO, NO SOY YO 
   assert.match(indexHtml, /id="invitation-confirm-no" class="btn-secondary btn-secondary--danger" type="button">NO, NO SOY YO</);
   assert.match(indexHtml, /id="invitation-confirm-conflict-ok"[^>]*>ENTENDIDO</);
   assert.match(indexHtml, />ENVIAR POR WHATSAPP</);
-  assert.match(indexHtml, />COMPARTIR DE OTRA MANERA</);
+  assert.match(indexHtml, />Compartir de otra manera</);
   assert.doesNotMatch(indexHtml, /COPIAR ENLACE/);
   assert.match(appJs, /Mensaje copiado\. Pegalo donde quieras enviarlo\./);
   assert.match(appJs, /link\.code === 'provisional_not_found'\) cur\.unavailable = true/);

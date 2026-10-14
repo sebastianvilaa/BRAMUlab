@@ -39,18 +39,18 @@ function linkBuilder(env) {
   const sb = { window: { location: { origin: 'https://app.test' }, __BRAMU_ENV__: env }, btoa: (x) => Buffer.from(x, 'latin1').toString('base64') };
   return new Function(...Object.keys(sb), `${code}\nreturn buildInviteLinkUrl;`)(...Object.values(sb));
 }
-test('enlace compartible: con inviteBase → {base}/i/{43 base64url} (recodificación SIN pérdida del MISMO token); sin base → {origen}/invitacion/{hex}', () => {
+test('enlace compartible: con inviteBase → {base}/invitacion/{43 base64url} (recodificación SIN pérdida del MISMO token); sin base → {origen}/invitacion/{hex}', () => {
   const hex = 'a1b2c3d4'.repeat(8);
   const withBase = linkBuilder({ inviteBase: 'https://bramu-i.vercel.app/' })(hex);
-  assert.match(withBase, /^https:\/\/bramu-i\.vercel\.app\/i\/[A-Za-z0-9_-]{43}$/);
-  assert.equal(Buffer.from(withBase.split('/i/')[1], 'base64url').toString('hex'), hex, 'mismo token, solo recodificado');
-  assert.ok(withBase.length < 80, `largo ${withBase.length}`);
+  assert.match(withBase, /^https:\/\/bramu-i\.vercel\.app\/invitacion\/[A-Za-z0-9_-]{43}$/);
+  assert.equal(Buffer.from(withBase.split('/invitacion/')[1], 'base64url').toString('hex'), hex, 'mismo token, solo recodificado');
+  assert.ok(withBase.length < 90, `largo ${withBase.length} (antes ~117)`);
   assert.equal(linkBuilder({})(hex), `https://app.test/invitacion/${hex}`);
   assert.equal(linkBuilder(undefined)(hex), `https://app.test/invitacion/${hex}`);
   // un token que no es el formato real nunca se recodifica
   assert.equal(linkBuilder({ inviteBase: 'https://bramu-i.vercel.app' })('xyz'), 'https://app.test/invitacion/xyz');
   // todos los bytes: la recodificación es lossless
-  for (const t of ['00'.repeat(32), 'ff'.repeat(32), '0123456789abcdef'.repeat(4)]) assert.equal(Buffer.from(linkBuilder({ inviteBase: 'https://x.vercel.app' })(t).split('/i/')[1], 'base64url').toString('hex'), t);
+  for (const t of ['00'.repeat(32), 'ff'.repeat(32), '0123456789abcdef'.repeat(4)]) assert.equal(Buffer.from(linkBuilder({ inviteBase: 'https://x.vercel.app' })(t).split('/invitacion/')[1], 'base64url').toString('hex'), t);
 });
 
 test('build-env: BRAMU_INVITE_BASE es opcional, solo origen https sin ruta; valores raros frenan el build (nada arbitrario llega al bundle)', () => {
@@ -66,17 +66,33 @@ test('el cliente arma el enlace con buildInviteLinkUrl y los ?claim= anteriores 
 });
 
 /* ================= Hoja + animación ================= */
-test('hoja: pop-up (bottom-sheet) que crece sin pantalla completa y scrollea en teléfonos bajos; animación con estado final base y reduced-motion', () => {
+test('hoja (V04.42): pop-up que crece sin pantalla completa; microhistoria con el componente REAL, estado final como base, sin rótulos por etapa, reduced-motion y ≤ 4 s', () => {
   assert.match(css, /#invite-sheet\{ max-height: 92dvh; overflow-y: auto;[^}]*touch-action: pan-y;/);
-  const anim = between(css, '.invite-anim{ width:100%', '@media (prefers-reduced-motion: reduce){\n  .invite-anim');
-  // El estado BASE de cada paso es el final: las animaciones solo cuelgan de `.is-playing`.
-  assert.doesNotMatch(anim.replace(/\.invite-anim\.is-playing[^{]*\{[^}]*\}/g, ''), /animation\s*:/, 'sin .is-playing no hay animaciones');
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\{\n  \.invite-anim\.is-playing \*\{ animation: none !important; \}/);
-  assert.match(indexHtml, /id="invite-anim"[^>]*aria-hidden="true"/);
-  for (const label of ['Sin cuenta', 'Invitación', 'Entra', 'Recupera']) assert.match(indexHtml, new RegExp(`>${label}</text>`));
-  // ~3,5 s: el último paso termina antes de ~4 s.
-  const ends = [...css.matchAll(/\.invite-anim\.is-playing [^{]*\{ animation: [\w-]+ ([\d.]+)s [^;]*? ([\d.]+)s both;/g)].map((m) => Number(m[1]) + Number(m[2]));
-  assert.ok(Math.max(...ends) >= 3.2 && Math.max(...ends) <= 4, `duración total ${Math.max(...ends)}s`);
+  const sheet = between(indexHtml, '<div id="invite-sheet-scrim"', 'V04.29 — RECEPTOR DE UNA INVITACIÓN');
+  assert.match(sheet, /<div class="result-card result-card--compact"><div class="result-card__rows" id="invite-anim-rows">/, 'la tarjeta es el componente real .result-card');
+  assert.doesNotMatch(sheet.replace(/<!--[\s\S]*?-->/g, ''), />(Sin cuenta|Invitación|Entra|Recupera)</, 'sin cuatro íconos con rótulos ni subtítulos por etapa');
+  assert.doesNotMatch(sheet, /class="ia-node|<text[ >]/);
+  assert.match(sheet, /id="invite-anim"[^>]*aria-hidden="true"/);
+  const anim = between(css, '.invite-anim{ width:100%; }', '@media (prefers-reduced-motion: reduce){\n  .invite-anim.is-playing *');
+  // El estado BASE de cada pieza es el final: las animaciones solo cuelgan de `.is-playing`.
+  assert.doesNotMatch(anim.replace(/\.invite-anim\.is-playing[^{]*\{[^}]*\}/g, ''), /(^|[{;\s])animation\s*:/, 'sin .is-playing no hay animaciones');
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\{\n  \.invite-anim\.is-playing \*, \.invite-anim\.is-playing \*::before\{ animation: none !important; \}/);
+  assert.match(css, /\.ia2-chip\{[^}]*opacity:0;/, 'la invitación (chip) no está en el estado final');
+  assert.match(css, /\.ia2-card\{[^}]*box-shadow: 0 0 0 1\.5px rgba\(149,255,25,0\.55\)/, 'estado final: la tarjeta con el aro lima en el historial');
+  const durations = [...css.matchAll(/\.invite-anim\.is-playing \.ia2-(?:hist|card|chip|badge)\{ animation: [\w-]+ ([\d.]+)s/g)].map((m) => Number(m[1]));
+  assert.ok(durations.length >= 4 && Math.max(...durations) >= 3.2 && Math.max(...durations) <= 4, `duración ${durations}`);
+  // lenguaje de movimiento de la web: el mismo ease
+  assert.match(css, /cubic-bezier\(\.22,\.8,\.24,1\)/);
+});
+
+test('hoja (V04.42): composición limpia — todo centrado, WhatsApp principal, «Compartir de otra manera» como texto discreto y aclaración chica al pie', () => {
+  assert.match(css, /\.invite-sheet__body\{ align-items: stretch; text-align: center;/);
+  assert.match(css, /\.invite-sheet__more\{[^}]*background:none; border:0;[^}]*text-decoration: underline;/);
+  assert.match(css, /\.invite-sheet__note\{[^}]*font-size: 11\.5px;[^}]*text-align: center;/);
+  const sheet = between(indexHtml, '<div id="invite-sheet-scrim"', 'V04.29 — RECEPTOR DE UNA INVITACIÓN');
+  const order = ['id="invite-anim"', 'id="invite-sheet-text"', 'id="invite-sheet-wa-btn"', 'id="invite-sheet-share-btn"', 'id="invite-sheet-note"'].map((k) => sheet.indexOf(k));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'título → animación → frase → WhatsApp → secundaria → aclaración');
+  assert.ok(order.every((i) => i > 0));
 });
 
 test('la animación se reproduce una vez por apertura y NO hay contador de «primeras invitaciones» ni lógica para ocultarla', () => {
@@ -164,10 +180,10 @@ test('privacidad: el mensaje compartido no incluye el nombre del invitado; la fu
   assert.doesNotMatch(sql.replace(/--[^\n]*/g, ''), /grant\s+select|create\s+policy|alter\s+table/i, 'ningún permiso de tablas');
 });
 
-test('versionado V04.41 / 04.41-h2 en cuarteto + referencias ?v=', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.41', bundle: '04.41-h2' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.41'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.41-h2'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-41-h2'/);
-  assert.match(indexHtml, /app\.js\?v=04\.41-h2/); assert.match(read('sw.js'), /app\.js\?v=04\.41-h2/);
-  assert.doesNotMatch(indexHtml, /\?v=04\.40-h3/);
+test('versionado V04.42 en cuarteto (número de producto simple, sin sufijos h1/h2) + referencias ?v=', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.42', bundle: '04.42' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.42'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.42'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-42'/);
+  assert.match(indexHtml, /app\.js\?v=04\.42"/); assert.match(read('sw.js'), /app\.js\?v=04\.42'/);
+  assert.doesNotMatch(indexHtml, /\?v=04\.4[01]-h\d/);
 });

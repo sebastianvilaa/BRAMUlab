@@ -4101,58 +4101,86 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 /* V04.41 — hoja de invitación rica: crece en altura (nunca pantalla completa), scrollea en teléfonos bajos y deja el CTA principal a mano.
    `.bottom-sheet` base trae touch-action:none: acá se habilita el scroll vertical solo si el contenido no entra. */
 #invite-sheet{ max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
-.invite-sheet__note{ margin: -4px 0 0; font-size: 12px; line-height: 1.45; color: var(--text-dim); text-align: center; }
+.invite-sheet__body{ align-items: stretch; text-align: center; gap: 12px; }
+.invite-sheet__text{ text-align:center; font-size:15px; font-weight:500; line-height:1.4; padding: 0 6px; }
+.invite-sheet__note{ margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--text-faint); text-align: center; }
+/* V04.42 — acción secundaria discreta (texto, no un segundo botón grande) */
+.invite-sheet__more{ align-self:center; min-height:44px; padding: 0 14px; background:none; border:0; font: inherit; font-size:14px; font-weight:600; color: var(--text-dim); text-decoration: underline; text-underline-offset:3px; cursor:pointer; }
+.invite-sheet__more:disabled{ opacity:.5; }
 .invite-sheet__message{ font-family: inherit; line-height: 1.45; resize: none; padding: 10px 12px; min-height: 0; }
 .invite-sheet__wa-open{ display:flex; align-items:center; justify-content:center; width:100%; text-decoration:none; text-align:center; }
-.invite-sheet__share, .invite-sheet__wa-open{ width:100%; }
-.invite-sheet__body .invite-sheet__share{ min-height: 48px; }
+.invite-sheet__wa-open{ width:100%; }
 
-/* V04.41 — microanimación de la invitación. El estado BASE de cada elemento es el FINAL (todo encendido): sin `.is-playing` (o con
-   prefers-reduced-motion) se ve ese estado final directamente. `.is-playing` agrega las animaciones de entrada (~3,5 s, una sola vez). */
-.invite-anim{ width:100%; padding: 4px 0 2px; }
-.invite-anim svg{ display:block; width:100%; height:auto; overflow:visible; }
-.invite-anim .ia-gold-stroke{ stroke: var(--gold); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.invite-anim .ia-lime-stroke{ stroke: var(--brand-lime); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.invite-anim .ia-cyan-stroke{ stroke: var(--accent-cyan); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.invite-anim .ia-dim-stroke{ stroke: var(--text-faint); fill: none; stroke-width: 2; stroke-linecap: round; }
-.invite-anim .ia-gold-fill{ fill: rgba(255,201,61,0.08); }
-.invite-anim .ia-lime-fill{ fill: rgba(149,255,25,0.12); }
-.invite-anim .ia-cyan-fill{ fill: rgba(25,159,255,0.10); }
-.invite-anim .ia-dashed{ stroke-dasharray: 4 3; }
-.invite-anim .ia-av-gold{ opacity: 0; }
-.invite-anim .ia-lime-solid{ fill: var(--brand-lime); }
-.invite-anim .ia-cyan-solid{ fill: var(--accent-cyan); }
-.invite-anim .ia-card{ fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1.5; }
-.invite-anim .ia-cell{ fill: var(--surface-active); }
-.invite-anim .ia-div{ stroke: var(--line-strong); stroke-width: 1; }
-.invite-anim .ia-line{ stroke: rgba(149,255,25,0.45); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; fill: none; }
-.invite-anim .ia-labels text{ fill: var(--text-dim); font-size: 10.5px; font-weight: 600; text-anchor: middle; font-family: var(--font-body); letter-spacing: 0.01em; }
-.invite-anim .ia-node, .invite-anim .ia-row, .invite-anim .ia-av-lime, .invite-anim .ia-plane{ transform-box: fill-box; transform-origin: center; }
+/* V04.42 — microhistoria de la invitación («partido cargado → invitación compartida → partido recuperado»). Mismo lenguaje de movimiento que la web
+   (ease cubic-bezier(.22,.8,.24,1), aro lima con brillo, pulso). El estado BASE de cada pieza es el FINAL (historial con el partido recuperado):
+   sin `.is-playing` (o con prefers-reduced-motion) se ve eso directamente. `.is-playing` agrega la secuencia (~3,8 s, una sola vez). La tarjeta es el
+   componente real `.result-card` con los datos reales (JS); es una representación del proceso, no un estado real. */
+.invite-anim{ width:100%; }
+.ia2{ --ia-ease: cubic-bezier(.22,.8,.24,1); position:relative; height:152px; border-radius:18px; overflow:hidden;
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--bg) 100%); border:1px solid var(--line); }
+.ia2.team-mine-b{ --team-a: var(--accent-cyan); --team-a-deep: #0D6FCC; --team-b: var(--brand-lime); --team-b-deep: var(--brand-lime-deep); }
+.ia2-hist{ position:absolute; inset:0; padding:12px 12px 0; }
+.ia2-hbar{ display:block; width:34%; height:6px; border-radius:3px; background: var(--surface-active); }
+.ia2-hrow{ position:absolute; left:12px; right:12px; display:flex; flex-direction:column; gap:6px; justify-content:center; padding:0 12px; height:30px; border-radius:12px; background: rgba(13,26,42,0.7); border:1px solid var(--line); }
+.ia2-hrow--1{ top:124px; } .ia2-hrow--2{ top:162px; }
+.ia2-hrow i{ display:block; height:5px; border-radius:3px; background: var(--surface-active); }
+.ia2-hrow i:first-child{ width:46%; } .ia2-hrow i:last-child{ width:30%; opacity:.6; }
+.ia2-card{ position:absolute; left:12px; right:12px; top:30px; transform-origin:50% 50%; border-radius:16px;
+  box-shadow: 0 0 0 1.5px rgba(149,255,25,0.55), 0 0 22px -4px rgba(149,255,25,0.38); }
+.ia2-card .result-card{ padding:8px 12px; border-radius:16px; background: var(--surface-1); }
+.ia2-card .result-card__rows{ column-gap:10px; }
+.ia2-card .result-card__name{ font-size:13px; padding:5px 0; }
+.ia2-card .result-card__sets{ grid-auto-columns:26px; gap:5px; padding:5px 0; }
+.ia2-card .result-card__set{ width:26px; font-size:16px; padding:1px 2px; }
+.ia2-card .result-card__name .player-name--pending{ color: var(--gold); }
+.ia2-skel{ display:flex; flex-direction:column; gap:6px; justify-content:center; }
+.ia2-skel i{ display:block; height:6px; width:62%; border-radius:3px; background: currentColor; opacity:.55; }
+.ia2-skel i + i{ width:44%; opacity:.35; }
+.ia2-sheen{ position:absolute; inset:0; border-radius:16px; overflow:hidden; pointer-events:none; opacity:0; }
+.ia2-sheen::before{ content:''; position:absolute; top:-20%; bottom:-20%; width:42%; left:-50%; transform:skewX(-18deg);
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.16), rgba(255,255,255,0)); }
+.ia2-badge{ position:absolute; right:-6px; top:-8px; width:22px; height:22px; border-radius:50%; display:grid; place-items:center;
+  background: var(--brand-lime); color: var(--bg); box-shadow: 0 0 0 3px var(--surface-2), 0 6px 14px -4px rgba(149,255,25,0.6); }
+.ia2-chip{ position:absolute; left:50%; top:50%; width:128px; height:40px; margin:-20px 0 0 -64px; display:flex; align-items:center; gap:7px; padding:0 12px;
+  border-radius:20px; color: var(--brand-lime); background: rgba(149,255,25,0.10); border:1.5px solid rgba(149,255,25,0.7); box-shadow: 0 0 22px rgba(149,255,25,0.28); opacity:0; }
+.ia2-chip svg{ flex:none; }
+.ia2-chip i{ display:block; height:5px; border-radius:3px; background: rgba(149,255,25,0.55); }
+.ia2-chip i:nth-of-type(1){ width:34px; } .ia2-chip i:nth-of-type(2){ width:20px; opacity:.6; }
+.ia2-trail{ position:absolute; left:50%; top:50%; width:0; height:0; }
+.ia2-trail i{ position:absolute; top:-3px; width:6px; height:6px; border-radius:50%; background: var(--brand-lime); box-shadow: 0 0 10px rgba(149,255,25,0.8); opacity:0; }
+.ia2-trail i:nth-child(1){ left:60px; } .ia2-trail i:nth-child(2){ left:84px; top:-8px; } .ia2-trail i:nth-child(3){ left:108px; top:-13px; }
 
-@keyframes ia-pop { from { opacity: 0; transform: scale(0.6); } 60% { opacity: 1; transform: scale(1.08); } to { opacity: 1; transform: scale(1); } }
-@keyframes ia-draw { from { stroke-dashoffset: 1; stroke: var(--brand-lime); } to { stroke-dashoffset: 0; } }
-@keyframes ia-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes ia-gold-out { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes ia-lime-in { 0%, 55% { opacity: 0; transform: scale(0.7); } 100% { opacity: 1; transform: scale(1); } }
-@keyframes ia-row-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
-@keyframes ia-fly { 0% { transform: translate(-7px, 4px); opacity: 0; } 50% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes ia2-card { 0%{opacity:0;transform:translateY(16px) scale(.94)} 12%{opacity:1;transform:translateY(0) scale(1)} 34%{opacity:1;transform:translateY(0) scale(1)}
+  46%{opacity:1;transform:translateY(0) scale(.45)} 52%{opacity:0;transform:translateY(0) scale(.4)} 66%{opacity:0;transform:translate(34px,-26px) scale(.7)}
+  86%{opacity:1;transform:translate(0,0) scale(1.025)} 94%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:1;transform:translate(0,0) scale(1)} }
+@keyframes ia2-ring { 0%,60%{box-shadow:0 0 0 1.5px rgba(183,211,235,0.14),0 0 0 rgba(149,255,25,0)} 86%{box-shadow:0 0 0 2px rgba(149,255,25,0.95),0 0 30px rgba(149,255,25,0.55)}
+  100%{box-shadow:0 0 0 1.5px rgba(149,255,25,0.55),0 0 22px -4px rgba(149,255,25,0.38)} }
+@keyframes ia2-hist { 0%,56%{opacity:0;transform:translateY(8px)} 76%,100%{opacity:1;transform:none} }
+@keyframes ia2-chip { 0%,41%{opacity:0;transform:scale(.7)} 46%{opacity:1;transform:scale(1)} 54%{opacity:1;transform:translateX(0) scale(1)}
+  66%{opacity:1;transform:translate(70px,-14px) scale(.9)} 74%,100%{opacity:0;transform:translate(150px,-26px) scale(.8)} }
+@keyframes ia2-dot { 0%,48%{opacity:0;transform:scale(.4)} 58%{opacity:.95;transform:scale(1)} 72%,100%{opacity:0;transform:scale(.5)} }
+@keyframes ia2-sheen { 0%,14%{opacity:0} 16%{opacity:1} 30%{opacity:1} 32%,100%{opacity:0} }
+@keyframes ia2-sweep { 0%,14%{left:-50%} 30%,100%{left:120%} }
+@keyframes ia2-pop { 0%{opacity:0;transform:scale(.55)} 100%{opacity:1;transform:none} }
+@keyframes ia2-slide { 0%{opacity:0;transform:translateX(-10px)} 100%{opacity:1;transform:none} }
+@keyframes ia2-badge { 0%,84%{opacity:0;transform:scale(0)} 92%{opacity:1;transform:scale(1.2)} 100%{opacity:1;transform:scale(1)} }
 
-.invite-anim.is-playing .ia-node--1{ animation: ia-pop 0.5s var(--motion-ease) both; }
-.invite-anim.is-playing .ia-line--1{ animation: ia-draw 0.5s ease-out 0.45s both; }
-.invite-anim.is-playing .ia-node--2{ animation: ia-pop 0.5s var(--motion-ease) 0.8s both; }
-.invite-anim.is-playing .ia-plane{ animation: ia-fly 0.7s ease-out 0.9s both; }
-.invite-anim.is-playing .ia-line--2{ animation: ia-draw 0.5s ease-out 1.35s both; }
-.invite-anim.is-playing .ia-node--3{ animation: ia-pop 0.5s var(--motion-ease) 1.7s both; }
-.invite-anim.is-playing .ia-av-gold{ animation: ia-gold-out 1.1s linear 1.9s both; opacity: 1; }
-.invite-anim.is-playing .ia-av-lime{ animation: ia-lime-in 1.1s ease-out 1.9s both; }
-.invite-anim.is-playing .ia-line--3{ animation: ia-draw 0.5s ease-out 2.45s both; }
-.invite-anim.is-playing .ia-node--4{ animation: ia-fade-in 0.4s ease-out 2.8s both; }
-.invite-anim.is-playing .ia-row--1{ animation: ia-row-in 0.4s ease-out 3.0s both; }
-.invite-anim.is-playing .ia-row--2{ animation: ia-row-in 0.4s ease-out 3.25s both; }
-.invite-anim.is-playing .ia-labels{ animation: ia-fade-in 0.5s ease-out 0.2s both; }
+.invite-anim.is-playing .ia2-hist{ animation: ia2-hist 3.8s var(--ia-ease, cubic-bezier(.22,.8,.24,1)) both; }
+.invite-anim.is-playing .ia2-card{ animation: ia2-card 3.8s cubic-bezier(.22,.8,.24,1) both, ia2-ring 3.8s linear both; }
+.invite-anim.is-playing .ia2-chip{ animation: ia2-chip 3.8s cubic-bezier(.22,.8,.24,1) both; }
+.invite-anim.is-playing .ia2-trail i{ animation: ia2-dot 3.8s ease-out both; }
+.invite-anim.is-playing .ia2-trail i:nth-child(2){ animation-delay: .12s; } .invite-anim.is-playing .ia2-trail i:nth-child(3){ animation-delay: .24s; }
+.invite-anim.is-playing .ia2-sheen{ animation: ia2-sheen 3.8s linear both; }
+.invite-anim.is-playing .ia2-sheen::before{ animation: ia2-sweep 3.8s cubic-bezier(.22,.8,.24,1) both; }
+.invite-anim.is-playing .ia2-badge{ animation: ia2-badge 3.8s cubic-bezier(.22,.8,.24,1) both; }
+.invite-anim.is-playing .ia2-card .result-card__name{ animation: ia2-slide .5s cubic-bezier(.22,.8,.24,1) .25s both; }
+.invite-anim.is-playing .ia2-card .result-card__row[data-team="B"] .result-card__name, .invite-anim.is-playing .ia2-card .result-card__row[data-team="B"] .result-card__set{ animation-delay: .4s; }
+.invite-anim.is-playing .ia2-card .result-card__set{ animation: ia2-pop .42s cubic-bezier(.22,.8,.24,1) .45s both; }
+.invite-anim.is-playing .ia2-card .result-card__set:nth-child(2){ animation-delay: .53s; } .invite-anim.is-playing .ia2-card .result-card__set:nth-child(3){ animation-delay: .61s; }
+.invite-anim.is-playing .ia2-card .result-card__set:nth-child(4){ animation-delay: .69s; } .invite-anim.is-playing .ia2-card .result-card__set:nth-child(5){ animation-delay: .77s; }
 @media (prefers-reduced-motion: reduce){
-  .invite-anim.is-playing *{ animation: none !important; }
-  .invite-anim.is-playing .ia-av-gold{ opacity: 0; }
+  .invite-anim.is-playing *, .invite-anim.is-playing *::before{ animation: none !important; }
+}
 }
 
 

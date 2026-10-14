@@ -58,19 +58,33 @@ test('fetchCard: llama SOLO al RPC público con la clave publishable en `apikey`
   assert.match(TOKEN, TOKEN_RE);
 });
 
-test('diseño: logo, dos parejas (una por fila) en lima/celeste, games por set con ganador resaltado y perdedor atenuado, mensaje breve; sin guiones vacíos', () => {
+test('diseño V04.42: el partido es el protagonista (nombres y games GRANDES), sin logo suelto arriba; «Te invitaron a [logo oficial]» integrado en el título; una sola frase; sin guiones vacíos', () => {
   const tree = buildCardTree(parseCard(CARD), 'data:image/svg+xml;base64,AAAA');
   const flat = JSON.stringify(tree);
-  for (const t of ['Seba', 'Marcos', 'Esteban', 'Matu', 'Te invitaron a', 'BRAMUlab', 'Entrá y recuperá este partido en tu historial.']) assert.ok(flat.includes(`"${t}"`), t);
-  assert.ok(flat.includes('data:image/svg+xml;base64,AAAA'), 'logo oficial');
+  for (const t of ['Seba', 'Marcos', 'Esteban', 'Matu', 'Te invitaron a', 'Entrá y recuperá este partido en tu historial.']) assert.ok(flat.includes(`"${t}"`), t);
+  assert.ok(!flat.includes('"BRAMUlab"') && !flat.includes('Donde vive'), 'la marca no se escribe como texto ni hay otros mensajes en la imagen');
+  assert.equal((flat.match(/data:image\/svg\+xml;base64,AAAA/g) || []).length, 1, 'logo oficial UNA sola vez');
+  // el logo viaja junto a «Te invitaron a» en el mismo renglón del título (no suelto arriba)
+  const titleRow = tree.props.children.find((c) => JSON.stringify(c).includes('Te invitaron a'));
+  assert.ok(JSON.stringify(titleRow).includes('data:image/svg+xml;base64,AAAA'));
+  assert.equal(JSON.stringify(tree.props.children[0]).includes('data:image'), false, 'lo primero es la tabla del partido');
   assert.ok(flat.includes('#95FF19') && flat.includes('#199FFF'), 'lima y celeste');
   const cells = [...flat.matchAll(/"children":"([0-9])"/g)].map((m) => m[1]);
   assert.deepEqual(cells, ['6', '3', '6', '4', '6', '4'], 'games reales por set, fila a fila');
-  assert.ok(!flat.includes('"–"') && !flat.includes('"-"'), 'sin marcadores vacíos');
-  // ganador del set resaltado (texto claro #F8FAFC) / perdedor atenuado (#687482)
-  const win6 = flat.match(/"color":"([^"]+)","fontSize":50,"fontWeight":800\},"children":"6"/);
-  assert.equal(win6[1], '#F8FAFC');
-  assert.match(flat, /"color":"#687482","fontSize":50,"fontWeight":800\},"children":"3"/);
+  assert.ok(!flat.includes('"–"') && !flat.includes('"-"'));
+  // legibilidad en miniatura: nombres ≥ 50 px y games ≥ 70 px
+  assert.match(flat, /"fontSize":54,"fontWeight":800,"lineHeight":1\.12/);
+  assert.match(flat, /"fontSize":78,"fontWeight":800\},"children":"6"/);
+  assert.match(flat, /"color":"#F8FAFC","fontSize":78,"fontWeight":800\},"children":"6"/, 'ganador del set resaltado');
+  assert.match(flat, /"color":"#687482","fontSize":78,"fontWeight":800\},"children":"3"/, 'perdedor atenuado');
+});
+
+test('tarjeta de MARCA (card=null): misma composición sin nombres ni números; og/marca.png es esa misma tarjeta', () => {
+  const flat = JSON.stringify(buildCardTree(null, 'data:image/svg+xml;base64,AAAA'));
+  assert.ok(flat.includes('Te invitaron a') && flat.includes('Entrá y recuperá este partido en tu historial.'));
+  assert.ok(!/"children":"[0-9A-Za-z]/.test(flat.replace(/"children":"(Te invitaron a|Entrá y recuperá este partido en tu historial\.)"/g, '')), 'sin nombres ni games');
+  const brand = brandPng();
+  assert.equal(brand.readUInt32BE(16), 1200); assert.equal(brand.readUInt32BE(20), 630);
 });
 
 test('handler: enlace inválido o sin RPC utilizable → 200 con la tarjeta de MARCA (mismo formato; el bot nunca ve un error ni aprende por qué)', async () => {
@@ -104,6 +118,7 @@ test('render real (satori + resvg-wasm): PNG 1200×630, liviano; nombres largos 
   check(await renderCardPng(parseCard({ ok: true, teams: [{ names: ['Remera celeste con un apodo larguísimo de verdad', 'Marcos'], sets: [6, 3] }, { names: ['Esteban Fernández', 'Matu'], sets: [4, 6] }] })));
   check(await renderCardPng(parseCard({ ok: true, teams: [{ names: ['Ñandú Ávila'], sets: [6] }, { names: ['Zoë'], sets: [2] }] })));
   check(await renderCardPng(parseCard({ ok: true, teams: [{ names: ['A', 'B'], sets: [6, 3, 7, 4, 6] }, { names: ['C', 'D'], sets: [3, 6, 5, 6, 4] }] })));
+  check(await renderCardPng(null));
 });
 
 test('handler con datos: imagen/png con cache privada (el enlace personal no se guarda en cachés compartidas)', { skip: !hasDeps && 'faltan dependencias' }, async () => {

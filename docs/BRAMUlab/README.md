@@ -17,9 +17,9 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
-## 14/10/2026 — V04.41 · Rediseño de la invitación a jugadores sin cuenta (Staging, `04.41-h1`; sin publicar)
+## 14/10/2026 — V04.41 → V04.42 · Invitación a jugadores sin cuenta (Staging; sin publicar)
 
-Hoja `INVITÁ A {NOMBRE} A BRAMULAB` con microanimación, `ENVIAR POR WHATSAPP` / `COMPARTIR DE OTRA MANERA`, mensaje natural, enlace `/invitacion/{token}`, vista previa de marca para WhatsApp, nombres «Sin cuenta» en amarillo en el Resumen y pregunta neutral `¿JUGASTE ESTE PARTIDO?` al destinatario. Sin cambios de backend ni de lógica de vinculación. **Production, `main` y BRAMUlive intactos.** Fuente maestra: `Producto/Experiencia_Inicial.md` §30; enlace y privacidad: `Operacion/Backend_Infraestructura.md` §9.2 y `Operacion/Privacidad_Legal.md` §21. DECISIÓN ABIERTA: exposición pública de datos reales del partido en la vista previa.
+Pop-up corto con **microhistoria** del partido real (cargado → invitación compartida → recuperado), `ENVIAR POR WHATSAPP` + «Compartir de otra manera», mensaje único aprobado, enlace corto (mismo token en base64url) y tarjeta de vista previa con el partido real. Versión visible simple: **V04.42** (sin sufijos `h1/h2`). La vista previa pública la sirve el servicio auxiliar `bramu-i` (carpeta `bramulab-invite/`; Staging está protegido). Dirección definitiva decidida: `bramulab.com/invitacion/{código}` (pendiente de publicar). **Production, `main` y BRAMUlive intactos.** Fuentes: `Producto/Experiencia_Inicial.md` §30; `Operacion/Backend_Infraestructura.md` §9.2; `Operacion/Privacidad_Legal.md` §21; `Operacion/Operacion_Vercel_Staging_Production.md` («Servicio auxiliar `bramu-i`»).
 
 ---
 
