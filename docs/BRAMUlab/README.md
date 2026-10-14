@@ -17,9 +17,9 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
-## 14/10/2026 — V04.41 → V04.45 · Invitación a jugadores sin cuenta (Staging; sin publicar)
+## 14/10/2026 — V04.41 → V04.46 · Invitación a jugadores sin cuenta (Staging; sin publicar)
 
-Pop-up corto con **microhistoria** del partido real (cargado → invitación compartida → recuperado), `ENVIAR POR WHATSAPP` + «Compartir de otra manera», mensaje único aprobado, enlace corto (mismo token en base64url) y tarjeta de vista previa con el partido real. Versión visible simple: **V04.45** (sin sufijos `h1/h2`; V04.43 = ícono de WhatsApp + tarjeta recompuesta; V04.44 = transición legible y logotipo proporcionado; V04.45 = el envío se representa con un avioncito de papel en lugar de desplazar la tarjeta). La vista previa pública la sirve el servicio auxiliar `bramu-i` (carpeta `bramulab-invite/`; Staging está protegido). Dirección definitiva decidida: `bramulab.com/invitacion/{código}` (pendiente de publicar). **Production, `main` y BRAMUlive intactos.** Fuentes: `Producto/Experiencia_Inicial.md` §30; `Operacion/Backend_Infraestructura.md` §9.2; `Operacion/Privacidad_Legal.md` §21; `Operacion/Operacion_Vercel_Staging_Production.md` («Servicio auxiliar `bramu-i`»).
+Pop-up corto con **microhistoria** del partido real (cargado → invitación compartida → recuperado), `ENVIAR POR WHATSAPP` + «Compartir de otra manera», mensaje único aprobado, enlace corto (mismo token en base64url) y tarjeta de vista previa con el partido real. Versión visible simple: **V04.46** (sin sufijos `h1/h2`; V04.43 = ícono de WhatsApp + tarjeta recompuesta; V04.44 = transición legible y logotipo proporcionado; V04.46 = una sola tarjeta centrada que se tiñe del verde de WhatsApp y vuelve a los colores BRAMUlab con el check; sin avioncito ni desplazamientos). La vista previa pública la sirve el servicio auxiliar `bramu-i` (carpeta `bramulab-invite/`; Staging está protegido). Dirección definitiva decidida: `bramulab.com/invitacion/{código}` (pendiente de publicar). **Production, `main` y BRAMUlive intactos.** Fuentes: `Producto/Experiencia_Inicial.md` §30; `Operacion/Backend_Infraestructura.md` §9.2; `Operacion/Privacidad_Legal.md` §21; `Operacion/Operacion_Vercel_Staging_Production.md` («Servicio auxiliar `bramu-i`»).
 
 ---
 

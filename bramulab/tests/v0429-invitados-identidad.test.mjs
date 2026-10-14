@@ -36,7 +36,7 @@ test('Resumen: sección JUGADORES SIN CUENTA con fila + INVITAR (oculta por defe
   assert.match(fn, /listRelatedProvisionalPlayers/);
 });
 
-test('Hoja de invitar (V04.45): título «INVITÁ A {NOMBRE} A BRAMULAB», microhistoria, una frase, ENVIAR POR WHATSAPP, «Compartir de otra manera» discreto y aclaración personal', () => {
+test('Hoja de invitar (V04.46): título «INVITÁ A {NOMBRE} A BRAMULAB», microhistoria, una frase, ENVIAR POR WHATSAPP, «Compartir de otra manera» discreto y aclaración personal', () => {
   const sheet = between(indexHtml, '<div id="invite-sheet-scrim"', 'V04.29 — RECEPTOR DE UNA INVITACIÓN');
   assert.match(sheet, /id="invite-sheet-wa-btn"[^>]*>ENVIAR POR WHATSAPP</);
   assert.match(sheet, /id="invite-sheet-share-btn" class="invite-sheet__more">Compartir de otra manera</, 'acción secundaria de texto, no un segundo botón grande');
@@ -136,7 +136,7 @@ test('JUGADORES SIN CUENTA: lista solo a los invitados invitables de ESTE partid
   assert.equal(none.$('#analysis-guests').hidden, true, 'sin invitados relacionados no se muestra nada');
 });
 
-test('INVITAR (V04.45): abre la hoja con el nombre y la frase dinámicos y la microhistoria con el partido REAL; ENVIAR POR WHATSAPP genera el link /invitacion/{token}, arma el mensaje y abre wa.me con todo el texto', async () => {
+test('INVITAR (V04.46): abre la hoja con el nombre y la frase dinámicos y la microhistoria con el partido REAL; ENVIAR POR WHATSAPP genera el link /invitacion/{token}, arma el mensaje y abre wa.me con todo el texto', async () => {
   const opened = [];
   const env = makeEnv();
   env.sb.window.open = (url) => { opened.push(url); return {}; };
@@ -156,7 +156,7 @@ test('INVITAR (V04.45): abre la hoja con el nombre y la frase dinámicos y la mi
   assert.equal(env.$('#invite-sheet-wa-btn').textContent, 'ENVIAR POR WHATSAPP', 'restaura el rótulo tras «PREPARANDO…»');
 });
 
-test('Mensaje (V04.45): texto único aprobado, igual para cualquiera que comparta; el enlace en su propia línea; sin explicaciones ni el nombre del invitado', () => {
+test('Mensaje (V04.46): texto único aprobado, igual para cualquiera que comparta; el enlace en su propia línea; sin explicaciones ni el nombre del invitado', () => {
   const env = makeEnv();
   const msg = env.fns.buildInviteMessage('https://x/invitacion/t');
   assert.equal(msg, '¡Buenas! Nuestro partido ya está cargado en BRAMUlab. Te dejo el link acá 👇\nhttps://x/invitacion/t');
