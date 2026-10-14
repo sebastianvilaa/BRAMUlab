@@ -17,9 +17,9 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
-## 14/10/2026 — V04.41 → V04.46 · Invitación a jugadores sin cuenta (Staging; sin publicar)
+## 14/10/2026 — Invitación a jugadores sin cuenta (V04.41 → V04.46): APROBADA en Staging; publicación pendiente
 
-Pop-up corto con **microhistoria** del partido real (cargado → invitación compartida → recuperado), `ENVIAR POR WHATSAPP` + «Compartir de otra manera», mensaje único aprobado, enlace corto (mismo token en base64url) y tarjeta de vista previa con el partido real. Versión visible simple: **V04.46** (sin sufijos `h1/h2`; V04.43 = ícono de WhatsApp + tarjeta recompuesta; V04.44 = transición legible y logotipo proporcionado; V04.46 = una sola tarjeta centrada que se tiñe del verde de WhatsApp y vuelve a los colores BRAMUlab con el check; sin avioncito ni desplazamientos). La vista previa pública la sirve el servicio auxiliar `bramu-i` (carpeta `bramulab-invite/`; Staging está protegido). Dirección definitiva decidida: `bramulab.com/invitacion/{código}` (pendiente de publicar). **Production, `main` y BRAMUlive intactos.** Fuentes: `Producto/Experiencia_Inicial.md` §30; `Operacion/Backend_Infraestructura.md` §9.2; `Operacion/Privacidad_Legal.md` §21; `Operacion/Operacion_Vercel_Staging_Production.md` («Servicio auxiliar `bramu-i`»).
+Diseño y experiencia aprobados por Sebastián en iPhone (V04.46). **No publicado en Production** (ni `main`, `bramulab.com` ni BRAMUlive). Pendientes de Production (dominio `bramulab.com/invitacion/`, revisión legal, configuración, recorrido real del destinatario, destino del servicio auxiliar `bramu-i`): `Operacion/Pre_Production.md` §2.8. Fuentes: `Producto/Experiencia_Inicial.md` §30; registro: `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md`.
 
 ---
 
@@ -92,7 +92,7 @@ Con autorización explícita del responsable se publicó **solo** el hotfix `04.
 | **Producto** | BRAMUlab **V04.37**. Backend Bloques 1–8, Pre-Bloque 9, 9A/9B, G1–G3 y todos los frentes P0 de salida **cerrados**. |
 | **Production** | **ACTIVA**, V04.40 / `04.40-h3` publicada el 13/10/2026, deployment `dpl_C94TxYd6QSr6tHx4dSZeZ7nmbZNK` desde SHA `a7456908` (14/10/2026: hotfix administrativo `dpl_EgQRqW8zFqx1FPZmvEXX9KmqNaSq` con pestaña Web de Metrics y Política actualizada, ver arriba); homónimos en Cargar partido. Privacidad y seguimiento AAIP: `Operacion/Privacidad_Legal.md` §19. |
 | **Staging** | **V04.40 / bundle `04.40-h3`**: normalización de @usuario y hotfix de homónimos publicados; build READY y alias independiente. Próximos cambios siguen naciendo en Staging. |
-| **Pendientes reales** | Seguimiento del expediente AAIP, smoke humano mínimo de Production, decisión de backups (G4), QA humano de la fecha de nacimiento en Android, y el frente independiente de repositorio público/GitHub Pages. Detalle: `Operacion/Pre_Production.md` §2. Ideas futuras y riesgos conocidos: `Producto/BRAMUlab_Backlog.md`. |
+| **Pendientes reales** | Seguimiento del expediente AAIP, smoke humano mínimo de Production, decisión de backups (G4), QA humano de la fecha de nacimiento en Android, **publicación de las invitaciones (`Pre_Production.md` §2.8)** y el frente independiente de repositorio público/GitHub Pages. Detalle: `Operacion/Pre_Production.md` §2. Ideas futuras y riesgos conocidos: `Producto/BRAMUlab_Backlog.md`. |
 | **BRAMUlab Metrics** | **CERRADO** — publicado en Production y aprobado por Sebastián el 14/10/2026 (§3). |
 
 Historia por ronda (V04.11 – V04.37): `Versiones/README.md` (mapa) y `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md`, sección «registro consolidado de rondas».

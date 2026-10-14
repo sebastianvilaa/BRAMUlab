@@ -179,7 +179,7 @@ No agregar publicidad, paywalls o planes pagos al lanzamiento inicial por defect
 Estos puntos vivían solo en informes de rondas ya cerradas (retirados del árbol; Git los conserva). Ninguno está autorizado para implementar; todos requieren evidencia real o decisión explícita antes de abrirse.
 
 **Invitados / identidad / recuperados**
-- *Card de invitación con datos concretos antes de autenticar* (identidad + partido fuente): exigiría una función ejecutable por `anon` que expondría nombres, score y fecha a cualquiera con el link. Hoy: card genérica antes del login y datos concretos recién en `¿SOS {nombre}?`.
+- ~~*Card de invitación con datos concretos antes de autenticar*~~ — **resuelto por decisión de producto en V04.41** (14/10/2026): la vista previa muestra nombres y games reales a quien posea un enlace válido mediante `get_invitation_card` (único RPC `anon`, mínimo). Queda la revisión legal de la Política antes de Production (`Privacidad_Legal.md` §21). La card de Acceso previa al login sigue siendo genérica.
 - *Aviso al invitador por `NO SOY YO`*: no implementado (rechazar no prueba identidad y el link puede circular; exigiría persistir un evento nuevo en la función de claim, de concurrencia crítica).
 - *`SÍ, LO JUGUÉ` se recuerda solo localmente*: si se necesitara auditoría de la participación confirmada, hay que definir un evento server-side.
 - *Anti-abuso 1+3*: una misma persona con dos cuentas podría validarse un partido de provisionales propias vinculando una a su segunda cuenta. Riesgo conocido, sin heurística (no hay auto-validación).
@@ -187,6 +187,14 @@ Estos puntos vivían solo en informes de rondas ya cerradas (retirados del árbo
 - Links de invitación anteriores a V04.33 no guardan el partido de origen: `¿SOS X?` cae al partido más reciente con el copy anterior.
 - `create_or_attach_match` conserva inline el chequeo de relación de provisionales (candidato a refactor a un helper común, sin cambio de semántica). Si un partido recuperado se corrige/anula después, el ledger de Nivel no se resincroniza solo.
 - Una provisional recuperada nunca vuelve a ser seleccionable; su tombstone conserva el nombre original salvo que la cuenta se elimine (entonces se anonimiza).
+
+**Invitaciones (V04.41–V04.46, cierre 14/10/2026)** — ninguno autorizado para implementar
+- *Renombrar identidades provisionales al invitarlas*: explícitamente fuera de V04.42; quedó sin hacer (corregir nombres mal cargados, fusión de identidades y edición global de provisionales siguen fuera de alcance).
+- *`get_invitation_card` sin límite de frecuencia por jugador* (un `anon` no tiene `player_id`): hoy lo cubre el token de 256 bits; si se observara abuso, evaluar un límite por IP/borde.
+- *El token viaja en la URL de la imagen de vista previa* (`/invitacion/{código}/og.png`): es la misma credencial del enlace que ya se envía a esa persona; se cortó con rotación, vinculación o vencimiento (30 días). WhatsApp cachea la vista previa por URL: un enlace compartido antes de rotarlo puede seguir mostrando la tarjeta en su caché.
+- *Un invitado con la PWA instalada y el enlace abierto en Safari* tiene almacenamiento separado: la intención de claim vive en el navegador donde abrió el enlace (límite de iOS).
+- *El alias de rama de Staging no sigue solo a los deployments* (hay que reasignarlo con `vercel alias set`; causa sin confirmar) y *el `ignoreCommand` de `bramulab` solo mira el último commit del push* (puede cancelar un build que sí cambiaba la app): ambos documentados en `Operacion_Vercel_Staging_Production.md`.
+- *Alias legado `/i/{código}` y `?claim=` anteriores*: se conservan para no romper enlaces ya enviados; retirar `/i/` cuando ya no queden invitaciones de prueba vigentes.
 
 **Pendientes / duplicados**
 - `POR RESOLVER` incluye toda incidencia de identidad abierta y toda corrección activa aunque `get_my_matches` no distinga quién puede actuar; el gate de 5 pendientes cuenta lo que cuenta el servidor y la card de Home clasifica algunos casos distinto (ambos coherentes entre sí en el Resumen).

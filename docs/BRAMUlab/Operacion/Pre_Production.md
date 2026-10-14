@@ -30,6 +30,12 @@
 5. **Repositorio público, GitHub Pages y logo de emails en `raw.githubusercontent.com`:** intervención independiente con autorización específica y verificación previa de BRAMUlive/Pages (`138_…`, `139_…`). Nada de esto se cambia como efecto colateral de otra ronda.
 6. **BRAMU Metrics:** en desarrollo; se gobierna por su propia cadena de documentos (`README.md` §3).
 7. Operación con usuarios reales (triage, partidos «en joda», limpieza de cuentas): `Runbook_Operacion_y_Salida.md`, Parte C.
+8. **Publicar la invitación a jugadores sin cuenta (V04.41–V04.46: diseño aprobado en Staging, etapa de publicación SEPARADA y sin autorizar).** Checklist (detalle técnico en `Operacion_Vercel_Staging_Production.md`, «Servicio auxiliar `bramu-i`»):
+   1. **Dominio oficial `https://bramulab.com/invitacion/{código}`** (decisión de producto confirmada; no se tocó `bramulab.com`). **DECISIÓN ABIERTA:** opción A (misma carpeta `bramulab-invite/` desplegada con variables de Production + reescritura externa en `bramulab-web`; un proyecto Vercel más, un solo código — recomendada) vs. opción B (copiar las funciones a `bramulab-web`; sin proyecto nuevo, código duplicado).
+   2. **Revisión legal** de la Política `legal_v2`: nombres y resultado visibles para el poseedor de un enlace (`Privacidad_Legal.md` §21): aclaración informativa vs. reaceptación.
+   3. **Configuración de Production:** aplicar la migración `20261014190000_v0441_invitation_public_card.sql` en Supabase Production y correr `verify-v0441-invitation-card.sql`; variables de la instancia pública (`SUPABASE_URL`/`SUPABASE_ANON_KEY` de Production, `BRAMU_APP_URL=https://app.bramulab.com`); `BRAMU_INVITE_BASE=https://bramulab.com` en el entorno Production de `bramulab`; cabeceras/`robots`/`sitemap` de la web; deploy de Production de la app (todo con autorización expresa).
+   4. **Comprobar el recorrido real del destinatario** con una invitación válida de Staging o Production desde otro teléfono: abrir el enlace → acceso/alta/login (la intención `?claim=` sobrevive) → `¿JUGASTE ESTE PARTIDO?` → recuperación de partidos. Hasta hoy se probó cada tramo (tests, verify SQL, curl, iPhone del invitador) pero no el recorrido completo del destinatario.
+   5. **Destino de `bramu-i`:** conservar mientras Staging esté protegido (única forma de probar la tarjeta en WhatsApp); al publicar queda solo como endpoint de Staging; retirar el alias legado `/i/`; no retirarlo si Staging sigue protegido.
 
 ## 3. Pulido P1 (no bloquea; verificar contra el estado actual antes de implementar)
 
