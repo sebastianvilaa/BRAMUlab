@@ -1,0 +1,113 @@
+/* ==========================================================================
+   Tu círculo → Grupos BRAMU: una sola historia visual (jugadores conectados → grupo → tabla semanal).
+   Escena dibujada a 380 × 560 y escalada con --k. Componentes recreados a partir de .lobby-card y .group-table de la app.
+   Datos: EJEMPLO ILUSTRATIVO (no son resultados reales). Puntos coherentes con el reglamento de Grupos (Clásico: 5 por
+   victoria + hasta 2 bonus; Americano: 3; tabla = 2 mejores partidos; ranking de competición).
+   ========================================================================== */
+.club { position: relative; padding: 80px 0 72px; overflow: hidden; isolation: isolate; background: linear-gradient(to bottom, var(--ink-1), #07111D 50%, var(--ink-1)); }
+.club::before { content: ""; position: absolute; inset: 0; z-index: -1; opacity: .9; pointer-events: none;
+  background: radial-gradient(520px 420px at 78% 55%, rgba(13, 111, 204, .26), transparent 70%),
+    repeating-linear-gradient(90deg, transparent 0 79px, rgba(183, 211, 235, .04) 79px 80px), repeating-linear-gradient(0deg, transparent 0 79px, rgba(183, 211, 235, .04) 79px 80px);
+  -webkit-mask-image: radial-gradient(ellipse at 62% 50%, #000 18%, transparent 75%); mask-image: radial-gradient(ellipse at 62% 50%, #000 18%, transparent 75%); }
+.club__grid { display: grid; gap: 18px; }
+.club__head { max-width: 40em; }
+
+.club__stage { position: relative; width: 100%; max-width: 380px; aspect-ratio: 380 / 560; margin-inline: auto; }
+.club__fit { position: absolute; left: 50%; top: 50%; width: 380px; height: 560px; margin: -280px 0 0 -190px; transform: scale(var(--k, .85)); font-family: "Inter", system-ui, sans-serif; }
+.club__lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.club__lines line { stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 260; stroke-dashoffset: 260; opacity: .8; transition: stroke-dashoffset 1.1s var(--ease), opacity .5s; }
+.club__lines .m { stroke: var(--lime); } .club__lines .r { stroke: var(--blue); }
+.club__stage.is-run .club__lines line { stroke-dashoffset: 0; transition-delay: calc(var(--i, 0) * 90ms + .5s); }
+.club__stage:not([data-scene="1"]) .club__lines line { opacity: 0; transition-delay: 0s; }
+
+/* nodos: las mismas personas pasan del círculo al grupo */
+.cn { position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%;
+  transform: translate(var(--x, 190px), var(--y, 270px)) scale(var(--s, 1)); opacity: 0; --x: 190px; --y: 270px; --s: .3;
+  transition: transform .95s var(--ease) calc(var(--i, 0) * 45ms), opacity .5s calc(var(--i, 0) * 45ms); z-index: calc(20 - var(--i, 0)); }
+.club__stage.is-run[data-scene="1"] .cn { --x: var(--x1); --y: var(--y1); --s: var(--s1, 1); opacity: 1; transition-delay: calc(var(--i, 0) * 110ms + .1s); }
+.club__stage.is-run:not([data-scene="1"]) .cn { --x: var(--x2); --y: var(--y2); --s: .74; opacity: 1; }
+.cn__a { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; font-size: 17px; font-weight: 800; color: #C9D3DE;
+  background: linear-gradient(145deg, #152B43, #0D1A2A); border: 2.5px solid var(--bd, var(--line-strong)); box-shadow: 0 0 0 3px rgba(5, 10, 18, .9); }
+.cn--mate .cn__a { --bd: var(--lime); } .cn--rival .cn__a { --bd: var(--blue); }
+.cn--me .cn__a { background: var(--lime); color: #050A12; font-size: 13px; letter-spacing: .04em; border-color: var(--lime); box-shadow: 0 0 0 3px rgba(5, 10, 18, .9), 0 0 28px rgba(149, 255, 25, .55); }
+.cn__a img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cn__n { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 700; color: var(--white); white-space: nowrap; transition: opacity .35s; }
+.club__stage:not([data-scene="1"]) .cn__n { opacity: 0; }
+.cn--me { --s1: 1.28; }
+.club__legend { position: absolute; left: 0; right: 0; bottom: 6px; display: flex; justify-content: center; gap: 22px; font-size: 12.5px; font-weight: 600; color: var(--text-2); transition: opacity .4s; opacity: 0; }
+.club__stage.is-run[data-scene="1"] .club__legend { opacity: 1; transition-delay: 1.3s; }
+.club__legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid; margin-right: 7px; vertical-align: -1px; }
+.club__legend .m i { border-color: var(--lime); } .club__legend .r i { border-color: var(--blue); }
+
+/* aro del grupo + etiqueta de ejemplo */
+.club__ring { position: absolute; left: 52px; top: 17px; width: 276px; height: 58px; border-radius: 30px; border: 1.5px solid rgba(149, 255, 25, .75);
+  box-shadow: 0 0 26px rgba(149, 255, 25, .28), inset 0 0 22px rgba(149, 255, 25, .08); opacity: 0; transform: scale(.7); transition: opacity .6s .5s, transform .8s var(--ease) .4s; }
+.club__stage.is-run:not([data-scene="1"]) .club__ring { opacity: 1; transform: none; }
+.club__tag { position: absolute; left: 24px; top: 90px; font-size: 10px; font-weight: 800; letter-spacing: .1em; color: var(--text-2); opacity: 0; transition: opacity .4s; white-space: nowrap; }
+.club__stage.is-run:not([data-scene="1"]) .club__tag { opacity: 1; transition-delay: .9s; }
+.club__stage[data-scene="1"] .club__tag { left: 50%; top: 6px; transform: translateX(-50%); }
+.club__stage.is-run[data-scene="1"] .club__tag { opacity: 1; transition-delay: 1.6s; }
+
+/* tarjeta de grupo (escena 2) — como .lobby-card */
+.lc { position: absolute; left: 20px; top: 112px; width: 340px; padding: 14px 16px; background: #09131F; border: 1px solid var(--line); border-radius: 16px;
+  opacity: 0; transform: translateY(26px) scale(.96); pointer-events: none; transition: opacity .55s var(--ease), transform .8s var(--ease); }
+.club__stage.is-run[data-scene="2"] .lc { opacity: 1; transform: none; transition-delay: .5s; }
+.lc__head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.lc__av { flex: none; width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center; background: #0D1A2A; border: 1px solid var(--line); font-size: 14px; font-weight: 700; color: var(--lime); }
+.lc__head b { display: block; font-size: 15px; font-weight: 700; } .lc__head small { display: block; margin-top: 1px; font-size: 12px; color: var(--text-2); }
+.lc__row { display: flex; align-items: center; gap: 10px; min-height: 52px; opacity: 0; transform: translateX(-10px); transition: opacity .45s, transform .6s var(--ease); }
+.club__stage.is-run[data-scene="2"] .lc__row { opacity: 1; transform: none; transition-delay: calc(var(--n) * 160ms + 1.1s); }
+.lc__pos { flex: none; width: 26px; font-size: 20px; line-height: 1; text-align: center; }
+.lc__rav { flex: none; width: 45px; height: 45px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: #0D1A2A; border: 1px solid var(--line); font-size: 16px; font-weight: 700; color: var(--lime); }
+.lc__rav img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lc__nm { flex: 1; font-size: 13px; font-weight: 600; } .lc__pt { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.lc__row.me .lc__nm { color: var(--lime); font-weight: 700; }
+
+/* tabla semanal (escena 3) — como .group-table */
+.lt { position: absolute; left: 20px; top: 112px; width: 340px; opacity: 0; transform: translateY(18px); pointer-events: none; transition: opacity .5s var(--ease), transform .7s var(--ease); }
+.club__stage.is-run[data-scene="3"] .lt { opacity: 1; transform: none; transition-delay: .35s; }
+.lt__tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.lt__tabs span { padding: 8px 10px 10px; font-size: 12px; font-weight: 700; color: var(--text-3); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.lt__tabs span.on { color: var(--white); border-bottom-color: var(--lime); }
+.lt__rows { position: relative; height: 372px; }
+.lt__row { position: absolute; left: 0; right: 0; top: 0; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #09131F; border-radius: 12px; border: 1px solid transparent;
+  opacity: 0; transform: translateY(calc(var(--r) * 62px + 14px)); transition: transform .85s var(--ease), opacity .45s, border-color .4s, background-color .4s; }
+.club__stage.is-run[data-scene="3"] .lt__row { opacity: 1; transform: translateY(calc(var(--r) * 62px)); }
+.club__stage.is-run[data-scene="3"]:not(.is-moving) .lt__row { transition-delay: calc(var(--r) * 110ms + .55s), calc(var(--r) * 110ms + .55s), 0s, 0s; }
+.lt__row.is-me { border-color: rgba(149, 255, 25, .45); background: rgba(149, 255, 25, .06); }
+.lt__pos { flex: none; width: 20px; text-align: center; font-size: 14px; font-weight: 800; color: var(--text-3); }
+.lt__row.top .lt__pos { color: var(--lime); }
+.lt__av { flex: none; width: 38px; height: 38px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: #0D1A2A; border: 1px solid var(--line); font-size: 14px; font-weight: 700; color: #C9D3DE; }
+.lt__av.me { background: var(--lime); color: #050A12; font-size: 10.5px; border-color: var(--lime); }
+.lt__av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lt__i { flex: 1; min-width: 0; } .lt__i b { display: block; font-size: 14px; font-weight: 700; } .lt__i small { display: block; font-size: 12px; color: var(--text-2); margin-top: 1px; white-space: nowrap; }
+.lt__p { flex: none; text-align: right; } .lt__p b { display: block; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.lt__p small { display: block; font-size: 8px; font-weight: 800; letter-spacing: .05em; color: var(--text-3); margin-top: 1px; }
+.lt__plus { position: absolute; right: 64px; top: 4px; padding: 3px 10px; border-radius: 999px; background: var(--lime); color: #050A12; font-size: 12px; font-weight: 800; opacity: 0; transform: translateY(8px) scale(.8); pointer-events: none; }
+.lt__plus.is-go { animation: lt-plus 1.5s var(--ease) both; }
+@keyframes lt-plus { 0% { opacity: 0; transform: translateY(10px) scale(.8); } 20% { opacity: 1; transform: none; } 75% { opacity: 1; transform: translateY(-10px); } 100% { opacity: 0; transform: translateY(-18px); } }
+
+/* pasos (indicadores de la secuencia) */
+/* móvil: un único pie de escena (la escena activa) justo debajo de la animación; escritorio: las tres a la vista */
+.club__steps { display: grid; gap: 6px; max-width: 30em; }
+.club__steps li { grid-area: 1 / 1; pointer-events: none; display: flex; gap: 14px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; border: 1px solid transparent; opacity: 0; cursor: pointer; transition: opacity .35s, background-color .35s, border-color .35s; -webkit-tap-highlight-color: transparent; }
+.club__steps li.is-active { opacity: 1; pointer-events: auto; background: rgba(149, 255, 25, .06); border-color: rgba(149, 255, 25, .28); }
+.club__steps b { flex: none; font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--lime); padding-top: 3px; }
+.club__steps .h3 { font-size: 18px; } .club__steps p { margin-top: 2px; font-size: 15px; color: #C9D3DE; line-height: 1.45; }
+html:not(.js) .club__steps li { opacity: 1; grid-area: auto; pointer-events: auto; }
+html:not(.js) .club__stage { display: none; }
+
+@media (min-width: 900px) {
+  .club { padding: 104px 0 88px; }
+  .club__grid { grid-template-columns: 380px minmax(0, 1fr); column-gap: 96px; align-items: center; }
+  .club__head { grid-column: 2; grid-row: 1; align-self: end; }
+  .club__steps { grid-column: 2; grid-row: 2; align-self: start; margin-top: 8px; }
+  .club__steps li { grid-area: auto; opacity: .55; pointer-events: auto; }
+  .club__steps li.is-active { opacity: 1; }
+  .club__stage { grid-column: 1; grid-row: 1 / span 2; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .club__lines line { stroke-dashoffset: 0; }
+  .cn, .lc, .lc__row, .lt, .lt__row, .club__ring { transition-delay: 0s !important; }
+}
+@media (prefers-contrast: more) and (min-width: 900px) { .club__steps li { opacity: 1; } }

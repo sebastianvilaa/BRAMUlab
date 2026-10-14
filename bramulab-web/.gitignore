@@ -1,0 +1,9 @@
+# Enlace local de Vercel (ids del proyecto; no se versiona)
+.vercel/
+# Herramientas locales del asistente
+.claude/
+.DS_Store
+# Fotos de amigos autorizadas SOLO para el sitio web: el repositorio es público, no se suben a Git (ver README)
+public/assets/img/avatar-real-*.jpg
+# Artefactos temporales de la CLI de Supabase
+supabase/

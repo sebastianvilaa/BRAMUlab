@@ -1,0 +1,6 @@
+# Solo se publica public/ (outputDirectory) y api/metrics.js; esto evita subir lo interno.
+docs
+.claude
+README.md
+Iniciar-vista-previa.command
+.vercel

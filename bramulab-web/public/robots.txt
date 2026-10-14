@@ -1,0 +1,5 @@
+# BRAMUlab Web — sitio público indexable.
+User-agent: *
+Allow: /
+
+Sitemap: https://bramulab.com/sitemap.xml

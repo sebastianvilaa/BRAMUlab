@@ -1,7 +1,7 @@
 # BRAMUlab Web — concepto y recorrido público
 
-**Estado:** concepto y jerarquía narrativa aprobados por Sebastián; pendiente diseño visual y revisión de textos finales.  
-**Fecha de consolidación:** 12/10/2026 (Argentina).  
+**Estado (14/10/2026):** concepto y **diseño visual aprobados** por Sebastián; sitio implementado en `bramulab-web/public/` y **PUBLICADO en `https://bramulab.com`** (Vercel `bramulab-web`). La **medición web (Metrics) está ACTIVA desde el 14/10/2026**. §11 resume el estado real.  
+**Fecha de consolidación del concepto:** 12/10/2026 (Argentina).  
 **Ámbito:** futura web pública en `bramulab.com`, distinta de la app en `app.bramulab.com`.  
 **Ubicación de esta documentación:** `bramulab-web/docs/` (separada de los archivos de la aplicación).
 
@@ -111,13 +111,13 @@ Mantener la **causa verdadera** (lesión y alejamiento); **no** mencionar licenc
 - Enlace a Instagram oficial cuando exista y esté listo.
 - Instalación: BRAMUlab es una PWA; explicar y comprobar el camino real para iPhone/Android, sin iconos engañosos de tiendas. Acceso directo desde el hero y CTA final.
 - Información práctica y legal accesible; confirmar que la gratuidad y las instrucciones continúan vigentes al publicar.
-- Independencia técnica prevista: `bramulab-web/` con `index.html`, `css/`, `js/`, `assets/` y configuración específica. **Ruta propuesta, todavía no creada.** No tocar `bramulab/`, `main`, Production ni BRAMUlive.
+- Independencia técnica: `bramulab-web/` es un proyecto aparte de la app. Estructura vigente en §11: sitio estático en `public/`, función `api/metrics.js` y `vercel.json` propios. No tocar `bramulab/`, `main`, Production ni BRAMUlive.
 
 ## 9. Próxima fase y decisiones realmente abiertas
 
 **Concepto general cerrado.** No seguir preguntando por requisitos ya decididos.
 
-**Próxima fase: diseño visual**, empezando por el hero mobile y su adaptación a escritorio; después recorrido de carga y resultados/beneficios. Revisar juntos el prototipo y ajustarlo hasta aprobarlo.
+**Fase cumplida:** el diseño visual se iteró y aprobó (hero, Cómo funciona, Qué obtenés, Grupos, Intelligence, Nivel, instalación, Preguntas rápidas, cierre). La lista siguiente quedó resuelta en el diseño; se conserva como registro.
 
 Solo quedan para resolver **dentro del trabajo de diseño**, no como bloqueo para avanzar:
 - composición, encuadres e intensidad exacta del movimiento;
@@ -165,3 +165,31 @@ Solo quedan para resolver **dentro del trabajo de diseño**, no como bloqueo par
 **Antes de habilitar Production:** revisión legal específica de `bramulab.com` y su proveedor, autorización para migración SQL en Supabase Production y deployment de la Edge Function protegida, preparación de entorno WEB Vercel, prueba end-to-end limitada de vista+clic real y control de fallo de telemetría sin romper CTA. No habilitar el sitio/la captura por el simple hecho de haber preparado estos archivos. El nuevo módulo de Metrics protegido tampoco se publica en Production sin permiso.
 
 **Sin cambios:** app pública `bramulab/` funcional, historial/identidad de jugadores, BRAMUlive, `main`, base Production y destino de enlaces.
+
+---
+
+## 11. Estado de implementación y preparación de lanzamiento — 14/10/2026
+
+**Sitio:** una sola página estática (HTML/CSS/JS sin frameworks ni dependencias) en `bramulab-web/public/`. Secciones: hero · Cómo funciona (4 pasos como pantalla viva) · Qué obtenés (Home en teléfono; carrusel horizontal en móvil) · Tu círculo + Grupos · BRAMU Intelligence · Nivel BRAMU · Instalación (iPhone/Android) · Preguntas rápidas · Quién está detrás · cierre. Las pantallas son recreaciones HTML/CSS/JS de la interfaz real con **datos ilustrativos** rotulados como tales. Las fotos de Esteban, Gusti, Jona, Lucho y Matu cuentan con autorización expresa **solo para esta web**; Seba es el creador; Agus y Flor son imágenes generadas; Marcos no tiene foto (representa al jugador sin cuenta).
+
+**Estructura de publicación (proyecto Vercel independiente, aún no creado):**
+
+```text
+bramulab-web/
+├── public/            # lo único que se sirve (outputDirectory): index.html, css/, js/, assets/, robots.txt, sitemap.xml, favicon.ico
+├── api/metrics.js     # Vercel Function del contador (solo del proyecto WEB; nunca de la app)
+├── vercel.json        # outputDirectory, redirección www → apex, cabeceras, función
+├── .vercelignore      # docs/, README, .claude/ y launcher no se suben
+├── docs/              # documentación interna (no pública)
+└── README.md
+```
+
+**Medición (§10).** `public/js/web-metrics.js` (v1.1) y `api/metrics.js` son los archivos de Desarrollo de Metrics, **sin modificar**. CTA etiquetados con `data-bramu-cta`: `login` (Entrar, encabezado), `hero`, `instalacion` (enlace «app.bramulab.com» del paso 1 de la instalación) y `final`; los demás enlaces a la app (p. ej. «Abrir la app» del pie) cuentan como `other`. Los `href` son directos a `https://app.bramulab.com`, sin parámetros ni redirecciones. **La etiqueta `<script defer src="/js/web-metrics.js">` quedó activa al final de `index.html` el 14/10/2026.**
+
+**Sincronización con Metrics v1.1 (14/10/2026):** `public/js/web-metrics.js` es idéntico al canónico de GitHub Staging (commit `0e4fbed5`, blob `ce20d9afe600b989109385df182aa8580d824e3c`). Cuenta clics solo hacia la entrada principal de `https://app.bramulab.com` (`/` o `/index.html`): «Términos» y «Privacidad» del pie, que viven en `app.bramulab.com/terminos/` y `/privacidad/`, **no se cuentan**. `api/metrics.js` es igual al de Staging. La medición quedó **activada** el 14/10/2026 (ver más abajo).
+
+**Publicación (14/10/2026).** Deploy de Production del proyecto Vercel independiente `bramulab-web` (equipo `bramu-lab`) con `bramulab.com` y `www.bramulab.com` (308 a apex), HTTPS (Let's Encrypt) y DNS en Cloudflare solo-DNS (`A @`, `CNAME www`); `app.bramulab.com` y BRAMUlive no se modificaron. Sitio indexable (`robots.txt` permite, sitemap declarado, sin `noindex`). Las Previews y las URL únicas de deployment siguen protegidas por Vercel Authentication.
+
+**Sigue pendiente (otros frentes):** activación de la medición (aviso de privacidad que la cubra, variables de servidor, migración SQL y `admin-metrics` en Production, prueba end-to-end) y precisar en la Política de Privacidad que el proveedor de alojamiento también aloja el sitio web. Detalle operativo en `README.md`.
+
+**Activación de la medición (14/10/2026).** `web-metrics.js` v1.1 cargado en `bramulab.com` tras publicar la información de privacidad (Política «Actualizada: 14 de octubre de 2026») y dejar listos el backend de Production (migración `web_public_daily_analytics`, `admin-metrics` v2) y las variables de servidor del proyecto `bramulab-web`. Primera escritura real verificada en Supabase Production (1 vista + 1 clic `hero`, incluidos en el contador); Términos y Privacidad no cuentan. Detalle y despliegues: `../docs/BRAMUlab/README.md`.
