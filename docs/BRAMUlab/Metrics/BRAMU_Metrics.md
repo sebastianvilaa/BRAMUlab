@@ -29,6 +29,9 @@
 
 **Procedimiento de publicación (ejecutado tras autorización del 14/10/2026; conservar como referencia de verificación/rollback).** Mismo procedimiento de 8 pasos de la sección siguiente, con estos valores: base de comparación `cf62e1f`; `git diff --stat cf62e1f <SHA> -- bramulab` debe listar únicamente `admin/metrics/{index.html,metrics.js,metrics.css,qa-fixture.js}`, `admin/metrics/icons/*` y los tests `bramulab/metrics-*.test.mjs`; el `dist` de Production debe diferir del publicado solo en `admin/metrics/index.html`, `metrics.js`, `metrics.css` y los 5 PNG; sin Supabase; reversión = promover `dpl_EgQRqW8zFqx1FPZmvEXX9KmqNaSq`.
 
+
+**Cierre funcional validado por Sebastián (14/10/2026):** después del despliegue a `app.bramulab.com`, el propietario abrió y revisó BRAMUlab Metrics y confirmó expresamente «listo quedó ok». La ronda de UX/UI queda **aprobada y cerrada en Production**. No se requieren nuevas rondas de diseño ni pruebas redundantes para este alcance; cualquier cambio futuro es un frente nuevo. La verificación independiente automatizada de hashes HTTP sigue fuera de la evidencia disponible, sin alterar la aceptación funcional del propietario.
+
 ---
 
 ## 14/10/2026 — Ronda de mejoras visuales y UX (STAGING · sin publicar en Production)
