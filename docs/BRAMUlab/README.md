@@ -19,7 +19,7 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ## 14/10/2026 — BRAMUlab Metrics: nueva UX/UI PUBLICADA en Production
 
-Con autorización expresa se publicó el commit `425fc5b` en Vercel Production (`dpl_FfSp5UGuhQaxfqaTsuaVfNbS58HP`, READY, alias `app.bramulab.com` verificado): Inicio prioriza registrados, activos y partidos cargados con Hoy parcial + 7 días completos; ícono, Web y controles simplificados. Sin cambios de backend, Supabase, `main` ni BRAMUlive. QA visual autenticado posterior y hashes HTTP aún no verificados. Detalle y reversión: `Metrics/BRAMU_Metrics.md`.
+Con autorización expresa se publicó el commit `425fc5b` en Vercel Production (`dpl_FfSp5UGuhQaxfqaTsuaVfNbS58HP`, READY, alias `app.bramulab.com` verificado): Inicio prioriza registrados, activos y partidos cargados con Hoy parcial + 7 días completos; ícono, Web y controles simplificados. Sin cambios de backend, Supabase, `main` ni BRAMUlive. **Revisión visual y funcional en Production aprobada expresamente por Sebastián («listo quedó ok»).** Comparación independiente de hashes HTTP no verificada desde esta sesión. Detalle y reversión: `Metrics/BRAMU_Metrics.md`.
 
 ---
 
