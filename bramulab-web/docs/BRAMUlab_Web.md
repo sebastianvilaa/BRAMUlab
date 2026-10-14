@@ -130,3 +130,47 @@ Solo quedan para resolver **dentro del trabajo de diseño**, no como bloqueo par
 **Ejecución recomendada cuando exista aprobación visual:** Claude Code implementa en carpeta propia, ChatGPT central coordina producto y consistencia, ChatGPT Work valida navegador/visual, Sebastián revisa decisiones de diseño; solicitar autorización explícita antes de publicar.
 
 **Registro:** 12/10/2026 — consolidación del intercambio conceptual. **AGREGAR** esta documentación en `staging`; **NO TOCAR** app, lógica, Ranking interno, `main`, Production, BRAMUlive. Ningún código web creado ni despliegue autorizado por este documento.
+
+---
+
+## 10. Medición de la web pública y relación con BRAMU Metrics (PROPUESTA, 13/10/2026)
+
+**Estado: ANÁLISIS / PLAN, NO IMPLEMENTAR NI PUBLICAR SIN AUTORIZACIÓN.** La web sigue sin código ni proyecto Vercel propio. No alterar `bramulab/`, Metrics protegido, bases de Production, `main` ni BRAMUlive. La medición será exclusivamente de visitantes anónimos de `bramulab.com`, sin vincularlos con `player_id`, cuenta, Nivel ni actividad registrada en la app.
+
+### Objetivo y vocabulario honesto
+
+1. **Vistas de página** (`pageviews`): carga/navegación medida por Vercel Web Analytics, incluyendo recargas; para una single page NO equivale a sesiones.
+2. **Visitantes estimados** (`visitors`): métrica agregada de Vercel, basada en un hash efímero que rota cada día; no es persona individual identificada. Consultar agregados exactos del período desde la API cuando estén disponibles, nunca sumar los visitantes diarios y etiquetarlos «únicos en 90 días».
+3. **Clics/salidas a la app**: solicitudes reales de redirección hacia `https://app.bramulab.com`, separadas por `hero`, `login`, `instalacion`, `final` y futuros CTA autorizados. Contadores, **no personas, instalaciones ni sesiones iniciadas**.
+4. **Relación de interés**: `clics_de_salida / vistas_de_página * 100`, rotulada «Clics hacia la app por cada 100 vistas de la web». Puede superar 100; no es una tasa de personas convertidas. Si una fuente está interrumpida/desactualizada, mostrar cobertura/incompleto antes que un porcentaje inventado.
+5. Ventanas: últimos 7, 30 y 90 días; serie diaria con día UTC común entre fuentes (o la misma zona de fecha documentada para ambas). De no existir datos suficientes, mostrar «desde la activación» sin reconstrucción.
+
+### Resultado de la investigación Vercel (documentación oficial consultada 13/10/2026)
+
+- En **Hobby**: Web Analytics incluye **50.000 eventos/mes compartidos por equipo**, sin pago extra, **1 mes de reportes** y **sin eventos personalizados**. Por ello **Vercel Analytics por sí solo NO entrega clics por CTA en Hobby ni garantiza 90 días consultables**.
+- En **Pro**: eventos personalizados permitidos y 12 meses de ventana; plan base anunciado desde USD 20/mes y eventos por uso. **No se pudo confirmar el plan de facturación efectivo de la cuenta BRAMUlab** con el conector actual. No autorizar upgrade por defecto.
+- Desde mayo de 2026 Vercel dispone de una **Web Analytics API oficial**: `visits/count`, `visits/aggregate`, `events/count` y `events/aggregate`, que consulta los datos agregados del panel; requiere token server-side. Verificar en el proyecto nuevo las cuotas/permisos y horizonte real antes de prometer 90 días.
+- Vercel Analytics usa estadísticas agregadas y no cookies de seguimiento; su estimación de visitante no identifica de manera permanente a una persona. Bloqueadores de scripts, tráfico automatizado que supere filtros y recargas pueden alterar las cifras.
+- Vercel Cron está disponible en Hobby una vez al día, con hora de ejecución aproximada: alcanza para guardar resúmenes diarios.
+
+**Fuentes Vercel:** https://vercel.com/docs/analytics/limits-and-pricing · https://vercel.com/docs/analytics/privacy-policy · https://vercel.com/docs/analytics/web-analytics-api · https://vercel.com/docs/cron-jobs/usage-and-pricing .
+
+### Solución propuesta para no depender de pagar Pro
+
+**Una integración sencilla de dos entradas y un historial agregado, ejecutada en la futura WEB separada:**
+
+- **A. Visitas:** habilitar Web Analytics en el proyecto independiente de Vercel para `bramulab-web/` al publicar, exclusivamente entorno/domino público. Verificar que una visita real nueva genere el evento de página; no contar tráfico QA de Staging/Preview como público.
+- **B. Salidas por CTA:** los enlaces públicos a la app usarán **redirecciones propias** de la web, como `/ir/hero`, `/ir/instalacion`, `/ir/final`. Una Vercel Function comprueba una **lista fija** de orígenes/destino autorizado, incrementa **atómicamente** el contador del día y CTA, y redirige a la app con respuesta sin caché. Si el contador falla, se prioriza que el visitante pueda acceder a la app y se registra el período como medición incompleta. No guardar eventos individuales, direcciones IP, tokens, cookies, fingerprints, UUID de sesión ni URL de navegación. Los robots/prefetch pueden inflar redirecciones: restringir orígenes y aplicar controles anti-bot compatibles con privacidad; el contador es aproximado.
+- **C. Persistencia aislada:** una tabla mínima de agregados diarios `fecha + origen + cantidad` para clics, y `fecha + pageviews + visitantes_diarios_estimados + fecha_captura/estado` para las vistas. Reutilizar almacenamiento existente **solo si se autoriza explícitamente** una migración aislada en Supabase Staging/Production (preferir esquema/capas específicas de web, sin permisos directos del navegador). Si requiere tocar esquema protegido, cambiar arquitectura o contratar servicio, volver a decisión humana antes de avanzar. Secretos solo del servidor; nunca en código público.
+- **D. Retención 90 días:** una tarea programada diaria server-side consulta la API de Vercel del **día anterior y eventualmente los días recientes** para actualizar/sobrescribir de manera idempotente los resúmenes diarios **antes** de vencer la ventana Hobby. No sumar snapshot contra snapshot. Si falla algún día, reintentar mientras esté dentro de la ventana y dejar estado de cobertura. Verificar API de visitas y plan antes de activarla.
+- **E. Métricas:** futura pestaña **«Web»** dentro de Metrics, lectura agregada solo-admin de esa fuente aislada (sin exponer token Vercel ni conexión del navegador a datos brutos). 7/30/90, tendencia, salidas por CTA y relación claramente rotulada. **No implementarla en la etapa del lanzamiento de la web** si requiere intervenir el núcleo protegido de Metrics.
+
+**Ruta futura condicionada:** si se verifica que el equipo ya tiene Vercel **Pro**, se puede simplificar el apartado B enviando eventos personalizados `app_outbound_click` con una propiedad `source` y consultar estos datos por la API de Vercel, sin contador propio. La decisión de arquitectura se confirma con el plan real antes de escribir código. No contratar Pro solo para analítica en esta etapa.
+
+### Privacidad y salida
+
+- Redactar aviso de privacidad **propio de `bramulab.com`**, enlazado visiblemente, aclarando proveedor Vercel, finalidades de conteo, categorías mínimas, datos temporales que el proveedor pueda procesar, plazo de consulta/retención, transferencias aplicables y derechos del visitante. La Política de la app y su consentimiento de actividad registrada NO cubren automáticamente esta web. Confirmar encuadre AAIP/local antes de activar; no afirmar exención de consentimiento por el solo hecho de no usar cookies.
+- No vincular datos de web con cuentas de la app ni enviar identificadores a `app.bramulab.com`; no usar Google Analytics/píxeles publicitarios, perfiles ni seguimiento entre dominios.
+- Tras aprobación: probar 1 visita, 1 CTA de cada origen, doble clic, casos de bot/caché, ventana de datos y fallo controlado del contador en **Staging**; después autorizar por separado el proyecto Vercel público y, de ser necesarias, las escrituras estrictamente acotadas en backend Production. Mantener contadores/producto sin datos fabricados.
+
+**Decisiones antes de implementar (no exigirlas ahora):** (1) confirmar plan Vercel efectivo y acceso a la Web Analytics API; (2) autorizar ubicación aislada de agregados y cambios backend correspondientes; (3) aprobar aviso legal web. Este plan no crea cuenta con proveedores, ni escribe datos, ni habilita analítica, ni modifica las funciones existentes.
