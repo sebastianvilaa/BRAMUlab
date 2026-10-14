@@ -1,0 +1,9 @@
+{
+  "name": "bramulab-app",
+  "private": true,
+  "description": "BRAMUlab app (sitio estático + funciones de Vercel en api/). La app del navegador NO usa estas dependencias: solo las funciones server-side (hoy api/invitacion-og.mjs, tarjeta de vista previa de la invitación).",
+  "dependencies": {
+    "@resvg/resvg-wasm": "2.4.1",
+    "satori": "0.33.5"
+  }
+}

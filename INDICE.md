@@ -42,6 +42,7 @@ Un solo documento por tema. Si dos documentos se contradicen, manda el maestro. 
 
 ```bash
 cd supabase/scripts && npm ci            # una vez por copia nueva (dependencias de pruebas y release-check)
+cd bramulab && npm ci                    # una vez por copia nueva (satori + resvg-wasm de la tarjeta de invitación; sin esto su test de render se omite)
 node --test bramulab/tests/*.test.mjs bramulab/metrics-*.test.mjs supabase/functions/_shared/*.test.mjs supabase/scripts/*.test.mjs
 node docs/check-docs.mjs                 # orden documental
 node supabase/scripts/release-check.mjs  # chequeo previo a un deploy

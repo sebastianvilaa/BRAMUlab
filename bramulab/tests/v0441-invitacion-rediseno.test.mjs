@@ -32,33 +32,42 @@ test('origen de las URLs absolutas: solo hosts propios (Production, *.vercel.app
   for (const bad of ['evil.com', 'app.bramulab.com.evil.com', 'x.vercel.app.evil.com', '', undefined, 'a b.vercel.app']) assert.equal(resolveOrigin(bad), 'https://app.bramulab.com', String(bad));
 });
 
-test('metadatos Open Graph de MARCA: título/imagen/tamaño; og:url a la raíz; NUNCA el token, nombres ni resultados; noindex', () => {
-  const html = buildInvitationHtml('https://app.bramulab.com');
+test('metadatos Open Graph: título genérico; imagen dinámica /invitacion/{token}/og.png solo con token válido (si no, la de marca); og:url a la raíz; nada del partido en texto', () => {
+  const generic = buildInvitationHtml('https://app.bramulab.com');
+  assert.match(generic, /<meta property="og:image" content="https:\/\/app\.bramulab\.com\/assets\/invitacion-og\.png\?v=\d+">/, 'sin token: tarjeta de marca');
+  for (const bad of ['abc', 'g'.repeat(64), `${TOKEN}0`, '../x', '<script>']) assert.match(buildInvitationHtml('https://app.bramulab.com', bad), /assets\/invitacion-og\.png/, `token inválido ${bad}`);
+  const html = buildInvitationHtml('https://app.bramulab.com', TOKEN);
   assert.match(html, /<meta property="og:title" content="Te invitaron a BRAMUlab">/);
-  assert.match(html, /<meta property="og:image" content="https:\/\/app\.bramulab\.com\/assets\/invitacion-og\.png\?v=\d+">/);
+  assert.match(html, new RegExp(`<meta property="og:image" content="https://app\\.bramulab\\.com/invitacion/${TOKEN}/og\\.png">`));
+  assert.match(html, new RegExp(`<meta name="twitter:image" content="https://app\\.bramulab\\.com/invitacion/${TOKEN}/og\\.png">`));
   assert.match(html, /<meta property="og:image:width" content="1200">/); assert.match(html, /<meta property="og:image:height" content="630">/);
   assert.match(html, /<meta property="og:url" content="https:\/\/app\.bramulab\.com\/">/);
   assert.match(html, /<meta name="twitter:card" content="summary_large_image">/);
   assert.match(html, /<meta name="robots" content="noindex, nofollow, noarchive">/);
-  assert.doesNotMatch(html, /[0-9a-f]{64}/i, 'ningún token en la respuesta');
+  // el token solo vive en la URL de la imagen (la misma credencial del enlace): ni en og:url, ni en texto, ni en el script de redirección
+  const tokenAt = [...html.matchAll(new RegExp(TOKEN, 'g'))].length;
+  assert.equal(tokenAt, 2, 'solo og:image y twitter:image');
+  assert.doesNotMatch(html.replace(/<meta (property="og:image"|name="twitter:image")[^>]*>/g, ''), new RegExp(TOKEN));
   assert.doesNotMatch(html, /claim=[0-9a-f]/i);
+  // el HTML no lleva nombres ni resultados: eso solo sale en la imagen
+  assert.doesNotMatch(html, /Seba|Marcos|Esteban|Remera/);
 });
 
-test('handler: respuesta idéntica para cualquier token (ignora la URL del pedido), sin caché compartida ni referrer; el Host decide el origen', () => {
-  const run = (url, host) => {
+test('handler: lee el token de ?t= (reescritura de Vercel); sin caché compartida ni referrer; el Host decide el origen', () => {
+  const run = (query, host) => {
     const h = {}; let body = null; let status = null;
     const res = { setHeader: (k, v) => { h[k.toLowerCase()] = v; }, status(c) { status = c; return this; }, send(b) { body = b; } };
-    handler({ url, headers: { host } }, res);
+    handler({ url: '/api/invitacion', query, headers: { host } }, res);
     return { h, body, status };
   };
-  const a = run(`/invitacion/${TOKEN}`, 'app.bramulab.com');
-  const b = run('/invitacion/ffffffff'.padEnd(80, 'f'), 'app.bramulab.com');
+  const a = run({ t: TOKEN }, 'app.bramulab.com');
   assert.equal(a.status, 200);
-  assert.equal(a.body, b.body, 'el HTML no depende del token');
-  assert.doesNotMatch(a.body, new RegExp(TOKEN));
+  assert.match(a.body, new RegExp(`/invitacion/${TOKEN}/og\\.png`));
+  assert.equal(run({ t: TOKEN.toUpperCase() }, 'app.bramulab.com').body, a.body, 'el token se normaliza a minúsculas');
+  assert.match(run({}, 'app.bramulab.com').body, /assets\/invitacion-og\.png/);
   assert.match(a.h['content-type'], /text\/html/); assert.equal(a.h['cache-control'], 'private, no-store');
   assert.equal(a.h['referrer-policy'], 'no-referrer'); assert.match(a.h['x-robots-tag'], /noindex/);
-  assert.match(run('/invitacion/x', 'bramulab-git-staging-bramu-lab.vercel.app').body, /og:image" content="https:\/\/bramulab-git-staging-bramu-lab\.vercel\.app\/assets\/invitacion-og\.png/);
+  assert.match(run({ t: TOKEN }, 'bramulab-git-staging-bramu-lab.vercel.app').body, /og:image" content="https:\/\/bramulab-git-staging-bramu-lab\.vercel\.app\/invitacion\//);
 });
 
 test('redirección del navegador: /invitacion/{64 hex} → /?claim={token en minúsculas}; formato inválido → /, sin intención ni parámetros raros', () => {
@@ -74,9 +83,12 @@ test('redirección del navegador: /invitacion/{64 hex} → /?claim={token en min
   for (const bad of ['/invitacion/', '/invitacion/abc', `/invitacion/${TOKEN}0`, `/invitacion/${TOKEN}/x`, `/invitacion/${TOKEN.slice(1)}z`, '/otra/ruta']) assert.equal(go(bad).replaced, '/', bad);
 });
 
-test('Vercel: /invitacion/:token → /api/invitacion; el Service Worker no intercepta esa ruta; la imagen de marca existe (1200×630, liviana) y viaja en dist', () => {
+test('Vercel: /invitacion/:token y /invitacion/:token/og.png → funciones; el Service Worker no intercepta; la imagen de marca (respaldo) existe (1200×630, liviana) y viaja en dist', () => {
   const v = JSON.parse(read('vercel.json'));
-  assert.deepEqual(v.rewrites.find((r) => r.source === '/invitacion/:token'), { source: '/invitacion/:token', destination: '/api/invitacion' });
+  assert.deepEqual(v.rewrites.find((r) => r.source === '/invitacion/:token'), { source: '/invitacion/:token', destination: '/api/invitacion?t=:token' });
+  assert.deepEqual(v.rewrites.find((r) => r.source === '/invitacion/:token/og.png'), { source: '/invitacion/:token/og.png', destination: '/api/invitacion-og?t=:token' });
+  assert.match(v.functions['api/invitacion-og.mjs'].includeFiles, /og\/\*\*/);
+  assert.match(v.functions['api/invitacion-og.mjs'].includeFiles, /resvg-wasm\/index_bg\.wasm/);
   assert.match(read('sw.js'), /pathname\.indexOf\('\/invitacion\/'\) === 0\) return;/);
   const png = fs.readFileSync(path.join(root, 'assets', 'invitacion-og.png'));
   assert.equal(png.subarray(1, 4).toString(), 'PNG');
@@ -178,12 +190,15 @@ test('destinatario: pregunta NEUTRAL (nunca «¿SOS REMERA CELESTE?»), explicac
   assert.match(indexHtml, /id="access-invitation-card"[\s\S]*?Creá tu cuenta o iniciá sesión: después te mostramos el partido para que confirmes si jugaste/);
 });
 
-test('privacidad: ninguna URL/dato compartido lleva nombres o resultados; el mensaje no incluye el nombre del invitado; sin RPC público nuevo', () => {
+test('privacidad: el mensaje compartido no incluye el nombre del invitado; la función HTML no consulta datos; la única lectura pública es get_invitation_card (anon, solo con token)', () => {
   const invite = between(appJs, '  function buildInviteMessage(', '  /** B2 — hoja');
   assert.doesNotMatch(invite, /cleanName|displayName|\.name\b/);
-  assert.doesNotMatch(read('api/invitacion.js'), /supabase|createClient|rpc\(|fetch\(/i, 'la función no consulta datos');
+  assert.doesNotMatch(read('api/invitacion.js'), /supabase|createClient|rpc\(|fetch\(/i, 'la función HTML no consulta datos');
   const migs = fs.readdirSync(path.join(root, '..', 'supabase', 'migrations')).filter((f) => f >= '20261014');
-  assert.deepEqual(migs, [], 'esta ronda no agrega migraciones ni permisos anon');
+  assert.deepEqual(migs, ['20261014190000_v0441_invitation_public_card.sql']);
+  const sql = fs.readFileSync(path.join(root, '..', 'supabase', 'migrations', migs[0]), 'utf8');
+  assert.match(sql, /revoke all on function public\.get_invitation_card\(text\) from public, anon, authenticated;\ngrant execute on function public\.get_invitation_card\(text\) to anon;/);
+  assert.doesNotMatch(sql.replace(/--[^\n]*/g, ''), /grant\s+select|create\s+policy|alter\s+table/i, 'ningún permiso de tablas');
 });
 
 test('versionado V04.41 / 04.41-h1 en cuarteto + referencias ?v=', () => {

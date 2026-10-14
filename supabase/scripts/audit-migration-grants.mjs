@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const MIG_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../migrations');
 
 /** Funciones ejecutables por anon A PROPÓSITO (decisión de producto documentada). */
-export const ALLOWED_ANON = new Set(['is_username_available']);
+export const ALLOWED_ANON = new Set(['is_username_available', 'get_invitation_card']);
 /** Helpers `authenticated` A PROPÓSITO: las usan políticas RLS de Storage evaluadas como el usuario. */
 export const ALLOWED_AUTH_INTERNAL = new Set(['_group_photo_can_cleanup', '_group_photo_can_delete', '_group_photo_can_read', '_group_photo_can_write', '_group_photo_folder_group_id']);
 

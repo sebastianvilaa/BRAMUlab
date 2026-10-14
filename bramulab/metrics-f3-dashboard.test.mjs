@@ -279,7 +279,7 @@ test('Service Worker: /admin/* NO se intercepta (sin respondWith, sin caché); e
 
 test('Vercel/robots: headers noindex + no-store + no-referrer para /admin/*; robots de Production excluye /admin/ y el resto sigue igual', () => {
   const v = JSON.parse(read('vercel.json'));
-  assert.deepEqual(v.rewrites, [{ source: '/robots.txt', destination: '/robots.generated.txt' }, { source: '/invitacion/:token', destination: '/api/invitacion' }]);
+  assert.deepEqual(v.rewrites, [{ source: '/robots.txt', destination: '/robots.generated.txt' }, { source: '/invitacion/:token', destination: '/api/invitacion?t=:token' }, { source: '/invitacion/:token/og.png', destination: '/api/invitacion-og?t=:token' }]);
   const h = v.headers.find((x) => x.source === '/admin/(.*)');
   const map = Object.fromEntries(h.headers.map((x) => [x.key, x.value]));
   assert.match(map['X-Robots-Tag'], /noindex/); assert.equal(map['Cache-Control'], 'no-store'); assert.equal(map['Referrer-Policy'], 'no-referrer');

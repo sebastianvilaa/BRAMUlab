@@ -13,7 +13,7 @@ import { replay, ACL_SCENARIOS, listMigrations, checkMigrationNames, MIGRATIONS_
 export const REFERENCE_TABLES = new Set(['reserved_usernames', 'legal_versions']);
 /** Lecturas públicas deliberadas para anon. */
 export const ANON_SELECT_TABLES = ['app_config', 'legal_versions'];
-export const ANON_EXEC_FUNCTIONS = ['is_username_available'];
+export const ANON_EXEC_FUNCTIONS = ['is_username_available', 'get_invitation_card'];
 /** Verifies que comparan clock_timestamp() entre sentencias consecutivas. PGlite (WASM) tiene un reloj de resolución gruesa
  *  (medido: 6 valores distintos en 2000 inserts consecutivos), así que NO son evaluables en este motor; se evalúan en
  *  Staging real (Central). Si fallan acá no se cuentan como defecto ni como PASS: se reportan como no evaluables. */

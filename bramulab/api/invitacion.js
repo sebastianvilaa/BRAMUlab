@@ -1,12 +1,12 @@
 // V04.41 — Enlace personal de invitación: `{origen}/invitacion/{token}`.
 //
-// Vercel reescribe `/invitacion/*` hacia esta función (ver vercel.json). Hace dos cosas, ninguna con datos del partido:
-//   1. Para los bots de vista previa (WhatsApp, iMessage, Telegram…) devuelve HTML con metadatos Open Graph DE MARCA:
-//      imagen estática de la tarjeta BRAMUlab, título y frase genéricos. Nunca nombres, resultados ni el token
-//      (`preview_claim_link` exige sesión: un bot no puede ni debe leer el partido; ver Experiencia_Inicial §30).
+// Vercel reescribe `/invitacion/:token` hacia esta función (ver vercel.json). Hace dos cosas, ninguna consulta datos:
+//   1. Para los bots de vista previa (WhatsApp, iMessage, Telegram…) devuelve HTML con metadatos Open Graph: título y frase
+//      genéricos (sin nombres ni resultados) e imagen `/invitacion/{token}/og.png`, que genera api/invitacion-og.mjs con el
+//      partido real SOLO si el enlace es válido (si no, esa ruta cae a la tarjeta de marca). `og:url` apunta a la raíz.
 //   2. Para una persona, el mismo HTML redirige en el navegador a `/?claim={token}`, que es la captura que la app ya
-//      implementa (localStorage + login/alta). El token jamás se escribe en la respuesta: el cliente lo lee de su propia
-//      URL (location.pathname), así la respuesta es idéntica para todos y no hay nada que filtrar.
+//      implementa (localStorage + login/alta). El script lee el token de la propia URL (location.pathname).
+// El token solo aparece en la URL de la imagen (la misma credencial que el enlace compartido, con el mismo vencimiento/rotación) y nunca en texto visible.
 //
 // El origen de las URLs absolutas (og:image) sale del Host del propio pedido, validado contra una lista cerrada: así
 // Staging apunta a Staging y Production a app.bramulab.com sin variables nuevas.
@@ -24,10 +24,12 @@ export function resolveOrigin(host) {
   return PRODUCTION_ORIGIN;
 }
 
-export function buildInvitationHtml(origin) {
+export function buildInvitationHtml(origin, token) {
   const title = 'Te invitaron a BRAMUlab';
   const description = 'Entrá, identificá tu lugar y recuperá tus partidos en tu historial.';
-  const image = `${origin}${OG_IMAGE_PATH}?v=${OG_VERSION}`;
+  const valid = /^[0-9a-f]{64}$/.test(String(token || ''));
+  // Enlace válido → la imagen dinámica con el partido real (cae sola a la de marca si el enlace ya no sirve); sin token → la de marca.
+  const image = valid ? `${origin}/invitacion/${token}/og.png` : `${origin}${OG_IMAGE_PATH}?v=${OG_VERSION}`;
   return `<!doctype html>
 <html lang="es-AR">
 <head>
@@ -48,7 +50,7 @@ export function buildInvitationHtml(origin) {
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="BRAMUlab: tu lugar en el partido te espera">
+<meta property="og:image:alt" content="Resultado del partido al que te invitaron a BRAMUlab">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${title}">
 <meta name="twitter:description" content="${description}">
@@ -83,5 +85,6 @@ export default function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
-  res.status(200).send(buildInvitationHtml(origin));
+  const raw = (req.query && req.query.t) || '';
+  res.status(200).send(buildInvitationHtml(origin, String(raw).toLowerCase()));
 }
