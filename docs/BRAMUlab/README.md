@@ -17,9 +17,9 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
-## 14/10/2026 — BRAMU Metrics: mejoras visuales y UX en Staging (SIN publicar)
+## 14/10/2026 — BRAMUlab Metrics: ronda final de UX/UI en Staging (SIN publicar)
 
-Ícono propio, período «Hoy · parcial», tarjetas Visitas/Clics en Inicio y pulido móvil; solo `bramulab/admin/metrics/`, sin backend. **Production no se tocó.** Alcance, decisiones abiertas y procedimiento seguro de publicación: `Metrics/BRAMU_Metrics.md`.
+Ícono propio, «Hoy · parcial», tablero de Inicio con Hoy + período en la misma tarjeta, encabezado/controles simplificados y nombre oficial **BRAMUlab Metrics**; solo `bramulab/admin/metrics/`, sin backend. **Production no se tocó** y espera la aprobación visual de Sebastián. Alcance, decisiones abiertas y procedimiento de publicación: `Metrics/BRAMU_Metrics.md`.
 
 ---
 
