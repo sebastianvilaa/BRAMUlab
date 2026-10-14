@@ -36,6 +36,7 @@
     { id: 'activacion', label: 'Activación', section: 'activation', hash: '#/activacion' },
     { id: 'comunidad', label: 'Comunidad', section: 'community', hash: '#/comunidad' },
     { id: 'uso', label: 'Uso', section: 'usage', hash: '#/uso' },
+    { id: 'web', label: 'Web', section: 'web', hash: '#/web' },
     { id: 'explorar', label: 'Explorar', section: 'explore', hash: '#/explorar' },
   ];
   const SECTION_TITLES = { users: 'Usuarios', matches: 'Partidos', activation: 'Activación', community: 'Comunidad', usage: 'Uso' };
@@ -305,6 +306,7 @@
     if (h === 'activacion') return { view: 'activacion' };
     if (h === 'comunidad') return { view: 'comunidad' };
     if (h === 'uso') return { view: 'uso' };
+    if (h === 'web') return { view: 'web' };
     const m = /^kpi\/([a-z_]+\.[a-z0-9_]+)$/.exec(h);
     if (m && SECTION_OF_PREFIX[m[1].split('.')[0]]) return { view: 'kpi', kpiId: m[1] };
     return { view: 'inicio' };
@@ -750,6 +752,45 @@
     return h('div', null, out);
   }
 
+  /** Web pública: solo contadores diarios agregados, sin seguimiento de personas.
+   *  La respuesta proviene del endpoint admin-metrics (JWT+admins), nunca de un acceso público. */
+  function viewWeb(data) {
+    const w = data && data.web;
+    const out = [];
+    if (!w || !w.instrumented) {
+      return h('section', { class: 'mx-panel' }, [
+        h('h2', { text: 'Web pública' }),
+        h('p', { class: 'mx-note', text: 'Sin medición todavía. Los contadores comenzarán cuando se publique bramulab.com con la integración activada. No se inventan visitas anteriores.' }),
+      ]);
+    }
+    const views = Number(w.views);
+    const clicks = Number(w.clicks);
+    const valid = Number.isSafeInteger(views) && Number.isSafeInteger(clicks) && views >= 0 && clicks >= 0;
+    const card = (label, value, explanation) => h('section', { class: 'mx-panel' }, [
+      h('h2', { class: 'mx-h', text: label }),
+      h('div', { class: 'mx-detail__value' }, h('span', { class: 'big', text: value })),
+      h('p', { class: 'mx-note', text: explanation }),
+    ]);
+    out.push(...section('De la web a BRAMUlab', h('div', { class: 'mx-grid mx-grid--charts' }, [
+      card('Visitas a la web', valid ? fmtNum(views) : '—', 'Cargas de página registradas; puede incluir varias visitas de una misma persona.'),
+      card('Clics hacia la app', valid ? fmtNum(clicks) : '—', 'Intentos de abrir app.bramulab.com desde la web; no son instalaciones ni sesiones confirmadas.'),
+    ])));
+    const ratio = valid && views > 0 ? (clicks * 100 / views).toLocaleString('es-AR', { maximumFractionDigits: 1 }) : null;
+    out.push(h('section', { class: 'mx-panel' }, [
+      h('h2', { class: 'mx-h', text: 'Interés generado' }),
+      h('p', { text: ratio === null ? 'Sin base suficiente para calcular la relación.' : ratio + ' clics hacia la app por cada 100 visitas de la web.' }),
+      h('p', { class: 'mx-note', text: 'Relación entre eventos, no porcentaje de personas convertidas. Puede superar 100 si hay varios clics por visita. No podemos saber cuántas personas cerraron sin entrar a la app.' }),
+    ]));
+    if (w.today && w.today.views !== null && w.today.clicks !== null) {
+      out.push(h('section', { class: 'mx-panel' }, [
+        h('h2', { class: 'mx-h', text: 'Hoy · parcial' }),
+        h('p', { text: fmtNum(w.today.views) + ' visitas · ' + fmtNum(w.today.clicks) + ' clics' }),
+      ]));
+    }
+    out.push(h('p', { class: 'mx-note', text: 'Datos anónimos agregados desde la activación. Ventana de días completos hasta ayer; la medición puede omitir visitas con bloqueo de scripts. BRAMU Metrics no conecta estos datos con las cuentas de jugadores.' }));
+    return h('div', null, out);
+  }
+
   function viewUso(data) {
     const meta = data.meta; const out = []; const ser = data.series || {}; const bd = data.breakdowns || {};
     const presenceOn = !!meta.presenceSince;
@@ -901,6 +942,9 @@
     const tabs = $('mx-tabs'); tabs.textContent = '';
     const active = S.route.view === 'kpi' ? S.lastTab : S.route.view;
     VIEWS.forEach((v) => tabs.appendChild(h('a', { href: v.hash, 'aria-current': v.id === active ? 'page' : null, text: v.label })));
+    // Web pública no tiene cuentas internas ni comparación de personas: controles inaplicables.
+    const toggles = document.querySelector('.mx-toggles');
+    if (toggles) toggles.hidden = S.route.view === 'web';
   }
   function renderWindowLine(meta) {
     const w = $('mx-window'); w.textContent = '';
@@ -951,7 +995,7 @@
       renderWindowLine(data.meta);
       $('mx-updated').textContent = `Actualizado ${fmtBA(data.meta.generatedAt, { hour: '2-digit', minute: '2-digit' })}`;
       view.textContent = '';
-      const RENDER = { inicio: viewInicio, usuarios: viewUsuarios, partidos: viewPartidos, activacion: viewActivacion, comunidad: viewComunidad, uso: viewUso };
+      const RENDER = { inicio: viewInicio, usuarios: viewUsuarios, partidos: viewPartidos, activacion: viewActivacion, comunidad: viewComunidad, uso: viewUso, web: viewWeb };
       view.appendChild(isExplore ? viewExplorar(catalog, data, sel) : route.view === 'kpi' ? viewKpi(route.kpiId, data) : RENDER[route.view](data));
       if (!isExplore) global.scrollTo(0, 0);
     } catch (err) {
