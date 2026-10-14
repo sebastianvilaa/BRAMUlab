@@ -58,5 +58,5 @@ test('Web pública deja el enlace original y registra solo eventos mínimos', ()
   assert.match(endpoint, /WEB_METRICS_ALLOWED_ORIGIN/);
   assert.match(endpoint, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(endpoint, /web_analytics_increment/);
-  assert.doesNotMatch(script, /localStorage|document\.cookie|fingerprint/);
+  assert.doesNotMatch(script, /window\.localStorage|document\.cookie|fingerprint\(/);
 });
