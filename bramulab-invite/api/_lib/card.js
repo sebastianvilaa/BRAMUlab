@@ -55,7 +55,7 @@ export function buildCardTree(card, logoDataUri) {
     const names = demo
       ? team.names.map((_, k) => el('div', { display: 'flex', height: 26, width: k === 0 ? 330 : 250, borderRadius: 13, background: accent, opacity: k === 0 ? 0.85 : 0.5, marginTop: k === 0 ? 0 : 16 }, ''))
       : team.names.map((nm) => el('div', { display: 'block', maxWidth: 600, color: accent, fontSize: 54, fontWeight: 800, lineHeight: 1.12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, nm));
-    return el('div', { display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 176, width: '100%' }, [
+    return el('div', { display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 164, width: '100%' }, [
       el('div', { display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, minWidth: 0, paddingRight: 24 }, names),
       el('div', { display: 'flex', gap }, cells),
     ]);
@@ -65,6 +65,12 @@ export function buildCardTree(card, logoDataUri) {
     backgroundColor: C.bg,
     backgroundImage: 'radial-gradient(circle at 88% 4%, rgba(25,159,255,0.24), rgba(25,159,255,0) 50%), radial-gradient(circle at 4% 100%, rgba(149,255,25,0.11), rgba(149,255,25,0) 46%)',
   }, [
+    // ARRIBA, centrado: «Te invitaron a [logo oficial]» (la única presencia de marca)
+    el('div', { display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28, fontSize: 56, fontWeight: 800, letterSpacing: -1 }, [
+      el('span', { color: C.text, marginRight: -4 }, 'Te invitaron a'),
+      el('img', { width: 270, height: 62 }, undefined, { src: logoDataUri, width: 270, height: 62 }),
+    ]),
+    // EN EL CENTRO: el partido (protagonista)
     el('div', {
       display: 'flex', flexDirection: 'column', padding: '0 44px', background: 'rgba(13,26,42,0.90)',
       border: `3px solid ${C.line}`, borderRadius: 32, width: '100%',
@@ -73,11 +79,8 @@ export function buildCardTree(card, logoDataUri) {
       el('div', { display: 'flex', height: 3, background: C.line, width: '100%' }, ''),
       row(teams[1], 1),
     ]),
-    el('div', { display: 'flex', alignItems: 'center', marginTop: 38, fontSize: 56, fontWeight: 800, letterSpacing: -1 }, [
-      el('span', { color: C.text, marginRight: -4 }, 'Te invitaron a'),
-      el('img', { width: 270, height: 62 }, undefined, { src: logoDataUri, width: 270, height: 62 }),
-    ]),
-    el('div', { display: 'flex', marginTop: 10, fontSize: 31, fontWeight: 400, color: C.dim }, 'Entrá y recuperá este partido en tu historial.'),
+    // ABAJO: una sola frase
+    el('div', { display: 'flex', justifyContent: 'center', marginTop: 26, fontSize: 31, fontWeight: 400, color: C.dim }, 'Entrá y recuperá este partido en tu historial.'),
   ]);
 }
 

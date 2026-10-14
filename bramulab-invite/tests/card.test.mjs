@@ -58,16 +58,19 @@ test('fetchCard: llama SOLO al RPC público con la clave publishable en `apikey`
   assert.match(TOKEN, TOKEN_RE);
 });
 
-test('diseño V04.42: el partido es el protagonista (nombres y games GRANDES), sin logo suelto arriba; «Te invitaron a [logo oficial]» integrado en el título; una sola frase; sin guiones vacíos', () => {
+test('diseño V04.43: ARRIBA centrado «Te invitaron a [logo oficial]» (única marca), EN EL CENTRO el partido (nombres y games GRANDES), ABAJO una sola frase; sin guiones vacíos', () => {
   const tree = buildCardTree(parseCard(CARD), 'data:image/svg+xml;base64,AAAA');
   const flat = JSON.stringify(tree);
   for (const t of ['Seba', 'Marcos', 'Esteban', 'Matu', 'Te invitaron a', 'Entrá y recuperá este partido en tu historial.']) assert.ok(flat.includes(`"${t}"`), t);
   assert.ok(!flat.includes('"BRAMUlab"') && !flat.includes('Donde vive'), 'la marca no se escribe como texto ni hay otros mensajes en la imagen');
   assert.equal((flat.match(/data:image\/svg\+xml;base64,AAAA/g) || []).length, 1, 'logo oficial UNA sola vez');
-  // el logo viaja junto a «Te invitaron a» en el mismo renglón del título (no suelto arriba)
-  const titleRow = tree.props.children.find((c) => JSON.stringify(c).includes('Te invitaron a'));
-  assert.ok(JSON.stringify(titleRow).includes('data:image/svg+xml;base64,AAAA'));
-  assert.equal(JSON.stringify(tree.props.children[0]).includes('data:image'), false, 'lo primero es la tabla del partido');
+  // composición: [título con el logo, centrado] → [tabla del partido] → [frase]
+  const kids = tree.props.children;
+  assert.equal(kids.length, 3);
+  assert.ok(JSON.stringify(kids[0]).includes('Te invitaron a') && JSON.stringify(kids[0]).includes('data:image/svg+xml;base64,AAAA'), 'arriba: título con el logo integrado');
+  assert.equal(kids[0].props.style.justifyContent, 'center', 'título centrado');
+  assert.ok(JSON.stringify(kids[1]).includes('Seba') && JSON.stringify(kids[1]).includes('"children":"6"'), 'al centro: el partido');
+  assert.ok(kids[2].props.children === 'Entrá y recuperá este partido en tu historial.' && kids[2].props.style.justifyContent === 'center', 'abajo: la frase, centrada');
   assert.ok(flat.includes('#95FF19') && flat.includes('#199FFF'), 'lima y celeste');
   const cells = [...flat.matchAll(/"children":"([0-9])"/g)].map((m) => m[1]);
   assert.deepEqual(cells, ['6', '3', '6', '4', '6', '4'], 'games reales por set, fila a fila');
