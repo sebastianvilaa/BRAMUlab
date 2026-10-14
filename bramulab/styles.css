@@ -4141,40 +4141,41 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
   background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.16), rgba(255,255,255,0)); }
 .ia2-badge{ position:absolute; right:-6px; top:-8px; width:22px; height:22px; border-radius:50%; display:grid; place-items:center;
   background: var(--brand-lime); color: var(--bg); box-shadow: 0 0 0 3px var(--surface-2), 0 6px 14px -4px rgba(149,255,25,0.6); }
-.ia2-chip{ position:absolute; left:50%; top:50%; width:128px; height:40px; margin:-20px 0 0 -64px; display:flex; align-items:center; gap:7px; padding:0 12px;
-  border-radius:20px; color: var(--brand-lime); background: rgba(149,255,25,0.10); border:1.5px solid rgba(149,255,25,0.7); box-shadow: 0 0 22px rgba(149,255,25,0.28); opacity:0; }
-.ia2-wa{ flex:none; width:26px; height:26px; border-radius:50%; display:grid; place-items:center; background:#25D366; color:#fff; box-shadow:0 0 0 0 rgba(37,211,102,0); }
-.ia2-chip i{ display:block; height:5px; border-radius:3px; background: rgba(149,255,25,0.55); }
-.ia2-chip i:nth-of-type(1){ width:34px; } .ia2-chip i:nth-of-type(2){ width:20px; opacity:.6; }
+.ia2-wabig{ position:absolute; left:50%; margin-left:-20px; top:-20px; z-index:2; width:40px; height:40px; border-radius:50%; display:grid; place-items:center; background:#25D366; color:#fff; opacity:0;
+  box-shadow: 0 0 0 3px var(--surface-2), 0 8px 18px -4px rgba(37,211,102,0.7); }
 .ia2-trail{ position:absolute; left:50%; top:50%; width:0; height:0; }
 .ia2-trail i{ position:absolute; top:-3px; width:6px; height:6px; border-radius:50%; background: var(--brand-lime); box-shadow: 0 0 10px rgba(149,255,25,0.8); opacity:0; }
 .ia2-trail i:nth-child(1){ left:60px; } .ia2-trail i:nth-child(2){ left:84px; top:-8px; } .ia2-trail i:nth-child(3){ left:108px; top:-13px; }
 
-@keyframes ia2-card { 0%{opacity:0;transform:translateY(16px) scale(.94)} 12%{opacity:1;transform:translateY(0) scale(1)} 34%{opacity:1;transform:translateY(0) scale(1)}
-  46%{opacity:1;transform:translateY(0) scale(.45)} 52%{opacity:0;transform:translateY(0) scale(.4)} 66%{opacity:0;transform:translate(34px,-26px) scale(.7)}
-  86%{opacity:1;transform:translate(0,0) scale(1.025)} 94%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:1;transform:translate(0,0) scale(1)} }
-@keyframes ia2-ring { 0%,60%{box-shadow:0 0 0 1.5px rgba(183,211,235,0.14),0 0 0 rgba(149,255,25,0)} 86%{box-shadow:0 0 0 2px rgba(149,255,25,0.95),0 0 30px rgba(149,255,25,0.55)}
-  100%{box-shadow:0 0 0 1.5px rgba(149,255,25,0.55),0 0 22px -4px rgba(149,255,25,0.38)} }
-@keyframes ia2-hist { 0%,56%{opacity:0;transform:translateY(8px)} 76%,100%{opacity:1;transform:none} }
-@keyframes ia2-chip { 0%,41%{opacity:0;transform:scale(.7)} 46%{opacity:1;transform:scale(1)} 54%{opacity:1;transform:translateX(0) scale(1)}
-  66%{opacity:1;transform:translate(70px,-14px) scale(.9)} 74%,100%{opacity:0;transform:translate(150px,-26px) scale(.8)} }
-@keyframes ia2-wa { 0%,42%{transform:scale(.3);box-shadow:0 0 0 0 rgba(37,211,102,.7)} 50%{transform:scale(1.2)} 56%{transform:scale(1);box-shadow:0 0 0 0 rgba(37,211,102,.55)} 72%,100%{transform:scale(1);box-shadow:0 0 0 12px rgba(37,211,102,0)} }
-@keyframes ia2-dot { 0%,48%{opacity:0;transform:scale(.4)} 58%{opacity:.95;transform:scale(1)} 72%,100%{opacity:0;transform:scale(.5)} }
-@keyframes ia2-sheen { 0%,14%{opacity:0} 16%{opacity:1} 30%{opacity:1} 32%,100%{opacity:0} }
-@keyframes ia2-sweep { 0%,14%{left:-50%} 30%,100%{left:120%} }
+/* V04.44 — transición reajustada: el partido NO se encoge a una miniatura; baja apenas de escala (queda legible), se tiñe del verde de WhatsApp, el ícono de
+   WhatsApp aparece grande sobre la tarjeta y la lleva (con estela) hacia el destinatario; llega al historial con aro lima y el check de «recuperado». Total 4,4 s. */
+@keyframes ia2-card { 0%{opacity:0;transform:translateY(16px) scale(.94)} 11%{opacity:1;transform:translateY(0) scale(1)} 30%{opacity:1;transform:translate(0,0) scale(1)}
+  40%{opacity:1;transform:translate(0,0) scale(.86)} 51%{opacity:1;transform:translate(0,0) scale(.86)} 63%{opacity:1;transform:translate(150px,-6px) scale(.84)}
+  66%{opacity:0;transform:translate(290px,-12px) scale(.8)} 68%{opacity:0;transform:translate(70px,-24px) scale(.92)}
+  85%{opacity:1;transform:translate(0,0) scale(1.025)} 93%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:1;transform:translate(0,0) scale(1)} }
+@keyframes ia2-ring { 0%,29%{box-shadow:0 0 0 1.5px rgba(183,211,235,0.14),0 0 0 rgba(149,255,25,0)} 40%{box-shadow:0 0 0 2px rgba(37,211,102,0.95),0 0 28px rgba(37,211,102,0.5)}
+  64%{box-shadow:0 0 0 2px rgba(37,211,102,0.95),0 0 28px rgba(37,211,102,0.5)} 67%{box-shadow:0 0 0 1.5px rgba(183,211,235,0.14),0 0 0 rgba(149,255,25,0)}
+  85%{box-shadow:0 0 0 2px rgba(149,255,25,0.95),0 0 30px rgba(149,255,25,0.55)} 100%{box-shadow:0 0 0 1.5px rgba(149,255,25,0.55),0 0 22px -4px rgba(149,255,25,0.38)} }
+@keyframes ia2-hist { 0%,58%{opacity:0;transform:translateY(8px)} 78%,100%{opacity:1;transform:none} }
+@keyframes ia2-wabig { 0%,31%{opacity:0;transform:scale(0) rotate(-12deg);box-shadow:0 0 0 3px var(--surface-2),0 8px 18px -4px rgba(37,211,102,0.7),0 0 0 0 rgba(37,211,102,0.6)}
+  38%{opacity:1;transform:scale(1.22) rotate(0)} 42%{opacity:1;transform:scale(1);box-shadow:0 0 0 3px var(--surface-2),0 8px 18px -4px rgba(37,211,102,0.7),0 0 0 0 rgba(37,211,102,0.6)}
+  56%{opacity:1;transform:scale(1);box-shadow:0 0 0 3px var(--surface-2),0 8px 18px -4px rgba(37,211,102,0.7),0 0 0 14px rgba(37,211,102,0)}
+  63%{opacity:1;transform:scale(1)} 66%,100%{opacity:0;transform:scale(.6)} }
+@keyframes ia2-dot { 0%,50%{opacity:0;transform:scale(.4)} 58%{opacity:.95;transform:scale(1)} 68%,100%{opacity:0;transform:scale(.5)} }
+@keyframes ia2-sheen { 0%,12%{opacity:0} 14%{opacity:1} 27%{opacity:1} 29%,100%{opacity:0} }
+@keyframes ia2-sweep { 0%,12%{left:-50%} 27%,100%{left:120%} }
 @keyframes ia2-pop { 0%{opacity:0;transform:scale(.55)} 100%{opacity:1;transform:none} }
 @keyframes ia2-slide { 0%{opacity:0;transform:translateX(-10px)} 100%{opacity:1;transform:none} }
-@keyframes ia2-badge { 0%,84%{opacity:0;transform:scale(0)} 92%{opacity:1;transform:scale(1.2)} 100%{opacity:1;transform:scale(1)} }
+@keyframes ia2-badge { 0%,88%{opacity:0;transform:scale(0)} 95%{opacity:1;transform:scale(1.25)} 100%{opacity:1;transform:scale(1)} }
 
-.invite-anim.is-playing .ia2-hist{ animation: ia2-hist 3.8s var(--ia-ease, cubic-bezier(.22,.8,.24,1)) both; }
-.invite-anim.is-playing .ia2-card{ animation: ia2-card 3.8s cubic-bezier(.22,.8,.24,1) both, ia2-ring 3.8s linear both; }
-.invite-anim.is-playing .ia2-chip{ animation: ia2-chip 3.8s cubic-bezier(.22,.8,.24,1) both; }
-.invite-anim.is-playing .ia2-wa{ animation: ia2-wa 3.8s cubic-bezier(.22,.8,.24,1) both; }
-.invite-anim.is-playing .ia2-trail i{ animation: ia2-dot 3.8s ease-out both; }
+.invite-anim.is-playing .ia2-hist{ animation: ia2-hist 4.4s var(--ia-ease, cubic-bezier(.22,.8,.24,1)) both; }
+.invite-anim.is-playing .ia2-card{ animation: ia2-card 4.4s cubic-bezier(.22,.8,.24,1) both, ia2-ring 4.4s linear both; }
+.invite-anim.is-playing .ia2-wabig{ animation: ia2-wabig 4.4s cubic-bezier(.22,.8,.24,1) both; }
+.invite-anim.is-playing .ia2-trail i{ animation: ia2-dot 4.4s ease-out both; }
 .invite-anim.is-playing .ia2-trail i:nth-child(2){ animation-delay: .12s; } .invite-anim.is-playing .ia2-trail i:nth-child(3){ animation-delay: .24s; }
-.invite-anim.is-playing .ia2-sheen{ animation: ia2-sheen 3.8s linear both; }
-.invite-anim.is-playing .ia2-sheen::before{ animation: ia2-sweep 3.8s cubic-bezier(.22,.8,.24,1) both; }
-.invite-anim.is-playing .ia2-badge{ animation: ia2-badge 3.8s cubic-bezier(.22,.8,.24,1) both; }
+.invite-anim.is-playing .ia2-sheen{ animation: ia2-sheen 4.4s linear both; }
+.invite-anim.is-playing .ia2-sheen::before{ animation: ia2-sweep 4.4s cubic-bezier(.22,.8,.24,1) both; }
+.invite-anim.is-playing .ia2-badge{ animation: ia2-badge 4.4s cubic-bezier(.22,.8,.24,1) both; }
 .invite-anim.is-playing .ia2-card .result-card__name{ animation: ia2-slide .5s cubic-bezier(.22,.8,.24,1) .25s both; }
 .invite-anim.is-playing .ia2-card .result-card__row[data-team="B"] .result-card__name, .invite-anim.is-playing .ia2-card .result-card__row[data-team="B"] .result-card__set{ animation-delay: .4s; }
 .invite-anim.is-playing .ia2-card .result-card__set{ animation: ia2-pop .42s cubic-bezier(.22,.8,.24,1) .45s both; }

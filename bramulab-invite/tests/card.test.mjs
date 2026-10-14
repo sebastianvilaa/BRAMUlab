@@ -69,6 +69,9 @@ test('diseño V04.43: ARRIBA centrado «Te invitaron a [logo oficial]» (única 
   assert.equal(kids.length, 3);
   assert.ok(JSON.stringify(kids[0]).includes('Te invitaron a') && JSON.stringify(kids[0]).includes('data:image/svg+xml;base64,AAAA'), 'arriba: título con el logo integrado');
   assert.equal(kids[0].props.style.justifyContent, 'center', 'título centrado');
+  // V04.44: el logo se dibuja a un tamaño óptico acorde al título (la altura de sus letras ≈ la de «Te invitaron a»): ≥ 75 px de alto
+  const logo = kids[0].props.children.find((c) => c.type === 'img');
+  assert.ok(logo.props.height >= 75 && logo.props.width >= 320 && Math.abs(logo.props.width / logo.props.height - 1080 / 250) < 0.05, 'proporción oficial del logotipo (1080×250) sin deformar');
   assert.ok(JSON.stringify(kids[1]).includes('Seba') && JSON.stringify(kids[1]).includes('"children":"6"'), 'al centro: el partido');
   assert.ok(kids[2].props.children === 'Entrá y recuperá este partido en tu historial.' && kids[2].props.style.justifyContent === 'center', 'abajo: la frase, centrada');
   assert.ok(flat.includes('#95FF19') && flat.includes('#199FFF'), 'lima y celeste');

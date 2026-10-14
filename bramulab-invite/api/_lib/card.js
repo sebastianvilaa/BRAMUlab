@@ -67,8 +67,9 @@ export function buildCardTree(card, logoDataUri) {
   }, [
     // ARRIBA, centrado: «Te invitaron a [logo oficial]» (la única presencia de marca)
     el('div', { display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28, fontSize: 56, fontWeight: 800, letterSpacing: -1 }, [
-      el('span', { color: C.text, marginRight: -4 }, 'Te invitaron a'),
-      el('img', { width: 270, height: 62 }, undefined, { src: logoDataUri, width: 270, height: 62 }),
+      el('span', { color: C.text, marginRight: 0 }, 'Te invitaron a'),
+      // el logotipo oficial tiene aire interno en su lienzo (1080×250): para que la altura de sus letras iguale la de «Te invitaron a» se dibuja a ~80 px de alto
+      el('img', { width: 346, height: 80, marginLeft: -4 }, undefined, { src: logoDataUri, width: 346, height: 80 }),
     ]),
     // EN EL CENTRO: el partido (protagonista)
     el('div', {
