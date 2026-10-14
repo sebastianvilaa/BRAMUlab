@@ -38,7 +38,7 @@
   ],
   "functions": {
     "api/invitacion-og.mjs": {
-      "includeFiles": "{og/**,node_modules/@resvg/resvg-wasm/index_bg.wasm}",
+      "includeFiles": "{og/**,node_modules/@resvg/resvg-wasm/index_bg.wasm,node_modules/harfbuzzjs/**}",
       "maxDuration": 10
     }
   }

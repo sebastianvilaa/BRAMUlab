@@ -89,6 +89,7 @@ test('Vercel: /invitacion/:token y /invitacion/:token/og.png → funciones; el S
   assert.deepEqual(v.rewrites.find((r) => r.source === '/invitacion/:token/og.png'), { source: '/invitacion/:token/og.png', destination: '/api/invitacion-og?t=:token' });
   assert.match(v.functions['api/invitacion-og.mjs'].includeFiles, /og\/\*\*/);
   assert.match(v.functions['api/invitacion-og.mjs'].includeFiles, /resvg-wasm\/index_bg\.wasm/);
+  assert.match(v.functions['api/invitacion-og.mjs'].includeFiles, /harfbuzzjs/, 'hb.wasm de satori: sin esto el render falla en Vercel (verificado en un deployment real)');
   assert.match(read('sw.js'), /pathname\.indexOf\('\/invitacion\/'\) === 0\) return;/);
   const png = fs.readFileSync(path.join(root, 'assets', 'invitacion-og.png'));
   assert.equal(png.subarray(1, 4).toString(), 'PNG');

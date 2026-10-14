@@ -155,7 +155,8 @@ export default async function handler(req, res) {
       return;
     }
   } catch (e) {
-    // cae a la tarjeta de marca
+    // cae a la tarjeta de marca (el motivo queda en los logs de la función; nunca incluye el token ni datos del partido)
+    console.error('invitacion-og: render falló →', e && e.message ? e.message : String(e));
   }
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('Location', FALLBACK_PATH);
