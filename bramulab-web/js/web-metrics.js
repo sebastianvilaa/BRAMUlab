@@ -1,4 +1,4 @@
-/* BRAMUlab web — contador anónimo de vistas y clics. No usar en la app/PWA.
+/* BRAMUlab web — contador anónimo de vistas y clics (v1.1). No usar en la app/PWA.
  * Agregar con <script defer src="/js/web-metrics.js"></script> a la web pública
  * SOLAMENTE cuando se apruebe su Política de Privacidad y activación.
  * No usa cookies, localStorage, IDs, IP ni seguimiento entre dominios.
@@ -35,7 +35,10 @@
       if (!a) return;
       let u;
       try { u = new URL(a.href, window.location.href); } catch (_) { return; }
-      if (u.origin !== APP_URL) return;
+      // Solo la entrada real a la app (home/PWA), nunca documentos legales
+      // (/terminos/, /privacidad/) u otras rutas alojadas en el mismo dominio.
+      // El query/hash del acceso principal puede variar sin cambiar su destino.
+      if (u.origin !== APP_URL || (u.pathname !== '/' && u.pathname !== '/index.html')) return;
       const source = (a.dataset && a.dataset.bramuCta) || 'other';
       count('click', SOURCES.has(source) ? source : 'other');
     }, true);
