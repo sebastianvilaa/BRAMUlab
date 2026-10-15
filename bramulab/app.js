@@ -7239,12 +7239,6 @@
       li.classList.toggle('is-missing', missing && !strength[li.dataset.rule]);
     });
 
-    const note = $('#signup-password-guidance');
-    note.classList.toggle('is-error', missing);
-    note.classList.toggle('is-ok', !blocked);
-    note.textContent = blocked
-      ? (missing ? 'Completá lo marcado en rojo antes de repetir.' : 'Completá los requisitos para repetir la contraseña.')
-      : 'Listo. Ahora repetí la contraseña.';
   }
 
   function recomputeSignupStepValidity() {
