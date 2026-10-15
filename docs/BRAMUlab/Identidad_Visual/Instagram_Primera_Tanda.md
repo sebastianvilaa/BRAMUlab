@@ -6,7 +6,7 @@
 `/Otros Trabajos/BRAMU/Sistema grafico/Redes Sociales/Instagram/`
 - `Trabajo en curso/Opcion_A`, `Opcion_B`, `Opcion_C` — carrusel completo de la Publicación 01 (5 PNG 1080 × 1350 cada una: `X_01_portada`, `X_02_la-jugas`, `X_03_la-guardas`, `X_04_la-descubris`, `X_05_cierre`).
 - `Trabajo en curso/P02_S01_portada.png`, `P03_S01_portada.png` — portadas de la Etapa 1 (sin desarrollar).
-- `Publicaciones finales/01`, `02`, `03` — vacías (solo recibirán PNG aprobados + `copy.md`).
+- `Publicaciones finales/01`, `02`, `03` — vacías (solo recibirán PNG aprobados + el texto de Instagram).
 
 ## Publicación 01 — qué distingue a cada opción
 | | Camino | Cómo se ve |
@@ -31,4 +31,4 @@ Foto `hero-mobile.jpg`, Inter, paleta y logo oficiales de la web. Las pantallas 
 3. Las pantallas son recreaciones, no capturas reales. Si Sebastián prefiere capturas de Staging/Production, hay que pedirlas.
 
 ## Falta aprobar
-Dirección visual de las tres portadas y del desarrollo del 01. Luego (Etapa 2): completar los tres carruseles (01 cierra con «Jugaste. Ahora cargalo.»), `copy.md` por publicación y mover los PNG aprobados a `Publicaciones finales/`.
+Dirección visual de las tres portadas y del desarrollo del 01. Luego (Etapa 2): completar los tres carruseles (01 cierra con «Jugaste. Ahora cargalo.»), el texto de Instagram por publicación y mover los PNG aprobados a `Publicaciones finales/`.
