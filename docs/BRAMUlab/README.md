@@ -17,6 +17,14 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
+## 15/10/2026 — Hotfix de contraseña `04.50-h1` PUBLICADO en Production (estado vigente)
+
+**Motivo:** usuarios reales no entendían por qué no podían completar el alta cuando les faltaba un símbolo. **Cambio UX:** checklist de requisitos situado ANTES de «Repetir contraseña»; este último queda inhabilitado hasta cumplirlos. Al intentar avanzar con una contraseña incompleta, solo los requisitos faltantes se pintan en rojo y se explica cómo completarlos; al corregir, se habilita repetición y desaparece el error. Ejemplos visibles de símbolos `! + - . , *`. También se corrigió la detección de símbolo en `player-identity.js`: letras con acento y espacios no se consideran signos. No cambia ningún contrato de cuenta, correos, perfiles, consentimientos o dato deportivo.
+
+**Evidencia:** 5 pruebas puntuales PASS; Vercel **Staging** `dpl_HNmcZrzaK8jdKuVW3HpFaNXxvGio` READY, alias Staging verificado. **Production**: `04.50-h1`, código exacto `48ba3201f4f2a884b5faf710152313ed10d7cbcb`, Vercel `dpl_5PcL7x8bHqu5k8M3rZPkUTRZvfjD` READY, alias `app.bramulab.com` verificado; retorno anterior `dpl_42GsC1rojB7KLcHrpZXQ5S9BDGJA`. Sin nuevas migraciones ni cambios en `main`, Supabase, BRAMUlive o web. Prueba funcional automatizada y verificación de infraestructura, no recorrido manual de alta en Production. Fuente maestra: `Producto/Experiencia_Inicial.md` §35.
+
+---
+
 ## 15/10/2026 — V04.50 + web V04.47 PUBLICADAS en Production (aprobación de Sebastián)
 
 **App:** BRAMUlab V04.50 desde el commit exacto `ef199a9d5098186af169636a9d115ba11238a346`, build Vercel **Production** `dpl_42GsC1rojB7KLcHrpZXQ5S9BDGJA` (READY), alias `app.bramulab.com` verificado con Get Alias. Reemplaza al deployment `dpl_ToDGYUVzi2ZN3uKwvbnkTaS6uxdz` (punto de retorno). Incluye menú, Ayuda, autoguardado, invitaciones/copiar-pegar y etiquetas Open Graph de la app; no se modificó Supabase ni el servicio de invitaciones.
