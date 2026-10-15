@@ -144,11 +144,10 @@ test('menú: el panel nace DEBAJO del encabezado (no tapa el ☰/X ni los ícono
 });
 
 /* ============================ Invitación recibida por WhatsApp ============================ */
-test('navegador: la tarjeta de invitación ofrece «¿Ya tenés BRAMUlab instalada?» como acción SECUNDARIA (los botones de acceso no cambian) y se oculta dentro de la app instalada', () => {
-  const card = indexHtml.slice(indexHtml.indexOf('id="access-invitation-card"'), indexHtml.indexOf('id="access-backend-unavailable"'));
-  assert.match(card, /id="access-installed-btn" class="invitation-card__link">¿Ya tenés BRAMUlab instalada\?<\/button>/);
+test('navegador: «¿Ya tenés BRAMUlab instalada?» es una acción SECUNDARIA (V04.49: enlace centrado debajo de INICIAR SESIÓN; los botones de acceso no cambian) y se oculta dentro de la app instalada', () => {
+  assert.match(indexHtml, /id="access-installed-btn" class="access-installed-link" hidden>¿Ya tenés BRAMUlab instalada\?<\/button>/);
   assert.match(indexHtml, /<button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN<\/button>\s*<button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA<\/button>/);
-  assert.match(fnBody('renderAccessInvitationCard'), /installedLink\.hidden = isStandaloneApp\(\)/);
+  assert.match(fnBody('applyInvitationCardState'), /installed\.hidden = unavailable \|\| isStandaloneApp\(\)/);
 });
 
 test('hoja «¿Ya tenés BRAMUlab instalada?»: los 4 pasos aprobados, microdemostración con los componentes reales y COPIAR INVITACIÓN', () => {
@@ -277,9 +276,9 @@ test('autoguardado: respeta reglas existentes — @usuario fijo en cuentas reale
 });
 
 /* ============================ Versionado ============================ */
-test('versionado: V04.47 fue superada por V04.48 (ver v0448-menu-ayuda-bienvenida.test.mjs); el cuarteto sigue sincronizado', () => {
+test('versionado: V04.47 fue superada (ver v0448/v0449); el cuarteto sigue sincronizado', () => {
   const v = JSON.parse(read('version.json'));
-  assert.match(v.version, /^BRAMUlab V04\.4[78]$/);
+  assert.match(v.version, /^BRAMUlab V04\.4[789]$/);
   assert.ok(read('store.js').includes(`'${v.version}'`) && read('store.js').includes(`'${v.bundle}'`));
   assert.ok(read('sw.js').includes(`bramulab-v${v.bundle.replace('.', '-')}`));
 });

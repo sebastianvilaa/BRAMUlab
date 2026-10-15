@@ -6740,8 +6740,9 @@
     card.classList.toggle('is-unavailable', unavailable);
     $('#access-invitation-title').textContent = unavailable ? INVITATION_CARD_TEXT.unavailableTitle : INVITATION_CARD_TEXT.title;
     $('#access-invitation-text').textContent = unavailable ? INVITATION_CARD_TEXT.unavailableText : INVITATION_CARD_TEXT.text;
+    // El enlace «¿Ya tenés BRAMUlab instalada?» vive debajo de los botones: solo con invitación pendiente, en el navegador y con el enlace no «no disponible».
     const installed = $('#access-installed-btn');
-    if (installed) installed.hidden = unavailable || isStandaloneApp();
+    if (installed) installed.hidden = unavailable || isStandaloneApp() || !(Store.loadClaimToken && Store.loadClaimToken());
   }
   async function refreshInvitationAvailability(token) {
     const known = invitationAvailabilityByToken[token];
@@ -6767,9 +6768,7 @@
       signup.classList.toggle('btn-start', invited); signup.classList.toggle('btn-secondary', !invited);
       login.classList.toggle('btn-secondary', invited); login.classList.toggle('btn-start', !invited);
     }
-    // La alternativa «¿Ya tenés BRAMUlab instalada?» solo tiene sentido en el navegador; dentro de la app instalada ya estás en ella.
-    const installedLink = $('#access-installed-btn');
-    if (installedLink) installedLink.hidden = isStandaloneApp();
+    // La visibilidad del enlace de «instalada» la resuelve applyInvitationCardState (invitación pendiente + navegador + enlace disponible o sin confirmar).
     if (invited) refreshInvitationAvailability(token); else applyInvitationCardState('unknown');
   }
 

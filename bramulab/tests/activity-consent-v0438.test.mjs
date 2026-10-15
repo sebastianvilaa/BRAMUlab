@@ -121,11 +121,11 @@ test('app.js: el consentimiento se resuelve DESPUÉS del gate legal, nunca bloqu
   assert.match(appJs, /Auth\.signUp\(email, \$\('#signup-password'\)\.value, legal\.legalVersion, activityChoice\)/);
 });
 
-test('versionado en cuarteto consistente (V04.48 / 04.48)', () => {
+test('versionado en cuarteto consistente (V04.49 / 04.49)', () => {
   const v = JSON.parse(read('version.json'));
-  assert.match(String(v.bundle || v.version || JSON.stringify(v)), /04\.48/);
-  assert.match(read('store.js'), /BRAMUlab V04\.48/);
-  assert.match(read('sw.js'), /bramulab-v04-48/);
+  assert.match(String(v.bundle || v.version || JSON.stringify(v)), /04\.49/);
+  assert.match(read('store.js'), /BRAMUlab V04\.49/);
+  assert.match(read('sw.js'), /bramulab-v04-49/);
 });
 
 test('Política y «Eliminar mi cuenta» (V04.38-h2): describen la medición como OPCIONAL, con retiro, eliminación y constancia; ancla para el enlace; legal_v1 intacta', () => {

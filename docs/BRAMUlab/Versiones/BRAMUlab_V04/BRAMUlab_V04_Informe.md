@@ -1006,3 +1006,7 @@ Sebastián confirmó el 15/10/2026 que probó las invitaciones con un usuario re
 ## V04.48 — Pulido de V04.47: menú, Ayuda con buscador y bienvenida con invitación (Staging, 15/10/2026)
 
 **Qué cambió:** menú con superficies/acentos selectivos y «Herramientas de prueba» (el matraz del encabezado, solo Staging); Ayuda con buscador instantáneo y 3 preguntas de invitaciones; bienvenida compacta cuando se llega con una invitación (estado real del enlace vía la RPC pública `get_invitation_card`). Detalle: `Producto/Experiencia_Inicial.md` §32. Sin migraciones, sin backend, sin tocar `main`/Production/Metrics/BRAMUlive. **Pruebas:** 11 nuevas; ajustadas las que fijaban la Ayuda de 9 preguntas, el texto de la tarjeta de invitación y la versión.
+
+## V04.49 — Bienvenida con invitación (composición final) y vista previa de WhatsApp de la app (Staging, 15/10/2026)
+
+**Qué cambió:** titular con jerarquía intermedia, bajada siempre visible, distribución vertical sin huecos, «¿Ya tenés BRAMUlab instalada?» como enlace debajo de INICIAR SESIÓN; la app declara Open Graph/Twitter Card con la misma imagen pública de la web y su propia URL (`app.bramulab.com`). Detalle: `Producto/Experiencia_Inicial.md` §33. La vista previa real de WhatsApp queda pendiente hasta publicar en Production (Staging está protegido). Sin migraciones ni cambios en las invitaciones personales.

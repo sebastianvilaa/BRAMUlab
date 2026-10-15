@@ -119,19 +119,12 @@ test('buscador: lógica real (extraída de app.js) — sin mayúsculas ni acento
 });
 
 /* ============================ Bienvenida con invitación ============================ */
-test('bienvenida con invitación: logo + claim + titular/bajada de la web (jerarquía menor) y tarjeta protagonista; las 3 tarjetas solo se retiran con invitación', () => {
+test('bienvenida con invitación: logo + claim + titular/bajada de la web y tarjeta protagonista; las 3 tarjetas solo se retiran con invitación (composición final: v0449)', () => {
   const access = section('view-access');
   assert.match(access, /<h1 class="welcome-claim">Donde vive tu pádel\.<\/h1>/);
   assert.match(access, /id="access-invited-intro"[^>]*hidden>\s*<p class="welcome-invited-intro__title">Tus partidos no terminan cuando salís de la cancha\.<\/p>\s*<p class="welcome-invited-intro__sub">Cargá tus resultados, descubrí tus estadísticas y competí con tus amigos\.<\/p>/);
   assert.match(access, /id="access-invitation-title">Te invitaron a BRAMUlab</);
   assert.match(access, /Hay un partido esperando para sumarse a tu historial\. Entrá y confirmá si jugaste para recuperarlo\./);
-  assert.match(access, /id="access-installed-btn" class="invitation-card__link">¿Ya tenés BRAMUlab instalada\?<\/button>/, 'la alternativa sigue dentro de la tarjeta');
-  // jerarquía: el titular de la web es MUCHO más chico que el de la web (que usa clamp ≥ 36 px) y que el título de la tarjeta (18 px)
-  const px = (re) => Number(css.match(re)[1]);
-  assert.ok(px(/\.welcome-invited-intro__title\{[^}]*font-size: ([\d.]+)px/) <= 13);
-  assert.ok(px(/\.welcome-invited-intro__sub\{[^}]*font-size: ([\d.]+)px/) <= 12);
-  assert.ok(px(/\.invitation-card__head \.invitation-card__title\{[^}]*font-size:(\d+)px/) >= 18);
-  // las 3 tarjetas siguen en el HTML (bienvenida habitual) y solo se ocultan bajo .is-invited
   assert.equal([...access.matchAll(/class="welcome-benefit /g)].length, 3);
   assert.match(css, /#view-access\.is-invited \.welcome-benefits\{ display:none; \}/);
   assert.match(css, /\.welcome-invited-intro\{ display:none;/, 'sin invitación el bloque nuevo no se ve');
@@ -183,11 +176,9 @@ test('autoguardado de Editar datos: sin regresiones (misma API y disparadores)',
 });
 
 /* ============================ Versionado ============================ */
-test('versionado V04.48 en cuarteto + todas las referencias ?v= y el service worker', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.48', bundle: '04.48' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.48'/);
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.48'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-48'/);
-  assert.doesNotMatch(indexHtml, /\?v=04\.47/);
-  assert.doesNotMatch(read('sw.js'), /\?v=04\.47/);
+test('versionado: V04.48 fue superada por V04.49 (ver v0449); el cuarteto sigue sincronizado', () => {
+  const v = JSON.parse(read('version.json'));
+  assert.match(v.version, /^BRAMUlab V04\.4[89]$/);
+  assert.ok(read('store.js').includes(`'${v.version}'`) && read('store.js').includes(`'${v.bundle}'`));
+  assert.ok(read('sw.js').includes(`bramulab-v${v.bundle.replace('.', '-')}`));
 });

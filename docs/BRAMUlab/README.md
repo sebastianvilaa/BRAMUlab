@@ -17,6 +17,12 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
+## 15/10/2026 — V04.49 (Staging): bienvenida con invitación final + vista previa de WhatsApp de la app
+
+Composición final de la bienvenida para invitados y etiquetas Open Graph/Twitter de la app con la misma imagen que la web (solo se verá en WhatsApp tras publicar). Fuente: `Producto/Experiencia_Inicial.md` §33. Sin cambios en Production.
+
+---
+
 ## 15/10/2026 — V04.48 (Staging): pulido de V04.47
 
 Menú con acentos selectivos y «Herramientas de prueba» (solo Staging), Ayuda con buscador instantáneo + preguntas de invitaciones y bienvenida compacta cuando se llega con una invitación. Fuente: `Producto/Experiencia_Inicial.md` §32. Sin cambios en Production.

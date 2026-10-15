@@ -195,10 +195,10 @@ test('privacidad: el mensaje compartido no incluye el nombre del invitado; la fu
   assert.doesNotMatch(sql.replace(/--[^\n]*/g, ''), /grant\s+select|create\s+policy|alter\s+table/i, 'ningún permiso de tablas');
 });
 
-test('versionado V04.48 en cuarteto (número de producto simple, sin sufijos h1/h2) + referencias ?v=', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.48', bundle: '04.48' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.48'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.48'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-48'/);
-  assert.match(indexHtml, /app\.js\?v=04\.48"/); assert.match(read('sw.js'), /app\.js\?v=04\.48'/);
+test('versionado V04.49 en cuarteto (número de producto simple, sin sufijos h1/h2) + referencias ?v=', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.49', bundle: '04.49' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.49'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.49'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-49'/);
+  assert.match(indexHtml, /app\.js\?v=04\.49"/); assert.match(read('sw.js'), /app\.js\?v=04\.49'/);
   assert.doesNotMatch(indexHtml, /\?v=04\.4[01]-h\d/);
 });

@@ -5740,8 +5740,6 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 @media (prefers-reduced-motion: reduce){ .autosave-status__icon{ animation:none !important; } }
 
 /* --- Invitación en el navegador: acción secundaria + hoja «¿Ya tenés BRAMUlab instalada?» --- */
-.invitation-card__link{ display:inline-flex; align-items:center; min-height:40px; margin: 6px 0 -6px; padding:0; background:none; border:0; font: inherit; font-size:13px; font-weight:700;
-  color: var(--accent-cyan); text-decoration: underline; text-underline-offset:3px; cursor:pointer; -webkit-tap-highlight-color: transparent; }
 #invite-installed-sheet, #invite-paste-sheet{ max-height: 92dvh; overflow-y:auto; overscroll-behavior: contain; touch-action: pan-y; }
 .invite-steps{ margin:0; padding:0; list-style:none; counter-reset: istep; text-align:left; display:flex; flex-direction:column; gap:8px; }
 .invite-steps li{ counter-increment: istep; display:flex; align-items:flex-start; gap:10px; font-size:13.5px; line-height:1.35; color: var(--paper); }
@@ -5832,27 +5830,37 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .help-search__empty{ margin: 4px 4px 18px; font-size:13.5px; line-height:1.5; color: var(--paper-dim); text-align:center; }
 .help-faq__item[hidden], .help-cat[hidden]{ display:none !important; }
 
-/* Bienvenida con invitación: la tarjeta «Te invitaron a BRAMUlab» es la protagonista; el titular del producto queda chico y las tres tarjetas se retiran. */
-.welcome-invited-intro{ display:none; margin: -10px 0 18px; text-align:center; }
+/* Bienvenida con invitación (V04.49: composición final). Recorrido: logo + claim → titular y bajada → tarjeta «Te invitaron» (protagonista) → CREAR CUENTA →
+   INICIAR SESIÓN → «¿Ya tenés BRAMUlab instalada?». Las tres tarjetas de beneficios se retiran SOLO con invitación; el titular tiene jerarquía intermedia
+   (más que un subtítulo, mucho menos que el hero de la web) y la bajada se lee siempre (sin ocultarse en pantallas bajas: si falta alto, se scrollea). */
+.welcome-invited-intro{ display:none; margin: 0 0 20px; text-align:center; }
 #view-access.is-invited .welcome-invited-intro{ display:block; }
 #view-access.is-invited .welcome-benefits{ display:none; }
-#view-access.is-invited .welcome-brand{ margin-bottom: 14px; }
-.welcome-invited-intro__title{ margin:0 auto 4px; max-width: 30ch; font-size: 12.5px; font-weight:600; line-height:1.3; color: rgba(248,250,252,.86); text-shadow: 0 1px 12px rgba(3,7,13,.9); text-wrap: balance; }
-.welcome-invited-intro__sub{ margin:0 auto; max-width: 36ch; font-size: 11.5px; font-weight:500; line-height:1.4; color: rgba(248,250,252,.68); text-shadow: 0 1px 10px rgba(3,7,13,.9); text-wrap: balance; }
+#view-access.is-invited .welcome-brand{ margin-bottom: 20px; }
+.welcome-invited-intro__title{ margin:0 auto 10px; max-width: 19ch; font-family: var(--font-display); font-size: clamp(21px, 6.2vw, 26px); font-weight:800; line-height:1.18; letter-spacing:-0.02em;
+  color: var(--paper); text-shadow: 0 2px 16px rgba(3,7,13,.85); text-wrap: balance; }
+.welcome-invited-intro__sub{ margin:0 auto; max-width: 32ch; font-size: 14.5px; font-weight:500; line-height:1.45; color: rgba(248,250,252,.84); text-shadow: 0 1px 12px rgba(3,7,13,.9); text-wrap: balance; }
 .invitation-card__head{ display:flex; align-items:center; gap:12px; margin-bottom: 8px; }
 .invitation-card__icon{ flex:none; display:grid; place-items:center; width:40px; height:40px; border-radius:13px; color: var(--brand-lime); background: rgba(149,255,25,0.12); border: 1px solid rgba(149,255,25,0.34); }
 .invitation-card__head .invitation-card__title{ margin:0; font-size:18px; line-height:1.2; letter-spacing:-0.01em; }
-#view-access.is-invited .invitation-card{ padding: 16px 16px 8px; border-color: rgba(149,255,25,0.42); background: linear-gradient(180deg, rgba(17,34,56,.9) 0%, rgba(9,19,31,.9) 100%);
+#view-access.is-invited .invitation-card{ margin: 0; padding: 16px; border-color: rgba(149,255,25,0.42); background: linear-gradient(180deg, rgba(17,34,56,.9) 0%, rgba(9,19,31,.9) 100%);
   box-shadow: 0 0 0 1px rgba(149,255,25,0.10), 0 16px 34px -18px rgba(0,0,0,.85), 0 0 26px -10px rgba(149,255,25,0.35); }
 #view-access.is-invited .invitation-card__text{ font-size:14px; line-height:1.5; color: rgba(248,250,252,.86); }
-.invitation-card.is-unavailable{ border-color: var(--line-strong) !important; box-shadow: none !important; }
 .invitation-card.is-unavailable .invitation-card__title{ color: var(--paper); }
 .invitation-card.is-unavailable .invitation-card__icon{ color: var(--paper-dim); background: var(--surface-3); border-color: var(--line); }
+.invitation-card.is-unavailable{ border-color: var(--line-strong) !important; box-shadow: none !important; }
+/* Distribución vertical: aire arriba y abajo (la foto respira) y NADA de separadores flexibles entre la tarjeta y los botones. */
+#view-access.is-invited .welcome-spacer{ flex: 1 1 0; min-height: 12px; }
+#view-access.is-invited .welcome-spacer--mid{ flex: 0 0 22px; min-height: 0; }
+#view-access.is-invited .access-scroll::after{ flex: .6 1 0; min-height: 12px; }
+/* «¿Ya tenés BRAMUlab instalada?»: enlace secundario, centrado debajo de INICIAR SESIÓN (discreto, legible sobre la foto). */
+.access-installed-link{ display:flex; align-items:center; justify-content:center; align-self:center; min-height:44px; margin: 6px 0 0; padding: 0 12px; background:none; border:0; font: inherit;
+  font-size:13.5px; font-weight:600; color: rgba(248,250,252,.86); text-decoration: underline; text-underline-offset:3px; text-shadow: 0 1px 10px rgba(3,7,13,.9); cursor:pointer; -webkit-tap-highlight-color: transparent; }
+.access-installed-link[hidden]{ display:none; }
 /* Solo con invitación: CREAR CUENTA arriba (principal) e INICIAR SESIÓN justo debajo (secundario, siempre visible). */
 #view-access.is-invited .access-actions{ gap: 10px; }
 #view-access.is-invited #access-signup-btn{ order: 1; }
 #view-access.is-invited #access-login-btn{ order: 2; }
 @media (max-height: 700px){
-  #view-access.is-invited .welcome-invited-intro__sub{ display:none; }
   #view-access.is-invited .access-logo{ width: min(190px, 56vw); }
 }
