@@ -1010,3 +1010,7 @@ Sebastián confirmó el 15/10/2026 que probó las invitaciones con un usuario re
 ## V04.49 — Bienvenida con invitación (composición final) y vista previa de WhatsApp de la app (Staging, 15/10/2026)
 
 **Qué cambió:** titular con jerarquía intermedia, bajada siempre visible, distribución vertical sin huecos, «¿Ya tenés BRAMUlab instalada?» como enlace debajo de INICIAR SESIÓN; la app declara Open Graph/Twitter Card con la misma imagen pública de la web y su propia URL (`app.bramulab.com`). Detalle: `Producto/Experiencia_Inicial.md` §33. La vista previa real de WhatsApp queda pendiente hasta publicar en Production (Staging está protegido). Sin migraciones ni cambios en las invitaciones personales.
+
+## V04.50 — Una sola bienvenida universal (Staging, 15/10/2026)
+
+**Qué cambió:** se restauró la bienvenida original (anterior a V04.48) para todos los casos; con invitación pendiente solo se suma la cuarta tarjeta «Te invitaron a BRAMUlab» (con «¿Ya tenés BRAMUlab instalada?» dentro). Se descartan las variantes compactas de V04.48/V04.49. Detalle: `Producto/Experiencia_Inicial.md` §34. Se conservan Open Graph (V04.49) y todo lo aprobado en V04.47/V04.48.

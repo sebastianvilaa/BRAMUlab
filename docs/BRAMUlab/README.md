@@ -17,6 +17,12 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
+## 15/10/2026 — V04.50 (Staging): una sola bienvenida universal
+
+Decisión final de producto: una única bienvenida (logo, claim, tres tarjetas, INICIAR SESIÓN lima y CREAR CUENTA oscuro); con invitación solo se agrega la tarjeta «Te invitaron a BRAMUlab». Las variantes de V04.48/V04.49 quedan descartadas. Fuente: `Producto/Experiencia_Inicial.md` §34. Sin cambios en Production.
+
+---
+
 ## 15/10/2026 — V04.49 (Staging): bienvenida con invitación final + vista previa de WhatsApp de la app
 
 Composición final de la bienvenida para invitados y etiquetas Open Graph/Twitter de la app con la misma imagen que la web (solo se verá en WhatsApp tras publicar). Fuente: `Producto/Experiencia_Inicial.md` §33. Sin cambios en Production.

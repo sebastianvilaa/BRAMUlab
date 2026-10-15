@@ -6723,9 +6723,8 @@
     closeInstallPromptSheet();
   });
 
-  /** V04.30/V04.48 — con una invitación pendiente (?claim= guardado en este dispositivo) el acceso pasa a una variante COMPACTA: la tarjeta «Te invitaron a
-   *  BRAMUlab» es la protagonista, las tres tarjetas de beneficios se reemplazan por una presentación breve y CREAR CUENTA toma el protagonismo (INICIAR
-   *  SESIÓN sigue visible). Sin invitación, la bienvenida habitual no cambia en nada. Mismos botones, mismos handlers: solo clases/visibilidad. */
+  /** V04.30/V04.50 — UNA sola bienvenida universal (logo, claim, tres tarjetas, INICIAR SESIÓN lima y CREAR CUENTA oscuro). Con una invitación pendiente
+   *  (?claim= guardado en este dispositivo) se suma ÚNICAMENTE la cuarta tarjeta «Te invitaron a BRAMUlab», con sus estados (disponible / no disponible). */
   const INVITATION_CARD_TEXT = {
     title: 'Te invitaron a BRAMUlab',
     text: 'Hay un partido esperando para sumarse a tu historial. Entrá y confirmá si jugaste para recuperarlo.',
@@ -6740,9 +6739,9 @@
     card.classList.toggle('is-unavailable', unavailable);
     $('#access-invitation-title').textContent = unavailable ? INVITATION_CARD_TEXT.unavailableTitle : INVITATION_CARD_TEXT.title;
     $('#access-invitation-text').textContent = unavailable ? INVITATION_CARD_TEXT.unavailableText : INVITATION_CARD_TEXT.text;
-    // El enlace «¿Ya tenés BRAMUlab instalada?» vive debajo de los botones: solo con invitación pendiente, en el navegador y con el enlace no «no disponible».
+    // «¿Ya tenés BRAMUlab instalada?» (dentro de la tarjeta): solo en el navegador y con el enlace no «no disponible».
     const installed = $('#access-installed-btn');
-    if (installed) installed.hidden = unavailable || isStandaloneApp() || !(Store.loadClaimToken && Store.loadClaimToken());
+    if (installed) installed.hidden = unavailable || isStandaloneApp();
   }
   async function refreshInvitationAvailability(token) {
     const known = invitationAvailabilityByToken[token];
@@ -6756,20 +6755,9 @@
   function renderAccessInvitationCard() {
     const card = $('#access-invitation-card');
     const token = Store.loadClaimToken && Store.loadClaimToken();
-    const invited = !!token;
-    if (card) card.hidden = !invited;
-    const view = $('#view-access');
-    if (view) view.classList.toggle('is-invited', invited);
-    const intro = $('#access-invited-intro');
-    if (intro) intro.hidden = !invited;
-    // CREAR CUENTA pasa a ser la acción principal (la mayoría de las invitaciones llegan a quien todavía no tiene cuenta); INICIAR SESIÓN sigue a la vista.
-    const signup = $('#access-signup-btn'); const login = $('#access-login-btn');
-    if (signup && login) {
-      signup.classList.toggle('btn-start', invited); signup.classList.toggle('btn-secondary', !invited);
-      login.classList.toggle('btn-secondary', invited); login.classList.toggle('btn-start', !invited);
-    }
-    // La visibilidad del enlace de «instalada» la resuelve applyInvitationCardState (invitación pendiente + navegador + enlace disponible o sin confirmar).
-    if (invited) refreshInvitationAvailability(token); else applyInvitationCardState('unknown');
+    if (card) card.hidden = !token;
+    // UNA sola bienvenida universal (V04.50): con invitación pendiente solo se suma esta tarjeta; las tres de beneficios y los botones no cambian.
+    if (token) refreshInvitationAvailability(token); else applyInvitationCardState('unknown');
   }
 
   function openAccessFlow(afterAction) {

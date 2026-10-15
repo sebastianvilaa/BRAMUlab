@@ -119,31 +119,6 @@ test('buscador: lógica real (extraída de app.js) — sin mayúsculas ni acento
 });
 
 /* ============================ Bienvenida con invitación ============================ */
-test('bienvenida con invitación: logo + claim + titular/bajada de la web y tarjeta protagonista; las 3 tarjetas solo se retiran con invitación (composición final: v0449)', () => {
-  const access = section('view-access');
-  assert.match(access, /<h1 class="welcome-claim">Donde vive tu pádel\.<\/h1>/);
-  assert.match(access, /id="access-invited-intro"[^>]*hidden>\s*<p class="welcome-invited-intro__title">Tus partidos no terminan cuando salís de la cancha\.<\/p>\s*<p class="welcome-invited-intro__sub">Cargá tus resultados, descubrí tus estadísticas y competí con tus amigos\.<\/p>/);
-  assert.match(access, /id="access-invitation-title">Te invitaron a BRAMUlab</);
-  assert.match(access, /Hay un partido esperando para sumarse a tu historial\. Entrá y confirmá si jugaste para recuperarlo\./);
-  assert.equal([...access.matchAll(/class="welcome-benefit /g)].length, 3);
-  assert.match(css, /#view-access\.is-invited \.welcome-benefits\{ display:none; \}/);
-  assert.match(css, /\.welcome-invited-intro\{ display:none;/, 'sin invitación el bloque nuevo no se ve');
-});
-
-test('bienvenida con invitación: se activa solo con token pendiente; CREAR CUENTA principal, INICIAR SESIÓN visible; mismos botones y handlers (sin duplicar auth)', () => {
-  const body = fnBody('renderAccessInvitationCard');
-  assert.match(body, /const token = Store\.loadClaimToken && Store\.loadClaimToken\(\);\s*const invited = !!token;/);
-  assert.match(body, /view\.classList\.toggle\('is-invited', invited\)/);
-  assert.match(body, /intro\.hidden = !invited/);
-  assert.match(body, /signup\.classList\.toggle\('btn-start', invited\)[\s\S]*login\.classList\.toggle\('btn-secondary', invited\)/);
-  assert.equal([...indexHtml.matchAll(/id="access-signup-btn"/g)].length, 1, 'un solo botón de crear cuenta (no se duplica el HTML)');
-  assert.equal([...indexHtml.matchAll(/id="access-login-btn"/g)].length, 1);
-  assert.match(css, /#view-access\.is-invited #access-signup-btn\{ order: 1; \}\s*#view-access\.is-invited #access-login-btn\{ order: 2; \}/);
-  assert.match(fnBody('initAccessScreen'), /access-login-btn[\s\S]*access-signup-btn'\)\.addEventListener\('click', openSignupWizard\)/);
-  // la bienvenida habitual no se toca: INICIAR SESIÓN btn-start / CREAR CUENTA btn-secondary en el HTML base
-  assert.match(indexHtml, /<button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN<\/button>\s*<button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA<\/button>/);
-});
-
 test('estado real del enlace: usa la RPC pública ya existente (solo lee ok), nunca afirma de más; inválido/vencido/usado cambia el mensaje', () => {
   assert.match(authJs, /async function getInvitationAvailability\(token\)[\s\S]*c\.rpc\('get_invitation_card'/);
   assert.match(authJs, /return data\.ok === true \? 'available' : 'unavailable';/);
@@ -178,7 +153,7 @@ test('autoguardado de Editar datos: sin regresiones (misma API y disparadores)',
 /* ============================ Versionado ============================ */
 test('versionado: V04.48 fue superada por V04.49 (ver v0449); el cuarteto sigue sincronizado', () => {
   const v = JSON.parse(read('version.json'));
-  assert.match(v.version, /^BRAMUlab V04\.4[89]$/);
+  assert.match(v.version, /^BRAMUlab V04\.(4[89]|50)$/);
   assert.ok(read('store.js').includes(`'${v.version}'`) && read('store.js').includes(`'${v.bundle}'`));
   assert.ok(read('sw.js').includes(`bramulab-v${v.bundle.replace('.', '-')}`));
 });

@@ -1,4 +1,4 @@
-// BRAMUlab — V04.49: composición final de la bienvenida con invitación + vista previa de WhatsApp de la app (misma imagen que la web).
+// BRAMUlab — V04.49: vista previa de WhatsApp de la app (misma imagen que la web). (La bienvenida compacta de V04.48/V04.49 se DESCARTÓ en V04.50: ver v0450.)
 // Ejecutar con: node --test bramulab/tests/v0449-bienvenida-invitado-og.test.mjs
 
 import path from 'node:path';
@@ -26,57 +26,6 @@ function fnBody(name) {
 }
 const meta = (html, attr, key) => { const m = html.match(new RegExp(`<meta ${attr}="${key}" content="([^"]*)"`)); return m && m[1]; };
 const access = indexHtml.slice(indexHtml.indexOf('id="view-access"'), indexHtml.indexOf('</section>', indexHtml.indexOf('id="view-access"')));
-
-/* ============================ Bienvenida con invitación ============================ */
-test('orden del recorrido: logo+claim → titular+bajada → tarjeta → CREAR CUENTA → INICIAR SESIÓN → «¿Ya tenés BRAMUlab instalada?» (un solo botón, fuera de la tarjeta)', () => {
-  const at = (s) => { const i = access.indexOf(s); assert.ok(i >= 0, s); return i; };
-  const order = [at('class="access-logo"'), at('Donde vive tu pádel.'), at('id="access-invited-intro"'), at('id="access-invitation-card"'), at('id="access-login-btn"'), at('id="access-signup-btn"'), at('id="access-installed-btn"')];
-  assert.deepEqual(order, [...order].sort((a, b) => a - b));
-  const card = access.slice(access.indexOf('id="access-invitation-card"'), access.indexOf('id="access-backend-unavailable"'));
-  assert.doesNotMatch(card, /access-installed-btn|instalada/, 'el enlace salió de la tarjeta');
-  assert.equal([...indexHtml.matchAll(/id="access-installed-btn"/g)].length, 1, 'sin controles duplicados');
-  assert.match(access, /<button type="button" id="access-installed-btn" class="access-installed-link" hidden>¿Ya tenés BRAMUlab instalada\?<\/button>/);
-  assert.equal([...appJs.matchAll(/'#access-installed-btn'\)\.addEventListener/g)].length, 1, 'un solo handler');
-  assert.match(fnBody('initInvitationImport'), /'#access-installed-btn'\)\.addEventListener\('click', openInviteInstalledSheet\)/, 'mismo comportamiento: abre la demostración + copiar');
-});
-
-test('enlace de «instalada»: solo con invitación pendiente, en el navegador y con el enlace no «no disponible»', () => {
-  const body = fnBody('applyInvitationCardState');
-  assert.match(body, /installed\.hidden = unavailable \|\| isStandaloneApp\(\) \|\| !\(Store\.loadClaimToken && Store\.loadClaimToken\(\)\)/);
-  assert.match(fnBody('renderAccessInvitationCard'), /if \(invited\) refreshInvitationAvailability\(token\); else applyInvitationCardState\('unknown'\)/);
-  assert.match(css, /\.access-installed-link\[hidden\]\{ display:none; \}/, 'el atributo hidden gana sobre display:flex');
-});
-
-test('titular con jerarquía intermedia y bajada SIEMPRE visible (sin la regla que la ocultaba en pantallas bajas)', () => {
-  assert.match(access, /<p class="welcome-invited-intro__title">Tus partidos no terminan cuando salís de la cancha\.<\/p>\s*<p class="welcome-invited-intro__sub">Cargá tus resultados, descubrí tus estadísticas y competí con tus amigos\.<\/p>/);
-  assert.doesNotMatch(css, /welcome-invited-intro__sub\{\s*display:\s*none/, 'se eliminó la ocultación de V04.48');
-  assert.doesNotMatch(css, /max-height: ?700px\)\{[^}]*welcome-invited-intro/, 'ninguna regla de pantalla baja toca la bajada');
-  const title = css.match(/\.welcome-invited-intro__title\{[^}]*font-size: clamp\((\d+)px, ([\d.]+)vw, (\d+)px\)/);
-  assert.ok(title, 'tamaño fluido');
-  assert.ok(Number(title[1]) >= 20 && Number(title[3]) <= 28, 'intermedio: bastante más que un subtítulo (≥20 px) y mucho menos que el hero de la web (36–72 px)');
-  assert.match(css, /\.welcome-invited-intro__title\{[^}]*font-weight:800[^}]*line-height:1\.18/);
-  const subPx = Number(css.match(/\.welcome-invited-intro__sub\{[^}]*font-size: ([\d.]+)px/)[1]);
-  assert.ok(subPx >= 14, `la bajada no se achica de más (${subPx} px)`);
-  assert.match(css, /\.welcome-invited-intro__sub\{[^}]*line-height:1\.45/);
-});
-
-test('distribución vertical: sin separador flexible entre la tarjeta y los botones; aire arriba/abajo; scroll natural; bienvenida habitual intacta', () => {
-  assert.match(css, /#view-access\.is-invited \.welcome-spacer--mid\{ flex: 0 0 22px; min-height: 0; \}/);
-  assert.match(css, /#view-access\.is-invited \.welcome-spacer\{ flex: 1 1 0; min-height: 12px; \}/);
-  assert.match(css, /#view-access\.is-invited \.access-scroll::after\{ flex: \.6 1 0;/);
-  // TODO lo nuevo está acotado a .is-invited (o al bloque de invitación): la bienvenida habitual no cambia
-  const start = css.indexOf('/* Bienvenida con invitación (V04.49');
-  const block = css.slice(start);
-  for (const rule of block.split('\n').filter((l) => /^#view-access\./.test(l))) assert.match(rule, /#view-access\.is-invited/, rule.slice(0, 60));
-  assert.match(css, /#view-access \.access-scroll, #view-legal-gate \.access-scroll[\s\S]*?\{\s*flex:1 1 auto; min-height:0; overflow-y:auto;/, 'el contenedor scrollea si no entra');
-  assert.match(access, /<ul class="welcome-benefits"/, 'las 3 tarjetas siguen en el HTML');
-  assert.match(access, /<button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN<\/button>\s*<button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA<\/button>/);
-});
-
-test('flujo de invitaciones intacto: el token solo se lee; el único reclamo sigue siendo «SÍ, ESE SOY YO»', () => {
-  for (const name of ['renderAccessInvitationCard', 'applyInvitationCardState']) assert.doesNotMatch(fnBody(name), /claimProvisionalPlayer|clearClaimToken|saveClaimToken/, name);
-  assert.equal([...appJs.matchAll(/Auth\.claimProvisionalPlayer\(/g)].length, 1);
-});
 
 /* ============================ Vista previa de WhatsApp (OG) ============================ */
 test('OG de la app: MISMA imagen pública de la web (URL absoluta, sin duplicar el archivo), en el HTML inicial (antes de cualquier script)', () => {
@@ -130,11 +79,9 @@ test('el build real (dist en carpeta temporal) publica las etiquetas OG intactas
   } finally { fs.rmSync(out, { recursive: true, force: true }); }
 });
 
-test('versionado V04.49 en cuarteto + referencias ?v= y service worker', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.49', bundle: '04.49' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.49'/);
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.49'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-49'/);
-  assert.doesNotMatch(indexHtml, /\?v=04\.48/);
-  assert.doesNotMatch(read('sw.js'), /\?v=04\.48/);
+test('versionado: V04.49 fue superada por V04.50 (ver v0450); el cuarteto sigue sincronizado', () => {
+  const v = JSON.parse(read('version.json'));
+  assert.match(v.version, /^BRAMUlab V04\.(49|50)$/);
+  assert.ok(read('store.js').includes(`'${v.version}'`) && read('store.js').includes(`'${v.bundle}'`));
+  assert.ok(read('sw.js').includes(`bramulab-v${v.bundle.replace('.', '-')}`));
 });
