@@ -1,4 +1,4 @@
-// BRAMUlab V04.50-h1 — guía de contraseña del registro (sin claves reales ni backend).
+// BRAMUlab V04.50-h1/h2 — requisitos de contraseña; h2 elimina la línea redundante.
 // node --test bramulab/tests/v0450-h1-signup-password-guidance.test.mjs
 import fs from 'node:fs';
 import path from 'node:path';
@@ -83,8 +83,7 @@ test('Al intentar avanzar marca SOLO los requisitos pendientes en rojo', () => {
   assert.deepEqual(lis.filter((li) => li.classList.contains('is-missing')).map((li) => li.dataset.rule), ['hasSymbol']);
   assert.equal($('#signup-password').classList.contains('is-invalid'), true);
   assert.equal($('#signup-password').attributes['aria-invalid'], 'true');
-  assert.equal($('#signup-password-guidance').classList.contains('is-error'), true);
-  assert.match($('#signup-password-guidance').textContent, /marcado en rojo/);
+  assert.equal($('#signup-password-rules').classList.contains('has-missing'), true);
 });
 
 test('Al agregar un símbolo habilita repetir, limpia el rojo y muestra el éxito', () => {
@@ -97,7 +96,7 @@ test('Al agregar un símbolo habilita repetir, limpia el rojo y muestra el éxit
   assert.equal($('#signup-password-repeat-field').classList.contains('is-locked'), false);
   assert.deepEqual(lis.filter((li) => li.classList.contains('is-missing')), []);
   assert.equal($('#signup-password').attributes['aria-invalid'], 'false');
-  assert.equal($('#signup-password-guidance').textContent, 'Listo. Ahora repetí la contraseña.');
+  assert.equal($('#signup-password-rules').classList.contains('has-missing'), false);
 });
 
 test('La lista está antes de repetir y los ejemplos no afectan las otras pantallas', () => {
@@ -107,7 +106,9 @@ test('La lista está antes de repetir y los ejemplos no afectan las otras pantal
   assert.ok(step.indexOf('id="signup-password-rules"') < step.indexOf('id="signup-password-repeat"'));
   assert.match(step, /Un símbolo \(por ejemplo: ! \+ - \. , \*\)/);
   assert.match(step, /id="signup-password-repeat"[^>]*disabled/);
-  assert.match(step, /id="signup-password-guidance" role="status"/);
+  assert.doesNotMatch(step, /signup-password-guidance/);
+  assert.doesNotMatch(app, /signup-password-guidance|Completá lo marcado en rojo antes de repetir/);
+  assert.doesNotMatch(styles, /signup-password-guidance/);
   assert.match(styles, /#signup-password-rules li\.is-missing/);
   assert.match(styles, /prefers-reduced-motion:reduce/);
   assert.match(app, /signupPasswordWarning = false/);
