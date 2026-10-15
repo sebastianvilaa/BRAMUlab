@@ -181,7 +181,7 @@ test('destinatario: pregunta NEUTRAL (nunca «¿SOS REMERA CELESTE?»), explicac
   // lógica segura sin cambios: SÍ llama claim_provisional_player; NO solo limpia la intención local
   assert.match(fn, /Auth\.claimProvisionalPlayer\(token\)/);
   assert.match(between(fn, 'no.onclick = () =>', 'yes.onclick'), /Store\.clearClaimToken\(\); close\(\); resolve\(\{ outcome: 'declined' \}\);/);
-  assert.match(indexHtml, /id="access-invitation-card"[\s\S]*?Creá tu cuenta o iniciá sesión: después te mostramos el partido para que confirmes si jugaste/);
+  assert.match(indexHtml, /id="access-invitation-card"[\s\S]*?Hay un partido esperando para sumarse a tu historial\. Entrá y confirmá si jugaste para recuperarlo/);
 });
 
 test('privacidad: el mensaje compartido no incluye el nombre del invitado; la función HTML no consulta datos; la única lectura pública es get_invitation_card (anon, solo con token)', () => {
@@ -195,10 +195,10 @@ test('privacidad: el mensaje compartido no incluye el nombre del invitado; la fu
   assert.doesNotMatch(sql.replace(/--[^\n]*/g, ''), /grant\s+select|create\s+policy|alter\s+table/i, 'ningún permiso de tablas');
 });
 
-test('versionado V04.47 en cuarteto (número de producto simple, sin sufijos h1/h2) + referencias ?v=', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.47', bundle: '04.47' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.47'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.47'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-47'/);
-  assert.match(indexHtml, /app\.js\?v=04\.47"/); assert.match(read('sw.js'), /app\.js\?v=04\.47'/);
+test('versionado V04.48 en cuarteto (número de producto simple, sin sufijos h1/h2) + referencias ?v=', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.48', bundle: '04.48' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.48'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.48'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-48'/);
+  assert.match(indexHtml, /app\.js\?v=04\.48"/); assert.match(read('sw.js'), /app\.js\?v=04\.48'/);
   assert.doesNotMatch(indexHtml, /\?v=04\.4[01]-h\d/);
 });

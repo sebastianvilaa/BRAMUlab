@@ -870,6 +870,19 @@
     };
   }
 
+  /** V04.48 — ¿el enlace de invitación sigue disponible? Usa la MISMA RPC pública `get_invitation_card` que alimenta la vista previa de WhatsApp (ejecutable por
+   *  `anon`, sin sesión). Su respuesta es idéntica para cualquier causa de no disponibilidad (inválido, vencido, usado, revocado, sin partido vigente): solo
+   *  se lee `ok`. Devuelve `'available' | 'unavailable' | 'unknown'` (red, RPC sin aplicar o sesión que no es `anon` → `unknown`; nunca se afirma de más). */
+  async function getInvitationAvailability(token) {
+    const c = getClient();
+    if (!c) return 'unknown';
+    try {
+      const { data, error } = await c.rpc('get_invitation_card', { p_token: String(token || '') });
+      if (error || !data || typeof data !== 'object') return 'unknown';
+      return data.ok === true ? 'available' : 'unavailable';
+    } catch (e) { return 'unknown'; }
+  }
+
   /** V04.33 — lotes de recuperación COMPLETADOS del propio caller dentro de la ventana especial de visibilidad (RPC
    *  `get_my_recent_recoveries`, 30 días por defecto). El servidor es la única autoridad de la ventana: vencida, el lote deja de
    *  listarse (los partidos NO salen del historial). `{ok:true, recoveries:[{recoveryId, sourceName, matchIds, recoveredAt}]}`. */
@@ -1253,7 +1266,7 @@
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
     fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
     searchPlayers, getPlayerDiscovery, getPlayersCompact, getPublicProfile, getWhatsAppContact, createProvisionalPlayer, listMyProvisionalPlayers,
-    createClaimLink, claimProvisionalPlayer, previewClaimLink, getRecoveredMatchIds, getMyRecentRecoveries, getIdentityRecoveryStatus, processIdentityRecovery,
+    createClaimLink, claimProvisionalPlayer, previewClaimLink, getInvitationAvailability, getRecoveredMatchIds, getMyRecentRecoveries, getIdentityRecoveryStatus, processIdentityRecovery,
     listDuplicateMatchCandidates, resolveDuplicateMatchCandidate, completeRankingProfileData,
     completeContactProfileData, updateProfileAvatar, uploadAvatar, removeAvatarFiles,
     updateCurrentCategory, resolveAvatarUrl, resolveAvatarUrlsBatch,

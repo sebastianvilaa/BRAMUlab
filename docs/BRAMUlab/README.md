@@ -17,6 +17,12 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
+## 15/10/2026 — V04.48 (Staging): pulido de V04.47
+
+Menú con acentos selectivos y «Herramientas de prueba» (solo Staging), Ayuda con buscador instantáneo + preguntas de invitaciones y bienvenida compacta cuando se llega con una invitación. Fuente: `Producto/Experiencia_Inicial.md` §32. Sin cambios en Production.
+
+---
+
 ## 15/10/2026 — V04.47 (Staging): menú general, invitación desde la app instalada, autoguardado y franja web
 
 Ronda coordinada **solo en Staging/Preview** (sin `main`, Production, Supabase ni BRAMUlive; sin migraciones): menú ☰ del Home (Ayuda pasa al menú), «¿Ya tenés BRAMUlab instalada?» + «¿Recibiste una invitación?» (copiar → pegar; pegar no reclama), Editar datos con guardado automático («Apodo») y la franja web «Cada partido tiene una historia.» (con bucles también en «Cómo funciona»). Fuente: `Producto/Experiencia_Inicial.md` §31 y `bramulab-web/docs/BRAMUlab_Web.md` §12. **Pendiente: revisión visual de Sebastián y, solo con su aprobación expresa, Production.**

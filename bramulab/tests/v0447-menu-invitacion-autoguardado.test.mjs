@@ -102,14 +102,12 @@ test('menú: ☰ al final del encabezado del Home, Ayuda ya no está en el encab
   assert.match(header, /app-menu-btn__bars[\s\S]*<i><\/i><i><\/i><i><\/i>/, 'tres líneas');
 });
 
-test('menú: ítems en el orden aprobado, Cerrar sesión aparte y secundario, mismos íconos para el panel y la demostración', () => {
-  const items = [...appJs.matchAll(/\{ id: '([a-z-]+)', label: '([^']+)', icon: APP_MENU_ICONS\.([a-z]+)( , secondary: true)? ?\}/g)];
-  const list = appJs.match(/const APP_MENU_ITEMS = \[([\s\S]*?)\n  \];/)[1];
-  assert.deepEqual([...list.matchAll(/label: '([^']+)'/g)].map((m) => m[1]), ['Editar mi perfil', 'Mis jugadores', '¿Recibiste una invitación?', 'Ayuda']);
+test('menú: ítems en el orden aprobado (V04.48: agrupados), Cerrar sesión aparte y secundario, mismos íconos para el panel y la demostración', () => {
+  const groups = appJs.match(/const APP_MENU_GROUPS = \[([\s\S]*?)\n  \];/)[1];
+  assert.deepEqual([...groups.matchAll(/label: '([^']+)'/g)].map((m) => m[1]), ['Editar mi perfil', 'Mis jugadores', '¿Recibiste una invitación?', 'Ayuda', 'Herramientas de prueba']);
   assert.match(appJs, /const APP_MENU_FOOTER_ITEMS = \[\{ id: 'logout', label: 'Cerrar sesión', icon: APP_MENU_ICONS\.logout, secondary: true \}\]/);
-  void items;
   assert.match(fnBody('initAppMenu'), /\$\('#app-menu-list'\)\.innerHTML = markup\.list/);
-  assert.match(fnBody('initAppMenu'), /#invite-installed-demo-menu'\)\.innerHTML = .*markup\.list.*markup\.footer/, 'la demo usa los ítems reales del menú');
+  assert.match(fnBody('initAppMenu'), /#invite-installed-demo-menu'\)\.innerHTML = .*demoMarkup\.list.*demoMarkup\.footer/, 'la demo usa los ítems reales del menú');
 });
 
 test('menú: cada ítem lleva a la función existente (sin pantallas nuevas) y Editar mi perfil vuelve al Home', () => {
@@ -279,11 +277,9 @@ test('autoguardado: respeta reglas existentes — @usuario fijo en cuentas reale
 });
 
 /* ============================ Versionado ============================ */
-test('versionado V04.47 en cuarteto + todas las referencias ?v= y el service worker', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.47', bundle: '04.47' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.47'/);
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.47'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-47'/);
-  assert.doesNotMatch(indexHtml, /\?v=04\.46/);
-  assert.doesNotMatch(read('sw.js'), /\?v=04\.46/);
+test('versionado: V04.47 fue superada por V04.48 (ver v0448-menu-ayuda-bienvenida.test.mjs); el cuarteto sigue sincronizado', () => {
+  const v = JSON.parse(read('version.json'));
+  assert.match(v.version, /^BRAMUlab V04\.4[78]$/);
+  assert.ok(read('store.js').includes(`'${v.version}'`) && read('store.js').includes(`'${v.bundle}'`));
+  assert.ok(read('sw.js').includes(`bramulab-v${v.bundle.replace('.', '-')}`));
 });

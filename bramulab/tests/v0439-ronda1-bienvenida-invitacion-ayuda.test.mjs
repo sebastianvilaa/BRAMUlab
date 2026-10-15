@@ -200,16 +200,18 @@ test('Ayuda (V04.47): vive en el menú general (☰), vuelve al Home, no está d
   assert.match(css, /#view-help \.access-scroll\{/);
 });
 
-test('Ayuda V04.40: 9 preguntas en 4 categorías, reglas verificadas y SIN publicar la escala del Nivel', () => {
+test('Ayuda V04.40/V04.48: las 9 preguntas originales se conservan (+3 de invitaciones = 12 en 5 categorías), reglas verificadas y SIN publicar la escala del Nivel', () => {
   const v = section('view-help');
   const cats = [...v.matchAll(/settings-group__title">([^<]+)</g)].map((m) => m[1]);
-  assert.deepEqual(cats, ['CONOCÉ BRAMU', 'TUS PARTIDOS', 'GRUPOS', 'TU NIVEL Y RANKING']);
+  assert.deepEqual(cats, ['CONOCÉ BRAMU', 'TUS PARTIDOS', 'INVITACIONES', 'GRUPOS', 'TU NIVEL Y RANKING']);
   const qs = [...v.matchAll(/<summary class="help-faq__q"><span>([^<]+)<\/span>/g)].map((m) => m[1]);
-  assert.deepEqual(qs, ['¿Qué es BRAMUlab?', '¿Cómo cargo un partido?', '¿Cómo se validan los partidos?', '¿Cómo funcionan los Grupos?', '¿Qué partidos cuentan para mi grupo?',
+  const invitaciones = qs.filter((q) => /invit|Safari/.test(q));
+  assert.equal(invitaciones.length, 3, 'las 3 preguntas nuevas de invitaciones (V04.48)');
+  assert.deepEqual(qs.filter((q) => !invitaciones.includes(q)), ['¿Qué es BRAMUlab?', '¿Cómo cargo un partido?', '¿Cómo se validan los partidos?', '¿Cómo funcionan los Grupos?', '¿Qué partidos cuentan para mi grupo?',
     '¿Cómo se suman los puntos?', '¿Qué es el Nivel BRAMU?', '¿Qué significa CALIBRANDO?', '¿Qué es el Ranking BRAMU?']);
   // categoría -> cantidad de preguntas
   const perCat = v.split('settings-group help-cat').slice(1).map((c) => (c.match(/<details /g) || []).length);
-  assert.deepEqual(perCat, [1, 2, 3, 3]);
+  assert.deepEqual(perCat, [1, 2, 3, 3, 3]);
   // reglas contrastadas con las fuentes maestras
   for (const frag of ['Registrás tus partidos', 'hasta 14 días atrás', 'uno de los dos rivales', '30 días desde su carga original', 'Vos ya aparecés seleccionado', 'invitado',
     '5 partidos computables contra al menos 3 rivales distintos', 'Estar CALIBRADO no significa que el Nivel quede fijo', 'una nueva clasificación cada lunes',
@@ -220,7 +222,7 @@ test('Ayuda V04.40: 9 preguntas en 4 categorías, reglas verificadas y SIN publi
   const text = v.replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ');
   assert.doesNotMatch(text, /\b1 a 10\b|1,0|10,0|escala|del 1 al 10/i, 'no se publica la escala del Nivel');
   assert.doesNotMatch(text, /te deja competir|No es un marcador/);
-  assert.doesNotMatch(v, /<script|carousel|carrusel|tutorial/i);
+  assert.doesNotMatch(v.replace(/<!--[\s\S]*?-->/g, ''), /<script|carousel|carrusel|tutorial/i);
   assert.doesNotMatch(v, /Los cuatro jugadores deben|aprobarlo los cuatro/);
 });
 

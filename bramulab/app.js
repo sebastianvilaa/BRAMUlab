@@ -6723,13 +6723,54 @@
     closeInstallPromptSheet();
   });
 
-  /** V04.30 — card de invitación en Acceso cuando el dispositivo trae una intención ?claim= pendiente. */
+  /** V04.30/V04.48 — con una invitación pendiente (?claim= guardado en este dispositivo) el acceso pasa a una variante COMPACTA: la tarjeta «Te invitaron a
+   *  BRAMUlab» es la protagonista, las tres tarjetas de beneficios se reemplazan por una presentación breve y CREAR CUENTA toma el protagonismo (INICIAR
+   *  SESIÓN sigue visible). Sin invitación, la bienvenida habitual no cambia en nada. Mismos botones, mismos handlers: solo clases/visibilidad. */
+  const INVITATION_CARD_TEXT = {
+    title: 'Te invitaron a BRAMUlab',
+    text: 'Hay un partido esperando para sumarse a tu historial. Entrá y confirmá si jugaste para recuperarlo.',
+    unavailableTitle: 'Esta invitación ya no está disponible',
+    unavailableText: 'Puede haber vencido o ya se usó. Pedile a quien te invitó que te mande una nueva. Igual podés crear tu cuenta o iniciar sesión.',
+  };
+  const invitationAvailabilityByToken = {};   // token → 'available' | 'unavailable' (los 'unknown' no se guardan)
+  function applyInvitationCardState(state) {
+    const card = $('#access-invitation-card');
+    if (!card) return;
+    const unavailable = state === 'unavailable';
+    card.classList.toggle('is-unavailable', unavailable);
+    $('#access-invitation-title').textContent = unavailable ? INVITATION_CARD_TEXT.unavailableTitle : INVITATION_CARD_TEXT.title;
+    $('#access-invitation-text').textContent = unavailable ? INVITATION_CARD_TEXT.unavailableText : INVITATION_CARD_TEXT.text;
+    const installed = $('#access-installed-btn');
+    if (installed) installed.hidden = unavailable || isStandaloneApp();
+  }
+  async function refreshInvitationAvailability(token) {
+    const known = invitationAvailabilityByToken[token];
+    applyInvitationCardState(known || 'unknown');
+    if (known || !Auth.isConfigured() || !Auth.getInvitationAvailability) return;
+    const state = await Auth.getInvitationAvailability(token);
+    if (state === 'unknown') return;
+    invitationAvailabilityByToken[token] = state;
+    if (Store.loadClaimToken && Store.loadClaimToken() === token) applyInvitationCardState(state);
+  }
   function renderAccessInvitationCard() {
     const card = $('#access-invitation-card');
-    if (card) card.hidden = !(Store.loadClaimToken && Store.loadClaimToken());
-    // V04.47 — la alternativa «¿Ya tenés BRAMUlab instalada?» solo tiene sentido en el navegador; dentro de la app instalada ya estás en ella.
+    const token = Store.loadClaimToken && Store.loadClaimToken();
+    const invited = !!token;
+    if (card) card.hidden = !invited;
+    const view = $('#view-access');
+    if (view) view.classList.toggle('is-invited', invited);
+    const intro = $('#access-invited-intro');
+    if (intro) intro.hidden = !invited;
+    // CREAR CUENTA pasa a ser la acción principal (la mayoría de las invitaciones llegan a quien todavía no tiene cuenta); INICIAR SESIÓN sigue a la vista.
+    const signup = $('#access-signup-btn'); const login = $('#access-login-btn');
+    if (signup && login) {
+      signup.classList.toggle('btn-start', invited); signup.classList.toggle('btn-secondary', !invited);
+      login.classList.toggle('btn-secondary', invited); login.classList.toggle('btn-start', !invited);
+    }
+    // La alternativa «¿Ya tenés BRAMUlab instalada?» solo tiene sentido en el navegador; dentro de la app instalada ya estás en ella.
     const installedLink = $('#access-installed-btn');
     if (installedLink) installedLink.hidden = isStandaloneApp();
+    if (invited) refreshInvitationAvailability(token); else applyInvitationCardState('unknown');
   }
 
   function openAccessFlow(afterAction) {
@@ -8632,6 +8673,7 @@
   function openHelpScreen() {
     if (!Store.getCurrentUser()) { showView('access'); return; }
     $all('#view-help .help-faq__item').forEach((d) => { d.open = false; });
+    resetHelpSearch();
     showView('help');
     const scroller = $('#view-help .access-scroll');
     if (scroller) scroller.scrollTop = 0;
@@ -8651,11 +8693,21 @@
     help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 0 1 4.8.9c0 1.7-2.3 2-2.3 3.6"/><circle cx="12" cy="17.2" r=".6" fill="currentColor" stroke="none"/></svg>',
     logout: '<svg viewBox="0 0 24 24"><path d="M10 4.5H6.5A2 2 0 0 0 4.5 6.5v11a2 2 0 0 0 2 2H10"/><path d="M15.5 8l4 4-4 4M19.5 12H9.5"/></svg>',
   };
-  const APP_MENU_ITEMS = [
-    { id: 'edit-profile', label: 'Editar mi perfil', icon: APP_MENU_ICONS.edit },
-    { id: 'players', label: 'Mis jugadores', icon: APP_MENU_ICONS.players },
-    { id: 'invitation', label: '¿Recibiste una invitación?', icon: APP_MENU_ICONS.invitation },
-    { id: 'help', label: 'Ayuda', icon: APP_MENU_ICONS.help },
+  APP_MENU_ICONS.lab = '<svg viewBox="0 0 24 24"><rect x="10" y="2.5" width="4" height="6" rx="1"/><path d="M9.3 8.5 4.6 18.3c-.6 1.3.4 2.7 1.8 2.7h11.2c1.4 0 2.4-1.4 1.8-2.7L14.7 8.5z"/><path d="M7.4 15h9.2"/></svg>';
+  /* Accesos agrupados (separadores discretos) con acento de color SELECTIVO: azul BRAMU para lo personal, lima solo para la invitación, neutro para
+     ayuda/herramientas. `staging: true` = solo fuera de Production (mismo criterio que el resto del laboratorio: isProductionEnv()). */
+  const APP_MENU_GROUPS = [
+    [
+      { id: 'edit-profile', label: 'Editar mi perfil', icon: APP_MENU_ICONS.edit, tone: 'blue' },
+      { id: 'players', label: 'Mis jugadores', icon: APP_MENU_ICONS.players, tone: 'blue' },
+    ],
+    [
+      { id: 'invitation', label: '¿Recibiste una invitación?', icon: APP_MENU_ICONS.invitation, tone: 'lime' },
+    ],
+    [
+      { id: 'help', label: 'Ayuda', icon: APP_MENU_ICONS.help, tone: 'dim' },
+      { id: 'lab', label: 'Herramientas de prueba', icon: APP_MENU_ICONS.lab, tone: 'dim', staging: true },
+    ],
   ];
   const APP_MENU_FOOTER_ITEMS = [{ id: 'logout', label: 'Cerrar sesión', icon: APP_MENU_ICONS.logout, secondary: true }];
   let appMenuOpen = false;
@@ -8663,14 +8715,19 @@
 
   function appMenuItemHTML(item, index) {
     return `<button type="button" class="app-menu__item${item.secondary ? ' app-menu__item--secondary' : ''}" data-menu-action="${item.id}" style="--i:${index}">`
-      + `<span class="app-menu__icon" aria-hidden="true">${item.icon}</span><span class="app-menu__label">${escapeHtml(item.label)}</span>`
+      + `<span class="app-menu__icon is-${item.tone || 'dim'}" aria-hidden="true">${item.icon}</span><span class="app-menu__label">${escapeHtml(item.label)}</span>`
       + (item.secondary ? '' : '<span class="app-menu__chev" aria-hidden="true">›</span>') + '</button>';
   }
-  function appMenuMarkup() {
-    return {
-      list: APP_MENU_ITEMS.map((it, i) => appMenuItemHTML(it, i)).join(''),
-      footer: APP_MENU_FOOTER_ITEMS.map((it, i) => appMenuItemHTML(it, APP_MENU_ITEMS.length + i)).join(''),
-    };
+  /** Marcado del menú. `demo: true` (la microdemostración de la invitación) usa los MISMOS accesos pero nunca las herramientas de prueba. */
+  function appMenuMarkup(opts) {
+    const demo = !!(opts && opts.demo);
+    let i = 0;
+    const groups = APP_MENU_GROUPS
+      .map((g) => g.filter((it) => !it.staging || (!demo && !isProductionEnv())))
+      .filter((g) => g.length)
+      .map((g) => `<div class="app-menu__group">${g.map((it) => appMenuItemHTML(it, i++)).join('')}</div>`)
+      .join('');
+    return { list: groups, footer: APP_MENU_FOOTER_ITEMS.map((it) => appMenuItemHTML(it, i++)).join('') };
   }
 
   function positionAppMenu() {
@@ -8715,6 +8772,14 @@
     if (o.restoreFocus) $('#app-menu-btn').focus({ preventScroll: true });
   }
 
+  /** «Herramientas de prueba» (laboratorio): abre el MISMO modal de Herramientas de siempre. Nunca en Production (el ítem ni siquiera se dibuja allí; esta
+   *  guarda protege el handler igual que el resto del laboratorio). */
+  function openLabTools() {
+    if (isProductionEnv()) return;
+    refreshLabPreviewUI();
+    $('#dev-tools-modal').hidden = false;
+  }
+
   function onAppMenuAction(id) {
     // El panel empieza a cerrarse y la acción se ejecuta un instante después: la transición se siente continua y los modales no quedan detrás del panel.
     closeAppMenu();
@@ -8723,18 +8788,20 @@
       else if (id === 'players') openProfileScreen('jugadores');
       else if (id === 'invitation') openInvitePasteSheet();
       else if (id === 'help') openHelpScreen();
+      else if (id === 'lab') openLabTools();
       else if (id === 'logout') openLogoutOptions();
     }, 190);
   }
 
   function initAppMenu() {
     const markup = appMenuMarkup();
+    const demoMarkup = appMenuMarkup({ demo: true });
     const menu = $('#app-menu');
     menu.classList.add('app-menu--real');
     $('#app-menu-list').innerHTML = markup.list;
     $('#app-menu-footer').innerHTML = markup.footer;
     // La demostración de «¿Ya tenés BRAMUlab instalada?» usa exactamente los mismos ítems.
-    $('#invite-installed-demo-menu').innerHTML = `<nav class="app-menu__list">${markup.list}</nav><div class="app-menu__footer">${markup.footer}</div>`;
+    $('#invite-installed-demo-menu').innerHTML = `<nav class="app-menu__list">${demoMarkup.list}</nav><div class="app-menu__footer">${demoMarkup.footer}</div>`;
     $('#app-menu-btn').addEventListener('click', (e) => { if (appMenuOpen) closeAppMenu(); else openAppMenu(e.detail === 0); });
     $('#app-menu-scrim').addEventListener('click', () => closeAppMenu());
     menu.addEventListener('click', (e) => {
@@ -8919,6 +8986,44 @@
     $('#invite-installed-close').addEventListener('click', closeInviteInstalledSheet);
     $('#invite-installed-scrim').addEventListener('click', (e) => { if (e.target.id === 'invite-installed-scrim') closeInviteInstalledSheet(); });
     $('#invite-copy-btn').addEventListener('click', copyPendingInvitationLink);
+  }
+
+  /* ---- V04.48 · Ayuda: buscador instantáneo (solo DOM local, sin red) ---- */
+  function normalizeSearchText(t) {
+    return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+  let helpSearchIndex = null;
+  function buildHelpSearchIndex() {
+    helpSearchIndex = $all('#view-help .help-faq__item').map((el) => ({ el, text: normalizeSearchText(el.textContent) }));
+  }
+  /** Filtra las preguntas de Ayuda: cada palabra escrita debe aparecer en el título o en la respuesta (sin mayúsculas ni acentos). Las categorías sin
+   *  preguntas visibles se ocultan; si no queda nada, un aviso discreto. Con 1–3 resultados se abren para ver la respuesta. Devuelve la cantidad visible. */
+  function filterHelp(query) {
+    if (!helpSearchIndex) buildHelpSearchIndex();
+    const terms = normalizeSearchText(query).split(' ').filter(Boolean);
+    let visible = 0;
+    helpSearchIndex.forEach((it) => {
+      const match = terms.every((t) => it.text.includes(t));
+      it.el.hidden = !match;
+      if (match) visible += 1;
+    });
+    const filtering = terms.length > 0;
+    helpSearchIndex.forEach((it) => { if (!it.el.hidden) it.el.open = filtering && visible <= 3; else it.el.open = false; });
+    $all('#view-help .help-cat').forEach((cat) => { cat.hidden = !cat.querySelector('.help-faq__item:not([hidden])'); });
+    $('#help-search-empty').hidden = !(filtering && visible === 0);
+    $('#help-search-clear').hidden = !String(query || '').length;
+    return visible;
+  }
+  function resetHelpSearch() {
+    const input = $('#help-search-input');
+    if (input) input.value = '';
+    filterHelp('');
+  }
+  function initHelpSearch() {
+    const input = $('#help-search-input');
+    input.addEventListener('input', () => filterHelp(input.value));
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+    $('#help-search-clear').addEventListener('click', () => { resetHelpSearch(); input.focus(); });
   }
 
   function openLegalDoc(doc, origin, hash) {
@@ -10070,22 +10175,7 @@
     $('#help-back-btn').addEventListener('click', () => openPlayerHome());
     // BRAMUlab_V03.5 (§4, Bloque 1) — acceso a RANKING BRAMU desde el header del Home.
     $('#player-home-ranking-btn').addEventListener('click', openRankingScreen);
-    // BRAMUlab_V04.5 — acceso directo mouse/touch al preview de Nivel BRAMU V1, ya no depende
-    // del long-press sobre el logo (se conserva, pero deja de ser necesario).
-    // BRAMUlab_V04.7 — con el preview YA activado, un toque abre HERRAMIENTAS (mismo modal que
-    // el long-press, con "Resetear Nivel BRAMU" adentro) en vez de apagarlo directo: antes
-    // "Resetear Nivel BRAMU" solo era alcanzable manteniendo presionado el logo ~2s (Handoff
-    // V04.6 §10 solo había resuelto "Crear usuario de prueba"). Con el preview apagado, un toque
-    // lo prende igual que antes (con su toast de siempre).
-    $('#player-home-lab-preview-btn').addEventListener('click', () => {
-      if (!Store.isLevelV1PreviewEnabled()) {
-        setLevelV1Preview(true);
-        showToast('Nivel BRAMU V1 preview: ACTIVADO', 2200);
-        return;
-      }
-      refreshLabPreviewUI();
-      $('#dev-tools-modal').hidden = false;
-    });
+    // V04.48 — el acceso a Herramientas (antes un matraz en este encabezado) vive en el menú general: «Herramientas de prueba», solo Staging/Development.
     // V03.0.1 (§3) — tarjeta/nombre/foto del Home tappable → Perfil › MI PERFIL.
     const goToProfile = () => openProfileScreen('mi-perfil');
     $('#player-home-card').addEventListener('click', goToProfile);
@@ -17021,6 +17111,7 @@
     initManualLoadScreen();
     initPlayerHomeScreen();
     initAppMenu();
+    initHelpSearch();
     initInvitationImport();
     initRankingScreen();
     initRankingGateModal();
@@ -17324,11 +17415,8 @@
   function refreshLabPreviewUI() {
     const enabled = Store.isLevelV1PreviewEnabled();
     const production = isProductionEnv();
-    const headerBtn = $('#player-home-lab-preview-btn');
-    if (headerBtn) {
-      headerBtn.hidden = production;
-      headerBtn.classList.toggle('is-active', enabled);
-    }
+    const labItem = $('#app-menu [data-menu-action="lab"]');
+    if (labItem) labItem.classList.toggle('is-on', enabled && !production);
     const title = $('#dev-tools-title');
     if (title) title.textContent = enabled ? 'HERRAMIENTAS · V04.6 PREVIEW' : 'HERRAMIENTAS';
     // Laboratorio integrado — hotfix de actualización (25/09/2026): identificación discreta de

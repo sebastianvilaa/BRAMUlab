@@ -5674,36 +5674,48 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .app-menu-btn.is-open .app-menu-btn__bars i:nth-child(2){ opacity:0; transform: scaleX(.2); }
 .app-menu-btn.is-open .app-menu-btn__bars i:nth-child(3){ transform: translateY(-6px) rotate(-45deg); }
 
-/* --- Panel (derecha → izquierda) --- */
+/* --- Panel (derecha → izquierda) — V04.48: más profundidad (degradé + brillo azul contenido), accesos agrupados y acentos selectivos --- */
 .app-menu-scrim{ position:fixed; left:0; right:0; bottom:0; top: var(--app-menu-top, 64px); z-index: 37; background: rgba(3,6,12,0.62);
   opacity:0; transition: opacity .26s ease; -webkit-tap-highlight-color: transparent; }
 .app-menu-scrim.is-open{ opacity:1; }
 .app-menu{ position:fixed; top: var(--app-menu-top, 64px); right:0; bottom:0; z-index: 38; width: min(86vw, 340px); box-sizing:border-box;
-  display:flex; flex-direction:column; padding: 14px 12px calc(14px + var(--safe-bottom));
-  background: linear-gradient(180deg, var(--surface-2) 0%, var(--bg) 100%); border-left: 1px solid var(--line-strong); border-top: 1px solid var(--line-strong);
-  border-top-left-radius: 20px; box-shadow: -18px 0 40px -14px rgba(0,0,0,0.6);
-  transform: translateX(104%); transition: transform .32s cubic-bezier(.22,.8,.24,1); will-change: transform; touch-action: pan-y; overscroll-behavior: contain; }
+  display:flex; flex-direction:column; padding: 16px 14px calc(14px + var(--safe-bottom));
+  background:
+    radial-gradient(120% 46% at 100% 0%, rgba(25,159,255,0.13) 0%, rgba(25,159,255,0) 62%),
+    linear-gradient(180deg, var(--surface-3) 0%, var(--surface-2) 34%, var(--bg) 100%);
+  border-left: 1px solid var(--line-strong); border-top: 1px solid var(--line-strong);
+  border-top-left-radius: 22px; box-shadow: -22px 0 44px -16px rgba(0,0,0,0.65), inset 1px 1px 0 rgba(183,211,235,0.08);
+  transform: translateX(104%); transition: transform .32s cubic-bezier(.22,.8,.24,1); will-change: transform; touch-action: pan-y; overscroll-behavior: contain; overflow-y:auto; }
 .app-menu.is-open{ transform: translateX(0); }
 .app-menu.is-dragging{ transition:none; }
-.app-menu__list{ display:flex; flex-direction:column; gap:2px; }
-.app-menu__item{ display:flex; align-items:center; gap:14px; width:100%; min-height:54px; padding:0 12px; border:1px solid transparent; border-radius:14px; background:none;
+.app-menu__list{ display:flex; flex-direction:column; gap:10px; }
+/* Cada agrupación es una tarjeta con superficie propia; los accesos de una misma tarjeta se separan con un filo discreto. */
+.app-menu__group{ background: linear-gradient(180deg, rgba(17,34,56,0.78) 0%, rgba(9,19,31,0.86) 100%); border: 1px solid var(--line); border-radius: 18px; overflow:hidden;
+  box-shadow: 0 10px 24px -16px rgba(0,0,0,0.7), inset 0 1px 0 rgba(183,211,235,0.06); }
+.app-menu__item{ display:flex; align-items:center; gap:14px; width:100%; min-height:58px; padding:0 14px 0 12px; border:0; border-radius:0; background:none;
   color: var(--paper); font: inherit; font-size:15px; font-weight:700; text-align:left; cursor:pointer; -webkit-tap-highlight-color: transparent;
-  transition: background .15s ease, border-color .15s ease, transform .12s ease; }
-.app-menu__item:active{ background: var(--surface-active); transform: scale(.985); }
-.app-menu__item:focus-visible, .app-menu-btn:focus-visible{ outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
-.app-menu__icon{ flex:none; display:grid; place-items:center; width:36px; height:36px; border-radius:11px; background: var(--surface-3); color: var(--paper-dim); transition: color .2s ease, background .2s ease; }
+  transition: background .15s ease, box-shadow .15s ease, transform .12s ease; }
+.app-menu__item + .app-menu__item{ border-top: 1px solid var(--line); }
+.app-menu__item:active{ background: var(--surface-active); transform: scale(.992); }
+.app-menu__item:focus-visible, .app-menu-btn:focus-visible{ outline: 2px solid var(--accent-cyan); outline-offset: -2px; }
+.app-menu__icon{ flex:none; display:grid; place-items:center; width:38px; height:38px; border-radius:12px; color: var(--paper-dim); background: var(--surface-3);
+  border: 1px solid rgba(183,211,235,0.10); transition: color .2s ease, background .2s ease; }
 .app-menu__icon svg{ width:20px; height:20px; fill:none; stroke: currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+/* Acentos SELECTIVOS: azul BRAMU para lo personal, lima solo para la invitación, neutro para el resto (nunca todos los íconos verdes). */
+.app-menu__icon.is-blue{ color: var(--accent-cyan); background: rgba(25,159,255,0.13); border-color: rgba(25,159,255,0.30); }
+.app-menu__icon.is-lime{ color: var(--brand-lime); background: rgba(149,255,25,0.12); border-color: rgba(149,255,25,0.34); }
+.app-menu__icon.is-dim{ color: #C9D3DE; }
 .app-menu__label{ flex:1 1 auto; min-width:0; }
 .app-menu__chev{ flex:none; color: var(--paper-faint); font-size:18px; line-height:1; }
-.app-menu__item.is-highlight{ background: rgba(149,255,25,0.08); border-color: rgba(149,255,25,0.45); }
-.app-menu__item.is-highlight .app-menu__icon{ color: var(--brand-lime); background: rgba(149,255,25,0.12); }
-.app-menu__footer{ margin-top:auto; padding-top:10px; border-top: 1px solid var(--line); }
-.app-menu__item--secondary{ min-height:48px; font-size:14px; font-weight:600; color: var(--paper-dim); }
-.app-menu__item--secondary .app-menu__icon{ background: transparent; }
-/* Entrada escalonada de los ítems (solo el panel real; la demo los muestra siempre). */
-.app-menu--real .app-menu__item{ opacity:0; transform: translateX(14px); transition: opacity .28s ease, transform .32s cubic-bezier(.22,.8,.24,1), background .15s ease, border-color .15s ease; }
+.app-menu__item.is-highlight{ background: rgba(149,255,25,0.08); box-shadow: inset 0 0 0 1px rgba(149,255,25,0.45); }
+.app-menu__item.is-on .app-menu__label::after{ content:""; display:inline-block; width:7px; height:7px; margin-left:8px; border-radius:50%; background: var(--brand-lime); box-shadow: 0 0 8px rgba(149,255,25,0.7); vertical-align:middle; }
+.app-menu__footer{ margin-top:auto; padding-top:14px; }
+.app-menu__item--secondary{ min-height:50px; border-radius: 14px; font-size:14px; font-weight:600; color: var(--paper-dim); border: 1px solid var(--line); background: rgba(5,10,18,0.55); }
+.app-menu__item--secondary .app-menu__icon{ width:32px; height:32px; background: transparent; border-color: transparent; }
+/* Entrada escalonada de los accesos (solo el panel real; la demo los muestra siempre). */
+.app-menu--real .app-menu__item{ opacity:0; transform: translateX(14px); transition: opacity .28s ease, transform .32s cubic-bezier(.22,.8,.24,1), background .15s ease, box-shadow .15s ease; }
 .app-menu--real.is-open .app-menu__item{ opacity:1; transform:none; transition-delay: calc(var(--i, 0) * 38ms + 90ms), calc(var(--i, 0) * 38ms + 90ms), 0s, 0s; }
-.app-menu--real.is-open .app-menu__item:active{ transform: scale(.985); }
+.app-menu--real.is-open .app-menu__item:active{ transform: scale(.992); }
 @media (prefers-reduced-motion: reduce){
   .app-menu, .app-menu-scrim, .app-menu--real .app-menu__item, .app-menu-btn__bars i{ transition-duration: .01s !important; transition-delay: 0s !important; }
   .app-menu{ transform: none; opacity:0; transition: opacity .01s; }
@@ -5754,14 +5766,15 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .mdemo__bars{ color: var(--paper-dim); }
 .mdemo__bars i{ transition:none; }
 .mdemo__scrim{ position:absolute; left:0; right:0; bottom:0; top:44px; background: rgba(3,6,12,0.62); opacity:0; }
-.mdemo__menu.app-menu{ position:absolute; top:44px; right:0; bottom:0; width:68%; z-index:2; padding:8px; border-radius:14px 0 0 0; transform: translateX(104%); transition:none; box-shadow:none; }
-.mdemo .app-menu__list{ gap:0; }
-.mdemo .app-menu__item{ min-height:31px; padding:0 6px; gap:8px; font-size:10.5px; border-radius:9px; }
+.mdemo__menu.app-menu{ position:absolute; top:44px; right:0; bottom:0; width:68%; z-index:2; padding:8px; overflow:hidden; border-radius:14px 0 0 0; transform: translateX(104%); transition:none; box-shadow:none; }
+.mdemo .app-menu__list{ gap:5px; }
+.mdemo .app-menu__group{ border-radius:10px; }
+.mdemo .app-menu__item{ min-height:27px; padding:0 6px; gap:8px; font-size:10.5px; border-radius:0; }
 .mdemo .app-menu__icon{ width:20px; height:20px; border-radius:7px; }
 .mdemo .app-menu__icon svg{ width:12px; height:12px; }
 .mdemo .app-menu__chev{ display:none; }
-.mdemo .app-menu__footer{ padding-top:4px; }
-.mdemo .app-menu__item--secondary{ min-height:28px; font-size:10px; }
+.mdemo .app-menu__footer{ padding-top:5px; }
+.mdemo .app-menu__item--secondary{ min-height:26px; font-size:10px; border-radius:9px; }
 .mdemo__paste{ position:absolute; left:10px; right:10px; bottom:10px; z-index:3; height:40px; display:flex; align-items:center; gap:10px; padding:0 12px; border-radius:14px;
   background: var(--surface-2); border:1px solid var(--line-strong); opacity:0; transform: translateY(14px); }
 .mdemo__paste-line{ flex:1; height:8px; border-radius:4px; background: var(--surface-active); overflow:hidden; }
@@ -5769,7 +5782,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .mdemo__paste-check{ display:grid; place-items:center; width:20px; height:20px; border-radius:50%; background: var(--brand-lime); color: var(--bg); transform: scale(0); }
 .mdemo__tap{ position:absolute; z-index:4; width:24px; height:24px; margin:-12px 0 0 -12px; border-radius:50%; border:2px solid var(--brand-lime); background: rgba(149,255,25,0.28); opacity:0; pointer-events:none; }
 .mdemo__tap--menu{ right:24px; top:22px; left:auto; margin:-12px -12px 0 0; }
-.mdemo__tap--item{ left:60%; top:111px; }
+.mdemo__tap--item{ left:60%; top:126px; }
 .mdemo .app-menu__item[data-menu-action="invitation"]{ animation: md-item var(--md) infinite; }
 .mdemo__bars i:nth-child(1){ animation: md-bar1 var(--md) infinite; }
 .mdemo__bars i:nth-child(2){ animation: md-bar2 var(--md) infinite; }
@@ -5788,7 +5801,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 @keyframes md-menu{ 0%,14%{ transform: translateX(104%); } 26%,56%{ transform: translateX(0); } 66%,100%{ transform: translateX(104%); } }
 @keyframes md-tap1{ 0%,6%{ opacity:0; transform: scale(1.5); } 10%{ opacity:1; transform: scale(1); } 16%{ opacity:1; transform: scale(.85); } 21%,100%{ opacity:0; transform: scale(1.4); } }
 @keyframes md-tap2{ 0%,32%{ opacity:0; transform: scale(1.5); } 37%{ opacity:1; transform: scale(1); } 43%{ opacity:1; transform: scale(.85); } 48%,100%{ opacity:0; transform: scale(1.4); } }
-@keyframes md-item{ 0%,36%{ background:none; border-color: transparent; } 42%,56%{ background: rgba(149,255,25,0.1); border-color: rgba(149,255,25,0.5); } 62%,100%{ background:none; border-color: transparent; } }
+@keyframes md-item{ 0%,36%{ background:none; box-shadow:none; } 42%,56%{ background: rgba(149,255,25,0.1); box-shadow: inset 0 0 0 1px rgba(149,255,25,0.5); } 62%,100%{ background:none; box-shadow:none; } }
 @keyframes md-paste{ 0%,60%{ opacity:0; transform: translateY(14px); } 68%,90%{ opacity:1; transform:none; } 97%,100%{ opacity:0; transform: translateY(6px); } }
 @keyframes md-type{ 0%,68%{ width:0; } 82%,100%{ width:88%; } }
 @keyframes md-check{ 0%,83%{ transform: scale(0); } 87%{ transform: scale(1.25); } 90%,100%{ transform: scale(1); } }
@@ -5800,5 +5813,46 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
   .mdemo__bars i:nth-child(1){ transform: translateY(6px) rotate(45deg); }
   .mdemo__bars i:nth-child(2){ opacity:0; }
   .mdemo__bars i:nth-child(3){ transform: translateY(-6px) rotate(-45deg); }
-  .mdemo .app-menu__item[data-menu-action="invitation"]{ background: rgba(149,255,25,0.1); border-color: rgba(149,255,25,0.5); }
+  .mdemo .app-menu__item[data-menu-action="invitation"]{ background: rgba(149,255,25,0.1); box-shadow: inset 0 0 0 1px rgba(149,255,25,0.5); }
+}
+
+/* ==========================================================================
+   V04.48 — Ayuda con buscador · Bienvenida compacta con invitación
+   ========================================================================== */
+
+/* Buscador instantáneo de Ayuda (pegajoso arriba; solo filtra el DOM local). */
+.help-search{ position: sticky; top: 0; z-index: 3; display:flex; align-items:center; gap:10px; margin: 0 0 14px; padding: 0 12px; min-height:48px;
+  background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 14px; box-shadow: 0 8px 20px -14px rgba(0,0,0,0.8); transition: border-color .15s ease; }
+.help-search:focus-within{ border-color: var(--accent-cyan); }
+.help-search__icon{ flex:none; color: var(--paper-dim); }
+.help-search__input{ flex:1 1 auto; min-width:0; height:46px; background:none; border:0; outline:none; color: var(--paper); font: inherit; font-size:16px; -webkit-appearance:none; appearance:none; }
+.help-search__input::placeholder{ color: var(--paper-faint); }
+.help-search__input::-webkit-search-cancel-button, .help-search__input::-webkit-search-decoration{ -webkit-appearance:none; display:none; }
+.help-search__clear{ flex:none; display:grid; place-items:center; width:28px; height:28px; border:0; border-radius:50%; background: var(--surface-3); color: var(--paper-dim); cursor:pointer; }
+.help-search__empty{ margin: 4px 4px 18px; font-size:13.5px; line-height:1.5; color: var(--paper-dim); text-align:center; }
+.help-faq__item[hidden], .help-cat[hidden]{ display:none !important; }
+
+/* Bienvenida con invitación: la tarjeta «Te invitaron a BRAMUlab» es la protagonista; el titular del producto queda chico y las tres tarjetas se retiran. */
+.welcome-invited-intro{ display:none; margin: -10px 0 18px; text-align:center; }
+#view-access.is-invited .welcome-invited-intro{ display:block; }
+#view-access.is-invited .welcome-benefits{ display:none; }
+#view-access.is-invited .welcome-brand{ margin-bottom: 14px; }
+.welcome-invited-intro__title{ margin:0 auto 4px; max-width: 30ch; font-size: 12.5px; font-weight:600; line-height:1.3; color: rgba(248,250,252,.86); text-shadow: 0 1px 12px rgba(3,7,13,.9); text-wrap: balance; }
+.welcome-invited-intro__sub{ margin:0 auto; max-width: 36ch; font-size: 11.5px; font-weight:500; line-height:1.4; color: rgba(248,250,252,.68); text-shadow: 0 1px 10px rgba(3,7,13,.9); text-wrap: balance; }
+.invitation-card__head{ display:flex; align-items:center; gap:12px; margin-bottom: 8px; }
+.invitation-card__icon{ flex:none; display:grid; place-items:center; width:40px; height:40px; border-radius:13px; color: var(--brand-lime); background: rgba(149,255,25,0.12); border: 1px solid rgba(149,255,25,0.34); }
+.invitation-card__head .invitation-card__title{ margin:0; font-size:18px; line-height:1.2; letter-spacing:-0.01em; }
+#view-access.is-invited .invitation-card{ padding: 16px 16px 8px; border-color: rgba(149,255,25,0.42); background: linear-gradient(180deg, rgba(17,34,56,.9) 0%, rgba(9,19,31,.9) 100%);
+  box-shadow: 0 0 0 1px rgba(149,255,25,0.10), 0 16px 34px -18px rgba(0,0,0,.85), 0 0 26px -10px rgba(149,255,25,0.35); }
+#view-access.is-invited .invitation-card__text{ font-size:14px; line-height:1.5; color: rgba(248,250,252,.86); }
+.invitation-card.is-unavailable{ border-color: var(--line-strong) !important; box-shadow: none !important; }
+.invitation-card.is-unavailable .invitation-card__title{ color: var(--paper); }
+.invitation-card.is-unavailable .invitation-card__icon{ color: var(--paper-dim); background: var(--surface-3); border-color: var(--line); }
+/* Solo con invitación: CREAR CUENTA arriba (principal) e INICIAR SESIÓN justo debajo (secundario, siempre visible). */
+#view-access.is-invited .access-actions{ gap: 10px; }
+#view-access.is-invited #access-signup-btn{ order: 1; }
+#view-access.is-invited #access-login-btn{ order: 2; }
+@media (max-height: 700px){
+  #view-access.is-invited .welcome-invited-intro__sub{ display:none; }
+  #view-access.is-invited .access-logo{ width: min(190px, 56vw); }
 }
