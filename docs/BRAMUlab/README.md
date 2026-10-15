@@ -17,7 +17,15 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
-## 15/10/2026 — Hotfix de contraseña `04.50-h1` PUBLICADO en Production (estado vigente)
+## 15/10/2026 — Pulido del alta `04.50-h2` PUBLICADO en Production (estado vigente)
+
+**Único ajuste de UX:** se eliminó la línea redundante «Completá lo marcado en rojo antes de repetir» debajo del checklist de contraseña, así como el mensaje alternativo del mismo elemento (y sus estilos/atributo de descripción asociados). **No cambian** el checklist, los ejemplos de símbolos válidos, el rojo de reglas faltantes, el bloqueo de «Repetir contraseña» hasta cumplir los requisitos ni la validación de acceso. Se conservó el vínculo accesible del campo con la lista de requisitos.
+
+**Evidencia:** comprobaciones puntuales sobre el código real (contraseña sin símbolo → requisito rojo y repetición bloqueada; con símbolo → repetición habilitada y error limpio; mensaje/espacio eliminados); prueba de regresión actualizada; caché PWA renovada y coherente con `04.50-h2`. Vercel Staging `dpl_9hAhVnMJKv9HDu3ck89ndsgyb8Kg` READY, alias separado. **Production** SHA `0be3988bb34726c42da8eced45777565769994a3`, deployment `dpl_BAMyA6kUvyoFC8VFPwH4Y15KRf7D` READY y `app.bramulab.com` verificado. Vuelta atrás: `dpl_5PcL7x8bHqu5k8M3rZPkUTRZvfjD` (`04.50-h1`). Sin SQL, Supabase, `main`, BRAMUlive ni web. Verificación funcional automatizada y del despliegue; no se repitió un alta real en Production. Fuente maestra: `Producto/Experiencia_Inicial.md` §35.
+
+---
+
+## 15/10/2026 — Hotfix de contraseña `04.50-h1` PUBLICADO en Production (antecedente)
 
 **Motivo:** usuarios reales no entendían por qué no podían completar el alta cuando les faltaba un símbolo. **Cambio UX:** checklist de requisitos situado ANTES de «Repetir contraseña»; este último queda inhabilitado hasta cumplirlos. Al intentar avanzar con una contraseña incompleta, solo los requisitos faltantes se pintan en rojo y se explica cómo completarlos; al corregir, se habilita repetición y desaparece el error. Ejemplos visibles de símbolos `! + - . , *`. También se corrigió la detección de símbolo en `player-identity.js`: letras con acento y espacios no se consideran signos. No cambia ningún contrato de cuenta, correos, perfiles, consentimientos o dato deportivo.
 
