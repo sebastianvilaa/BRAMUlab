@@ -205,7 +205,7 @@
 // casilla opcional en el alta, fila «Medición de uso» en Configuración). La medición queda APAGADA hasta que el servidor fije la versión vigente.
 // V04.39 (09/10/2026) — Ronda 1 post-lanzamiento: Bienvenida con la fotografía de BRAMUlab-Inicio (bundle h5), invitación genérica en Buscar jugadores y Ayuda / Preguntas frecuentes.
 // V04.40 (09/10/2026) — cierre de Ronda 1 + Ronda 2: mensaje de invitación definitivo, tarjeta azul BRAMU, Ayuda en 9 preguntas / 4 categorías y descubrimiento de jugadores en Buscar jugadores (RPC get_player_discovery).
-const CACHE_NAME = 'bramulab-v04-50-h1';
+const CACHE_NAME = 'bramulab-v04-50-h2';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
