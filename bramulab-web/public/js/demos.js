@@ -383,7 +383,7 @@
   /* Bucle de las cuatro demostraciones del recorrido «Cómo funciona»: secuencia completa → pausa de ~5 s con el estado final → fundido corto → vuelve a empezar,
      mientras la demo siga activa (visible). `deactivate`/`finish` y las pestañas en segundo plano cortan el ciclo sin dejar temporizadores. Con movimiento
      reducido no hay bucle: se muestra el estado final. (Las mini-demos de las preguntas frecuentes siguen reproduciéndose una vez al abrirse.) */
-  var LOOP_PAUSE = 5000, LOOP_FADE = 380;
+  var LOOP_PAUSE = 5000, LOOP_FADE = 380, LOOP_MAX = 3;   // hasta 3 reproducciones por activación; luego queda en el estado final
   var SEQ_MS = { 1: 7800, 2: 6800, 3: 4300, 4: 9300 };   // fin de cada secuencia (ms, medido sobre sus líneas de tiempo)
   var looping = {};                                       // n -> { timer }
   function demoEl(n) { return $('.demo--' + n); }
@@ -397,8 +397,10 @@
     var l = looping[n] = looping[n] || {};
     var el = demoEl(n); if (el) el.classList.remove('is-loopfade');
     d.play();
+    l.n = (l.n || 0) + 1;
     l.timer = setTimeout(function () {
       if (!looping[n]) return;
+      if (l.n >= LOOP_MAX) return;                        // última vez: se queda en el estado final
       if (el) el.classList.add('is-loopfade');            // fundido: la repetición no «salta»
       l.timer = setTimeout(function () { if (looping[n]) loopPlay(n); }, LOOP_FADE);
     }, SEQ_MS[n] + LOOP_PAUSE);

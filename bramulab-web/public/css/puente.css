@@ -5,7 +5,7 @@
 
 .bridge {
   --vis: clamp(96px, 27vw, 150px);
-  --at1: .1s; --at2: 5.3s; --at3: 7.4s;   /* el peloteo (~4 s) termina antes de que el conector lleve la pelota al celular */
+  --at1: .1s; --at2: 1.3s; --at3: 3.4s;   /* «La guardás» arranca apenas la pelota cruza la red la primera vez; el peloteo (~4 s) sigue mientras tanto */
   position: relative; padding: clamp(44px, 9vw, 84px) 0 clamp(40px, 8vw, 72px); background: var(--ink-1); overflow: hidden;
 }
 .bridge::before {                                  /* luz de cancha, muy contenida */
@@ -99,9 +99,9 @@
 }
 
 /* conector: el relleno crece en dos tramos y la pelota lo recorre */
-.bridge.is-armed .bridge__fill { animation-name: pv-fill; animation-delay: 4.1s; --dur: 4.4s; animation-timing-function: linear; }
+.bridge.is-armed .bridge__fill { animation-name: pv-fill; animation-delay: .6s; --dur: 4.4s; animation-timing-function: linear; }
 @keyframes pv-fill { 0% { transform: scaleX(0); } 21% { transform: scaleX(.5); } 48% { transform: scaleX(.5); } 71% { transform: scaleX(1); } 100% { transform: scaleX(1); } }
-.bridge.is-armed .bridge__ball { animation-name: pv-travel; animation-delay: 4.1s; --dur: 4.4s; animation-timing-function: linear; }
+.bridge.is-armed .bridge__ball { animation-name: pv-travel; animation-delay: .6s; --dur: 4.4s; animation-timing-function: linear; }
 @keyframes pv-travel {
   0%   { left: 0%; opacity: 0; } 3% { opacity: 1; } 21% { left: 50%; opacity: 1; } 24% { left: 50%; opacity: .0; }
   48%  { left: 50%; opacity: 0; } 51% { left: 50%; opacity: 1; } 71% { left: 100%; opacity: 1; } 75%, 100% { left: 100%; opacity: 0; }

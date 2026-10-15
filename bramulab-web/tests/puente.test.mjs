@@ -138,13 +138,21 @@ test('loop de la franja: secuencia → pausa ≈ 5 s → fundido → reinicio re
   r.fire(0.9);
   assert.ok(r.classes.has('is-play'), 'arranca al entrar en pantalla');
   const wait = r.timers[r.timers.length - 1].ms;
-  assert.ok(wait >= 9000 + 4800 && wait <= 10200 + 5200, `secuencia + ~5 s de pausa (${wait} ms)`);
+  assert.ok(wait >= 5500 + 4800 && wait <= 6100 + 5200, `secuencia + ~5 s de pausa (${wait} ms)`);
   r.timers[r.timers.length - 1].fn();
   assert.ok(r.stageClasses.has('is-fade'), 'fundido antes de reiniciar');
   r.timers[r.timers.length - 1].fn();
   assert.ok(r.classes.has('is-play') && r.classes.has('is-armed') && !r.stageClasses.has('is-fade'), 'reinicio: vuelve a correr');
   r.fire(0);
   assert.ok(!r.classes.has('is-play') && !r.stageClasses.has('is-fade'), 'fuera de pantalla: detenido');
+  r.fire(0.9);           // vuelve: retoma desde cero
+  for (let play = 1; play < 3; play += 1) { r.timers[r.timers.length - 1].fn(); r.timers[r.timers.length - 1].fn(); }   // 2.ª y 3.ª reproducción
+  r.timers[r.timers.length - 1].fn();
+  assert.ok(!r.stageClasses.has('is-fade') && r.classes.has('is-play'), 'tras la 3.ª vez no hay más fundido ni reinicio: queda en el estado final');
+  const before = r.timers.length; r.fire(0.9);
+  assert.equal(r.timers.length, before, 'sigue visible: no se vuelve a armar');
+  r.fire(0); r.fire(0.9);
+  assert.ok(r.classes.has('is-play') && r.timers.length > before, 'al salir y volver retoma desde cero');
   r.fire(0.9);
   assert.ok(r.classes.has('is-play'), 'vuelve a correr al regresar');
   assert.match(js, /el\.classList\.remove\('is-play', 'is-armed'\);\s*void el\.offsetWidth;\s*el\.classList\.add\('is-armed'\)/, 'reinicio real de las animaciones CSS');
@@ -162,7 +170,8 @@ test('movimiento reducido (y sin IntersectionObserver): la franja no se arma ni 
 
 test('tutorial «Cómo funciona»: las 4 demostraciones repiten en bucle (pausa ≈ 5 s, fundido, reinicio) y se detienen al desactivarse; movimiento reducido = estado final', () => {
   const demos = read('public/js/demos.js');
-  assert.match(demos, /var LOOP_PAUSE = 5000, LOOP_FADE = 380;/);
+  assert.match(demos, /var LOOP_PAUSE = 5000, LOOP_FADE = 380, LOOP_MAX = 3;/);
+  assert.match(demos, /if \(l\.n >= LOOP_MAX\) return;/, 'tope de 3 reproducciones por activación');
   assert.match(demos, /var SEQ_MS = \{ 1: 7800, 2: 6800, 3: 4300, 4: 9300 \};/);
   assert.match(demos, /function activate\(n\) \{[\s\S]*loopStop\(n\);[\s\S]*if \(reduced\(\)\) \{ d\.finish\(\); return; \}[\s\S]*loopPlay\(n\);/);
   assert.match(demos, /function deactivate\(n\) \{ loopStop\(n\);/);
