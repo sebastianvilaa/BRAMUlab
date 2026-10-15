@@ -57,7 +57,7 @@ test('movimiento: base = estado final; animaciones solo con JS armado; reduced-m
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.bridge__ball \{ display: none; \}\s*\.bridge\.is-armed \* \{ animation: none !important; \}/);
   assert.match(js, /if \(mq\.matches \|\| !\('IntersectionObserver' in window\)\) return;/, 'sin movimiento o sin IO: queda estático');
   assert.match(js, /classList\.add\('is-armed'\)/);
-  const keyframes = css.split('/* Escritorio')[0].split('@keyframes').slice(1).join('\n'); // todo lo que está dentro de las @keyframes (previas al bloque de escritorio)
+  const keyframes = [...css.matchAll(/@keyframes [\w-]+ \{/g)].map((m) => { let d = 0; let i = m.index + m[0].length - 1; const st = i; for (; i < css.length; i += 1) { if (css[i] === '{') d += 1; else if (css[i] === '}') { d -= 1; if (d === 0) break; } } return css.slice(st, i + 1); }).join('\n'); // cuerpo de cada @keyframes
   assert.doesNotMatch(keyframes, /\b(width|height|margin|padding|top)\s*:/, 'solo transform/opacity/stroke/left del puntito');
   assert.match(css, /\.bridge \{[^}]*overflow: hidden/);
 });
@@ -132,31 +132,37 @@ function runPuente({ reduce, io = true }) {
   return { classes, stageClasses, timers, fire: (ratio) => observer([{ intersectionRatio: ratio }]) };
 }
 
-test('loop de la franja: secuencia → pausa ≈ 5 s → fundido → reinicio real; se suspende al salir de pantalla', () => {
+test('franja «viva»: secuencia inicial una vez → is-live (sin reinicios, fundidos ni tope); se detiene al salir y retoma desde cero', () => {
   const r = runPuente({ reduce: false });
-  assert.ok(r.classes.has('is-armed') && !r.classes.has('is-play'));
+  assert.ok(r.classes.has('is-armed') && !r.classes.has('is-play') && !r.classes.has('is-live'));
   r.fire(0.9);
-  assert.ok(r.classes.has('is-play'), 'arranca al entrar en pantalla');
-  const wait = r.timers[r.timers.length - 1].ms;
-  assert.ok(wait >= 5500 + 4800 && wait <= 6100 + 5200, `secuencia + ~5 s de pausa (${wait} ms)`);
-  r.timers[r.timers.length - 1].fn();
-  assert.ok(r.stageClasses.has('is-fade'), 'fundido antes de reiniciar');
-  r.timers[r.timers.length - 1].fn();
-  assert.ok(r.classes.has('is-play') && r.classes.has('is-armed') && !r.stageClasses.has('is-fade'), 'reinicio: vuelve a correr');
+  assert.ok(r.classes.has('is-play') && !r.classes.has('is-live'), 'arranca la secuencia al entrar en pantalla');
+  assert.equal(r.timers.length, 1);
+  assert.ok(r.timers[0].ms >= 5500 && r.timers[0].ms <= 6100, `la vida continua empieza al terminar la secuencia (${r.timers[0].ms} ms)`);
+  r.timers[0].fn();
+  assert.ok(r.classes.has('is-live') && r.classes.has('is-play'));
+  assert.equal(r.timers.length, 1, 'no quedan más temporizadores: nada se reinicia ni se repite por JS');
+  assert.ok(!r.stageClasses.has('is-fade'), 'nunca hay fundido ni desaparece el contenido');
+  r.fire(0.9);
+  assert.equal(r.timers.length, 1, 'seguir visible no reinicia nada');
   r.fire(0);
-  assert.ok(!r.classes.has('is-play') && !r.stageClasses.has('is-fade'), 'fuera de pantalla: detenido');
-  r.fire(0.9);           // vuelve: retoma desde cero
-  for (let play = 1; play < 3; play += 1) { r.timers[r.timers.length - 1].fn(); r.timers[r.timers.length - 1].fn(); }   // 2.ª y 3.ª reproducción
-  r.timers[r.timers.length - 1].fn();
-  assert.ok(!r.stageClasses.has('is-fade') && r.classes.has('is-play'), 'tras la 3.ª vez no hay más fundido ni reinicio: queda en el estado final');
-  const before = r.timers.length; r.fire(0.9);
-  assert.equal(r.timers.length, before, 'sigue visible: no se vuelve a armar');
-  r.fire(0); r.fire(0.9);
-  assert.ok(r.classes.has('is-play') && r.timers.length > before, 'al salir y volver retoma desde cero');
+  assert.ok(!r.classes.has('is-play') && !r.classes.has('is-live') && r.classes.has('is-armed'), 'fuera de pantalla: todo detenido');
   r.fire(0.9);
-  assert.ok(r.classes.has('is-play'), 'vuelve a correr al regresar');
-  assert.match(js, /el\.classList\.remove\('is-play', 'is-armed'\);\s*void el\.offsetWidth;\s*el\.classList\.add\('is-armed'\)/, 'reinicio real de las animaciones CSS');
+  assert.ok(r.classes.has('is-play') && !r.classes.has('is-live'), 'al volver retoma desde cero');
   assert.match(js, /visibilitychange/);
+  assert.doesNotMatch(js, /MAX_PLAYS|is-fade|PAUSE/);
+});
+
+test('vida continua: peloteo infinito y empalmado; destello del celular, tilde que late y barras que se re-arman (solo bajo .is-live, con elementos propios)', () => {
+  assert.match(css, /\.pv-fly \{[^}]*animation-iteration-count: infinite/);
+  assert.match(css, /\.pv-ball \{[^}]*animation-iteration-count: infinite/);
+  const rally = css.slice(css.indexOf('@keyframes pv-rally'), css.indexOf('@keyframes pv-lob'));
+  assert.match(rally, /0%\s*\{ transform: translate\(0, 0\); \}[\s\S]*100% \{ transform: translate\(0, 0\); \}/, 'empalma: la pelota no salta al reiniciar el ciclo');
+  for (const re of [/\.bridge\.is-live \.pv-glint \{ animation: pv-glint/, /\.bridge\.is-live \.bs--2 \.pv-live-ok \{ animation: pv-tick/, /\.bridge\.is-live \.pv-barw \{ animation: pv-rebuild/, /\.bridge\.is-live \.pv-spark \{ animation: pv-spark/]) assert.match(css, re);
+  assert.match(css, /@keyframes pv-rebuild \{[\s\S]*?scaleY\(\.08\)/, 'las barras se desarman y se vuelven a armar');
+  assert.doesNotMatch(css.slice(css.indexOf('Vida continua'), css.indexOf('/* Escritorio')), /\.bs__k|\.bs__t/, 'los textos no participan: quedan quietos');
+  assert.match(section, /class="pv-glint"/); assert.match(section, /class="pv-spark"/);
+  assert.equal([...section.matchAll(/class="pv-barw"/g)].length, 4);
 });
 
 test('movimiento reducido (y sin IntersectionObserver): la franja no se arma ni se repite; queda el estado final estático', () => {

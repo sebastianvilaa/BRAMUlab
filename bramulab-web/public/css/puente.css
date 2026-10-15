@@ -1,4 +1,4 @@
-/* BRAMUlab Web · franja «Jugás. Lo cargás. Empieza a sumar.» — puente narrativo entre el hero y «Cómo funciona».
+/* BRAMUlab Web · franja «Cada partido tiene una historia.» — puente narrativo entre el hero y «Cómo funciona».
    Tres momentos conectados (Jugaste → Lo cargás → Empieza a contar). Es una secuencia CONCEPTUAL: sin estadísticas, usuarios ni métricas reales.
    Base = estado FINAL (se entiende sin animaciones, sin JS y con movimiento reducido). Con JS y movimiento permitido, `.is-armed` deja cada pieza en su
    estado inicial (animaciones pausadas en t=0) y `.is-play` las corre una vez al entrar en pantalla. Solo transform/opacity/stroke: no afecta al scroll. */
@@ -17,8 +17,6 @@
 .bridge__title span { white-space: nowrap; }
 
 .bridge__stage { position: relative; }
-.bridge.is-armed .bridge__stage { transition: opacity .38s var(--ease); }
-.bridge.is-armed .bridge__stage.is-fade { opacity: 0; }
 .bridge__steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(8px, 3vw, 36px); position: relative; z-index: 1; }
 .bs { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; }
 .bs__vis {
@@ -76,18 +74,17 @@
   to   { opacity: 1; }
 }
 
-/* 1 · La jugás: peloteo — la pelota cruza la red y vuelve (4 cruces, ~1 s cada uno: ritmo pausado). El grupo viaja en línea recta (con su sombra a ras de
+/* 1 · La jugás: peloteo CONTINUO — la pelota cruza la red y vuelve (4 cruces por vuelta, ~1 s cada uno: ritmo pausado) y no se frena nunca mientras la sección es visible. El grupo viaja en línea recta (con su sombra a ras de
    cancha); la pelota se agranda hacia el centro de cada cruce (altura vista desde arriba). */
-.bridge.is-armed .pv-fly { animation-name: pv-rally; animation-delay: calc(var(--at1) + .15s); --dur: 4s; animation-timing-function: linear; }
-.bridge.is-armed .pv-ball { animation-name: pv-lob; animation-delay: calc(var(--at1) + .15s); --dur: 4s; animation-timing-function: linear; }
-.bridge.is-armed .pv-shadow { animation-name: pv-shadow; animation-delay: calc(var(--at1) + .15s); --dur: 4s; animation-timing-function: linear; }
+.bridge.is-armed .pv-fly { animation-name: pv-rally; animation-delay: calc(var(--at1) + .15s); --dur: 4s; animation-timing-function: linear; animation-iteration-count: infinite; }
+.bridge.is-armed .pv-ball { animation-name: pv-lob; animation-delay: calc(var(--at1) + .15s); --dur: 4s; animation-timing-function: linear; animation-iteration-count: infinite; }
+.bridge.is-armed .pv-shadow { animation-name: pv-shadow; animation-delay: calc(var(--at1) + .15s); --dur: 4s; animation-timing-function: linear; animation-iteration-count: infinite; }
 @keyframes pv-rally {   /* desplazamiento respecto de la posición final (62, 94), en el fondo de la cancha */
-  0%   { opacity: 0; transform: translate(-6px, 0); }
-  4%   { opacity: 1; }
+  0%   { transform: translate(0, 0); }                 /* empalma con el final: el peloteo nunca se corta */
   25%  { transform: translate(6px, -66px); }
   50%  { transform: translate(-12px, -4px); }
   75%  { transform: translate(4px, -64px); }
-  100% { opacity: 1; transform: translate(0, 0); }
+  100% { transform: translate(0, 0); }
 }
 @keyframes pv-lob {     /* altura: crece hasta pasar la red y baja al otro lado (sube decelerando, baja acelerando) */
   0%, 25%, 50%, 75%, 100% { transform: translate(0, 0) scale(1); animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
@@ -121,16 +118,38 @@
 
 /* 3 · Empieza a contar: barras que suben, línea que se dibuja y una fila nueva que entra al historial */
 .bridge.is-armed .pv-bar { animation-name: pv-rise; --dur: .8s; }
-.bridge.is-armed .pv-bar:nth-of-type(1) { animation-delay: calc(var(--at3) + .15s); }
-.bridge.is-armed .pv-bar:nth-of-type(2) { animation-delay: calc(var(--at3) + .27s); }
-.bridge.is-armed .pv-bar:nth-of-type(3) { animation-delay: calc(var(--at3) + .39s); }
-.bridge.is-armed .pv-bar:nth-of-type(4) { animation-delay: calc(var(--at3) + .51s); }
+.bridge.is-armed .pv-barw:nth-child(1) .pv-bar { animation-delay: calc(var(--at3) + .15s); }
+.bridge.is-armed .pv-barw:nth-child(2) .pv-bar { animation-delay: calc(var(--at3) + .27s); }
+.bridge.is-armed .pv-barw:nth-child(3) .pv-bar { animation-delay: calc(var(--at3) + .39s); }
+.bridge.is-armed .pv-barw:nth-child(4) .pv-bar { animation-delay: calc(var(--at3) + .51s); }
 .bridge.is-armed .pv-trend { animation-name: pv-draw; animation-delay: calc(var(--at3) + .5s); --dur: 1.1s; }
 .bridge.is-armed .pv-row { animation-name: pv-slide; animation-delay: calc(var(--at3) + 1.1s); --dur: .8s; }
 .bridge.is-armed .bs--3 .pv-ok { animation-name: pv-check; animation-delay: calc(var(--at3) + 1.7s); --dur: .5s; transform-box: fill-box; transform-origin: center; }
 @keyframes pv-rise { from { transform: scaleY(.04); opacity: .4; } to { transform: scaleY(1); opacity: .85; } }
 @keyframes pv-draw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
 @keyframes pv-slide { 0% { opacity: 0; transform: translateY(14px); } 100% { opacity: 1; transform: none; } }
+
+/* ---- Vida continua (`.is-live`: se agrega después de la secuencia inicial y se quita al salir de pantalla; NADA se reinicia ni desaparece) ----
+   La jugada sigue (peloteo infinito, arriba); el celular tiene un destello; el tilde «late»; las barras de estadística se vuelven a armar y una chispa
+   recorre la línea, mientras todos los textos quedan quietos. Son elementos propios (no los de la secuencia inicial): solo transform/opacity/trazo. */
+.pv-glint, .pv-spark, .pv-live-ok, .pv-barw, .pv-rowbg { transform-box: fill-box; transform-origin: center; }
+.pv-glint { opacity: 0; }
+.pv-spark { fill: none; stroke: var(--lime); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 14 86; stroke-dashoffset: 14; opacity: 0; }
+.pv-barw { transform-origin: 50% 100%; }
+.bridge.is-live .pv-glint { animation: pv-glint 4.2s ease-in-out 1s infinite; }
+.bridge.is-live .bs--2 .pv-live-ok { animation: pv-tick 3.4s ease-in-out 1.6s infinite; }
+.bridge.is-live .bs--3 .pv-live-ok { animation: pv-tick 3.4s ease-in-out 2.4s infinite; }
+.bridge.is-live .pv-barw { animation: pv-rebuild 6.4s ease-in-out infinite; }
+.bridge.is-live .pv-barw:nth-child(2) { animation-delay: .14s; }
+.bridge.is-live .pv-barw:nth-child(3) { animation-delay: .28s; }
+.bridge.is-live .pv-barw:nth-child(4) { animation-delay: .42s; }
+.bridge.is-live .pv-spark { animation: pv-spark 6.4s linear infinite; }
+.bridge.is-live .pv-rowbg { animation: pv-glow 3.2s ease-in-out infinite; }
+@keyframes pv-glint { 0% { opacity: 0; transform: translateX(0); } 8% { opacity: 1; } 34% { opacity: 1; transform: translateX(140px); } 40%, 100% { opacity: 0; transform: translateX(140px); } }
+@keyframes pv-tick { 0%, 62%, 100% { transform: scale(1) rotate(0); } 72% { transform: scale(1.22) rotate(-10deg); } 82% { transform: scale(.94) rotate(6deg); } 92% { transform: scale(1.06) rotate(0); } }
+@keyframes pv-rebuild { 0%, 52% { transform: scaleY(1); } 58% { transform: scaleY(.08); } 80% { transform: scaleY(1.06); } 86%, 100% { transform: scaleY(1); } }
+@keyframes pv-spark { 0%, 58% { opacity: 0; stroke-dashoffset: 14; } 60% { opacity: 1; stroke-dashoffset: 14; } 88% { opacity: 1; stroke-dashoffset: -100; } 90%, 100% { opacity: 0; stroke-dashoffset: -100; } }
+@keyframes pv-glow { 0%, 100% { stroke-opacity: .55; } 50% { stroke-opacity: 1; } }
 
 /* Escritorio: más aire entre los tres momentos */
 @media (min-width: 820px) {
