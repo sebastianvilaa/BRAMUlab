@@ -1,5 +1,5 @@
 /* BRAMUlab Web · franja «Cada partido tiene una historia.»: arma la secuencia y la repite en bucle mientras la sección está visible.
-   Ciclo = secuencia (~8,3 s) + pausa de ~3 s con el estado final completo + fundido corto y reinicio. Se suspende (sin temporizadores ni
+   Ciclo = secuencia (~9,7 s) + pausa de ~5 s con el estado final completo + fundido corto y reinicio. Se suspende (sin temporizadores ni
    animaciones corriendo) cuando la sección sale de pantalla o la pestaña pasa a segundo plano. Sin JS, sin IntersectionObserver o con
    movimiento reducido NO se arma: queda el estado final estático (el relato se entiende igual). Solo alterna clases; el movimiento es CSS. */
 (function () {
@@ -10,7 +10,7 @@
   var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
   if (mq.matches || !('IntersectionObserver' in window)) return;
 
-  var SEQ = 8300, PAUSE = 3000, FADE = 400;
+  var SEQ = 9700, PAUSE = 5000, FADE = 400;
   var inView = false, timer = null;
 
   function stop() {

@@ -87,29 +87,33 @@ test('BRAMU Metrics intacto: un único script de medición, y la copia publicada
   assert.ok(fs.existsSync(path.join(web, 'api/metrics.js')));
 });
 
-test('cancha: proporciones reales 20 × 10 m — red al centro, líneas de saque a 6,95 m de la red, línea central entre ellas', () => {
+test('cancha: VERTICAL con proporciones reales 10 × 20 m — red al centro, líneas de saque a 6,95 m de la red, línea central entre ellas', () => {
   const svg = section.slice(section.indexOf('<svg'), section.indexOf('</svg>'));
-  const wall = svg.match(/class="pv-line pv-wall" x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)"/).slice(1).map(Number);
-  const [x, y, w, h] = wall;
-  assert.equal(w / h, 2, 'largo : ancho = 2 : 1 (20 m × 10 m)');
-  const net = svg.match(/pv-net" x1="(\d+)" y1="(\d+)" x2="(\d+)"/).slice(1).map(Number);
-  assert.equal(net[0], x + w / 2, 'la red está justo en el centro del largo');
-  const serviceX = [...svg.matchAll(/M(\d+) \d+v\d+M(\d+) \d+v\d+M(\d+) \d+h(\d+)/g)][0].slice(1).map(Number);
-  const mPerUnit = 20 / w;
-  assert.ok(Math.abs((net[0] - serviceX[0]) * mPerUnit - 6.95) < 0.2, 'línea de saque a ~6,95 m de la red');
-  assert.ok(Math.abs((serviceX[1] - net[0]) * mPerUnit - 6.95) < 0.2);
-  assert.equal(serviceX[2], serviceX[0], 'la línea central va de línea de saque a línea de saque');
-  assert.equal(serviceX[2] + serviceX[3], serviceX[1]);
-  assert.ok(Number(svg.match(/pv-fly/g).length) >= 1);
+  const [x, y, w, h] = svg.match(/class="pv-line pv-wall" x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)"/).slice(1).map(Number);
+  assert.ok(h > w, 'vertical (más alta que ancha)');
+  assert.equal(h / w, 2, 'largo : ancho = 2 : 1 (20 m × 10 m)');
+  const netY = Number(svg.match(/pv-net" x1="\d+" y1="(\d+)"/)[1]);
+  assert.equal(netY, y + h / 2, 'la red está justo en el centro del largo');
+  const m = svg.match(/M(\d+) (\d+)h\d+M(\d+) (\d+)h\d+M(\d+) (\d+)v(\d+)/).slice(1).map(Number);
+  const svcTop = m[1]; const svcBottom = m[3]; const centerX = m[4]; const centerY = m[5]; const centerLen = m[6];
+  const mPerUnit = 20 / h;
+  assert.ok(Math.abs((netY - svcTop) * mPerUnit - 6.95) < 0.2, 'línea de saque a ~6,95 m de la red (lado superior)');
+  assert.ok(Math.abs((svcBottom - netY) * mPerUnit - 6.95) < 0.2, '… e inferior');
+  assert.equal(centerY, svcTop, 'la línea central va de línea de saque a línea de saque');
+  assert.equal(centerY + centerLen, svcBottom);
+  assert.equal(centerX, x + w / 2, 'centrada');
+  assert.ok(svg.includes('pv-fly'));
 });
 
-test('peloteo: la pelota cruza la red 5 veces (hacia un lado y el otro), con altura propia y sombra', () => {
+test('peloteo: la pelota cruza la red 4 veces (de un lado al otro), ~1 s por cruce, con altura propia y sombra', () => {
   const rally = css.slice(css.indexOf('@keyframes pv-rally'), css.indexOf('@keyframes pv-lob'));
-  const xs = [...rally.matchAll(/translate\((-?\d+)(?:px)?,/g)].map((m) => Number(m[1]));
-  const sides = xs.map((v) => (v < -40 ? 'L' : 'R'));
+  const ys = [...rally.matchAll(/translate\((-?\d+)(?:px)?, (-?\d+)(?:px)?\)/g)].map((m) => Number(m[2]));
+  const sides = ys.map((v) => (v < -33 ? 'top' : 'bottom'));   // la red está a ~33 u. del fondo de la cancha
   let crossings = 0; for (let i = 1; i < sides.length; i += 1) if (sides[i] !== sides[i - 1]) crossings += 1;
-  assert.equal(crossings, 5);
-  assert.match(css, /@keyframes pv-lob \{[\s\S]*translateY\(-12px\) scale\(1\.3\)/);
+  assert.equal(crossings, 4);
+  const dur = Number(css.match(/\.pv-fly \{[^}]*--dur: ([\d.]+)s/)[1]);
+  assert.ok(dur / crossings >= 0.9, `ritmo pausado: ${dur / crossings} s por cruce`);
+  assert.match(css, /@keyframes pv-lob \{[\s\S]*scale\(1\.4\)/);
   assert.match(css, /@keyframes pv-shadow/);
 });
 
@@ -128,13 +132,13 @@ function runPuente({ reduce, io = true }) {
   return { classes, stageClasses, timers, fire: (ratio) => observer([{ intersectionRatio: ratio }]) };
 }
 
-test('loop de la franja: secuencia → pausa ≈ 3 s → fundido → reinicio real; se suspende al salir de pantalla', () => {
+test('loop de la franja: secuencia → pausa ≈ 5 s → fundido → reinicio real; se suspende al salir de pantalla', () => {
   const r = runPuente({ reduce: false });
   assert.ok(r.classes.has('is-armed') && !r.classes.has('is-play'));
   r.fire(0.9);
   assert.ok(r.classes.has('is-play'), 'arranca al entrar en pantalla');
   const wait = r.timers[r.timers.length - 1].ms;
-  assert.ok(wait >= 8000 + 2800 && wait <= 8800 + 3200, `secuencia + ~3 s de pausa (${wait} ms)`);
+  assert.ok(wait >= 9000 + 4800 && wait <= 10200 + 5200, `secuencia + ~5 s de pausa (${wait} ms)`);
   r.timers[r.timers.length - 1].fn();
   assert.ok(r.stageClasses.has('is-fade'), 'fundido antes de reiniciar');
   r.timers[r.timers.length - 1].fn();
@@ -156,9 +160,9 @@ test('movimiento reducido (y sin IntersectionObserver): la franja no se arma ni 
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.bridge__ball \{ display: none; \}/);
 });
 
-test('tutorial «Cómo funciona»: las 4 demostraciones repiten en bucle (pausa ≈ 3 s, fundido, reinicio) y se detienen al desactivarse; movimiento reducido = estado final', () => {
+test('tutorial «Cómo funciona»: las 4 demostraciones repiten en bucle (pausa ≈ 5 s, fundido, reinicio) y se detienen al desactivarse; movimiento reducido = estado final', () => {
   const demos = read('public/js/demos.js');
-  assert.match(demos, /var LOOP_PAUSE = 3000, LOOP_FADE = 380;/);
+  assert.match(demos, /var LOOP_PAUSE = 5000, LOOP_FADE = 380;/);
   assert.match(demos, /var SEQ_MS = \{ 1: 7800, 2: 6800, 3: 4300, 4: 9300 \};/);
   assert.match(demos, /function activate\(n\) \{[\s\S]*loopStop\(n\);[\s\S]*if \(reduced\(\)\) \{ d\.finish\(\); return; \}[\s\S]*loopPlay\(n\);/);
   assert.match(demos, /function deactivate\(n\) \{ loopStop\(n\);/);

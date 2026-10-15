@@ -5,7 +5,7 @@
 
 .bridge {
   --vis: clamp(96px, 27vw, 150px);
-  --at1: .1s; --at2: 3.9s; --at3: 6.0s;   /* el peloteo (~2,6 s) termina antes de que el conector lleve la pelota al celular */
+  --at1: .1s; --at2: 5.3s; --at3: 7.4s;   /* el peloteo (~4 s) termina antes de que el conector lleve la pelota al celular */
   position: relative; padding: clamp(44px, 9vw, 84px) 0 clamp(40px, 8vw, 72px); background: var(--ink-1); overflow: hidden;
 }
 .bridge::before {                                  /* luz de cancha, muy contenida */
@@ -76,33 +76,32 @@
   to   { opacity: 1; }
 }
 
-/* 1 · La jugás: peloteo — la pelota cruza la red y vuelve (5 cruces en ~2,6 s). El grupo viaja en línea recta (con su sombra a ras de cancha); la pelota
-   sube y baja en cada cruce (altura = desplazamiento vertical + un poco más de tamaño), como un peloteo visto desde arriba. */
-.bridge.is-armed .pv-fly { animation-name: pv-rally; animation-delay: calc(var(--at1) + .15s); --dur: 2.6s; animation-timing-function: linear; }
-.bridge.is-armed .pv-ball { animation-name: pv-lob; animation-delay: calc(var(--at1) + .15s); --dur: 2.6s; animation-timing-function: linear; }
-.bridge.is-armed .pv-shadow { animation-name: pv-shadow; animation-delay: calc(var(--at1) + .15s); --dur: 2.6s; animation-timing-function: linear; }
-@keyframes pv-rally {   /* desplazamiento respecto de la posición final (98, 56) */
-  0%   { opacity: 0; transform: translate(-76px, 14px); }
+/* 1 · La jugás: peloteo — la pelota cruza la red y vuelve (4 cruces, ~1 s cada uno: ritmo pausado). El grupo viaja en línea recta (con su sombra a ras de
+   cancha); la pelota se agranda hacia el centro de cada cruce (altura vista desde arriba). */
+.bridge.is-armed .pv-fly { animation-name: pv-rally; animation-delay: calc(var(--at1) + .15s); --dur: 4s; animation-timing-function: linear; }
+.bridge.is-armed .pv-ball { animation-name: pv-lob; animation-delay: calc(var(--at1) + .15s); --dur: 4s; animation-timing-function: linear; }
+.bridge.is-armed .pv-shadow { animation-name: pv-shadow; animation-delay: calc(var(--at1) + .15s); --dur: 4s; animation-timing-function: linear; }
+@keyframes pv-rally {   /* desplazamiento respecto de la posición final (62, 94), en el fondo de la cancha */
+  0%   { opacity: 0; transform: translate(-6px, 0); }
   4%   { opacity: 1; }
-  20%  { transform: translate(0, -6px); }
-  40%  { transform: translate(-76px, 10px); }
-  60%  { transform: translate(0, -2px); }
-  80%  { transform: translate(-76px, 4px); }
+  25%  { transform: translate(6px, -66px); }
+  50%  { transform: translate(-12px, -4px); }
+  75%  { transform: translate(4px, -64px); }
   100% { opacity: 1; transform: translate(0, 0); }
 }
-@keyframes pv-lob {     /* altura: sube (decelera) y baja (acelera) en cada cruce; toca la cancha en los extremos */
-  0%, 20%, 40%, 60%, 80%, 100% { transform: translateY(0) scale(1); animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
-  10%, 30%, 50%, 70%, 90% { transform: translateY(-12px) scale(1.3); animation-timing-function: cubic-bezier(.6, 0, .8, .3); }
+@keyframes pv-lob {     /* altura: crece hasta pasar la red y baja al otro lado (sube decelerando, baja acelerando) */
+  0%, 25%, 50%, 75%, 100% { transform: translate(0, 0) scale(1); animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
+  12.5%, 37.5%, 62.5%, 87.5% { transform: translate(-5px, -3px) scale(1.4); animation-timing-function: cubic-bezier(.6, 0, .8, .3); }
 }
 @keyframes pv-shadow {  /* la sombra se achica y se aclara con la altura */
-  0%, 20%, 40%, 60%, 80%, 100% { opacity: 1; transform: scale(1); }
-  10%, 30%, 50%, 70%, 90% { opacity: .45; transform: scale(.7); }
+  0%, 25%, 50%, 75%, 100% { opacity: 1; transform: scale(1); }
+  12.5%, 37.5%, 62.5%, 87.5% { opacity: .45; transform: scale(.7); }
 }
 
 /* conector: el relleno crece en dos tramos y la pelota lo recorre */
-.bridge.is-armed .bridge__fill { animation-name: pv-fill; animation-delay: 2.7s; --dur: 4.4s; animation-timing-function: linear; }
+.bridge.is-armed .bridge__fill { animation-name: pv-fill; animation-delay: 4.1s; --dur: 4.4s; animation-timing-function: linear; }
 @keyframes pv-fill { 0% { transform: scaleX(0); } 21% { transform: scaleX(.5); } 48% { transform: scaleX(.5); } 71% { transform: scaleX(1); } 100% { transform: scaleX(1); } }
-.bridge.is-armed .bridge__ball { animation-name: pv-travel; animation-delay: 2.7s; --dur: 4.4s; animation-timing-function: linear; }
+.bridge.is-armed .bridge__ball { animation-name: pv-travel; animation-delay: 4.1s; --dur: 4.4s; animation-timing-function: linear; }
 @keyframes pv-travel {
   0%   { left: 0%; opacity: 0; } 3% { opacity: 1; } 21% { left: 50%; opacity: 1; } 24% { left: 50%; opacity: .0; }
   48%  { left: 50%; opacity: 0; } 51% { left: 50%; opacity: 1; } 71% { left: 100%; opacity: 1; } 75%, 100% { left: 100%; opacity: 0; }
