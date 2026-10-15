@@ -7082,6 +7082,7 @@
   }
 
   let signupStep = 1;
+  let signupPasswordWarning = false; // V04.50-h1: revelar los requisitos pendientes al salir del campo.
   let signupDraft = {};
   let signupPhotoDataUrl = null;
 
@@ -7114,6 +7115,7 @@
   let nivelOnboardingContext = 'account';
 
   function resetSignupWizard() {
+    signupPasswordWarning = false;
     signupStep = 1;
     signupDraft = {};
     signupPhotoDataUrl = null;
@@ -7219,6 +7221,32 @@
     return strength;
   }
 
+  // V04.50-h1: la contraseña se verifica ANTES de permitir repetirla. No introduce
+  // reglas nuevas: usa exactamente PLI.checkPasswordStrength, fuente existente.
+  function syncSignupPasswordGate(strength) {
+    const blocked = !strength.ok;
+    const repeat = $('#signup-password-repeat');
+    repeat.disabled = blocked;
+    $('#signup-password-repeat-toggle').disabled = blocked;
+    $('#signup-password-repeat-field').classList.toggle('is-locked', blocked);
+
+    const missing = signupPasswordWarning && blocked;
+    $('#signup-password').classList.toggle('is-invalid', missing);
+    $('#signup-password').setAttribute('aria-invalid', String(missing));
+    const rules = $('#signup-password-rules');
+    rules.classList.toggle('has-missing', missing);
+    $all('#signup-password-rules li').forEach((li) => {
+      li.classList.toggle('is-missing', missing && !strength[li.dataset.rule]);
+    });
+
+    const note = $('#signup-password-guidance');
+    note.classList.toggle('is-error', missing);
+    note.classList.toggle('is-ok', !blocked);
+    note.textContent = blocked
+      ? (missing ? 'Completá lo marcado en rojo antes de repetir.' : 'Completá los requisitos para repetir la contraseña.')
+      : 'Listo. Ahora repetí la contraseña.';
+  }
+
   function recomputeSignupStepValidity() {
     let ok = false;
     if (signupStep === 1) {
@@ -7226,6 +7254,7 @@
       const password = $('#signup-password').value;
       const repeat = $('#signup-password-repeat').value;
       const strength = updatePasswordRulesUI(password, 'signup-password-rules');
+      syncSignupPasswordGate(strength);
       // Backend Bloque 2 — con backend real, "email ya usado" lo decide Supabase al hacer
       // signUp (ver initSignupWizard: mapea 'email_taken'), no la lista local: esa lista local
       // solo tiene sentido en el camino sin backend (desarrollo local).
@@ -7414,6 +7443,21 @@
     });
     ['signup-email', 'signup-password', 'signup-password-repeat'].forEach((id) => {
       $(`#${id}`).addEventListener('input', recomputeSignupStepValidity);
+    });
+    // Al salir de la primera contraseña incompleta, mostrar lo que falta en rojo.
+    // El campo Repetir permanece disabled: el teclado puede avanzar al checkbox
+    // sin una trampa de foco para accesibilidad.
+    $('#signup-password').addEventListener('blur', () => {
+      if (!PLI.checkPasswordStrength($('#signup-password').value).ok && $('#signup-password').value.length > 0) {
+        signupPasswordWarning = true;
+        recomputeSignupStepValidity();
+      }
+    });
+    $('#signup-password-repeat-field').addEventListener('pointerdown', () => {
+      if (!PLI.checkPasswordStrength($('#signup-password').value).ok && $('#signup-password').value.length > 0) {
+        signupPasswordWarning = true;
+        recomputeSignupStepValidity();
+      }
     });
     // V04.30 — feedback en tiempo real de coincidencia (no cambia ninguna regla de Auth).
     const refreshPasswordMatch = () => {
