@@ -1632,7 +1632,7 @@ Dentro de **BUSCAR JUGADORES** (sin pantallas nuevas, sin seguidores ni amistade
 
 ## 30. V04.41 – V04.46 — Rediseño de la invitación a jugadores sin cuenta
 
-> **Estado (14/10/2026): diseño y experiencia APROBADOS por Sebastián en iPhone (V04.46) y PUBLICADOS en Production el mismo día** (app `dpl_ToDGYUVzi2ZN3uKwvbnkTaS6uxdz`; enlace oficial `https://bramulab.com/invitacion/{43 caracteres}`; migración `get_invitation_card` en Supabase Production; Política aclarada sin reaceptación). Detalle, ids y reversión: `Operacion/Operacion_Vercel_Staging_Production.md`; decisiones legales abiertas: `Operacion/Privacidad_Legal.md` §21; registro: `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md`.
+> **Estado (14/10/2026): diseño y experiencia APROBADOS por Sebastián en iPhone (V04.46) y PUBLICADOS en Production el mismo día; probados por Sebastián con un usuario real en Production el 15/10/2026, sin observaciones** (app `dpl_ToDGYUVzi2ZN3uKwvbnkTaS6uxdz`; enlace oficial `https://bramulab.com/invitacion/{43 caracteres}`; migración `get_invitation_card` en Supabase Production; Política aclarada sin reaceptación). Detalle, ids y reversión: `Operacion/Operacion_Vercel_Staging_Production.md`; decisiones legales abiertas: `Operacion/Privacidad_Legal.md` §21; registro: `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md`.
 
 **Reemplaza** la hoja `COPIAR INVITACIÓN` de §15.3 («No agregar botón especial de WhatsApp en esta ronda» queda superado). **No toca** identidades provisionales, claim, vinculación explícita, recuperación, duplicados, validación deportiva, Nivel ni Ranking. Spec de la ronda (handoff de Sebastián, 14/10/2026):
 

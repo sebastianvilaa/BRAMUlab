@@ -17,9 +17,9 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
-## 14/10/2026 — Invitación a jugadores sin cuenta (V04.41 → V04.46): PUBLICADA en Production
+## 14/10/2026 — Invitación a jugadores sin cuenta (V04.41 → V04.46): PUBLICADA en Production y CERRADA (15/10/2026)
 
-App `dpl_ToDGYUVzi2ZN3uKwvbnkTaS6uxdz` (V04.46; solo 8 archivos distintos del Production anterior; Metrics intacto), migración `get_invitation_card` en Supabase Production, instancia `bramu-i-prod` y enlace oficial **`https://bramulab.com/invitacion/{código}`**; Política aclarada (`legal_v2`, sin reaceptación). Staging, `main` y BRAMUlive intactos. Abiertos: validación legal humana y primera invitación real (`Operacion/Pre_Production.md` §2.8); ids y reversión: `Operacion/Operacion_Vercel_Staging_Production.md`; fuentes: `Producto/Experiencia_Inicial.md` §30, `Operacion/Privacidad_Legal.md` §21.
+App `dpl_ToDGYUVzi2ZN3uKwvbnkTaS6uxdz` (V04.46; Metrics intacto), migración `get_invitation_card` en Supabase Production, instancia `bramu-i-prod` y enlace oficial **`https://bramulab.com/invitacion/{código}`**; Política aclarada (`legal_v2`, sin reaceptación). **Sebastián la probó con un usuario real en Production el 15/10/2026: funcionó perfectamente.** Único seguimiento (legal, independiente; no es un fallo funcional): revisión de la Política y su correspondencia con AAIP (`Operacion/Pre_Production.md` §2.8). Ids y reversión: `Operacion/Operacion_Vercel_Staging_Production.md`; fuente: `Producto/Experiencia_Inicial.md` §30.
 
 ---
 
@@ -92,7 +92,7 @@ Con autorización explícita del responsable se publicó **solo** el hotfix `04.
 | **Producto** | BRAMUlab **V04.37**. Backend Bloques 1–8, Pre-Bloque 9, 9A/9B, G1–G3 y todos los frentes P0 de salida **cerrados**. |
 | **Production** | **ACTIVA**, V04.40 / `04.40-h3` publicada el 13/10/2026, deployment `dpl_C94TxYd6QSr6tHx4dSZeZ7nmbZNK` desde SHA `a7456908` (14/10/2026: hotfix administrativo `dpl_EgQRqW8zFqx1FPZmvEXX9KmqNaSq` con pestaña Web de Metrics y Política actualizada, ver arriba); homónimos en Cargar partido. Privacidad y seguimiento AAIP: `Operacion/Privacidad_Legal.md` §19. |
 | **Staging** | **V04.40 / bundle `04.40-h3`**: normalización de @usuario y hotfix de homónimos publicados; build READY y alias independiente. Próximos cambios siguen naciendo en Staging. |
-| **Pendientes reales** | Seguimiento del expediente AAIP, smoke humano mínimo de Production, decisión de backups (G4), QA humano de la fecha de nacimiento en Android, **validación legal humana y primera invitación real de las invitaciones ya publicadas (`Pre_Production.md` §2.8)** y el frente independiente de repositorio público/GitHub Pages. Detalle: `Operacion/Pre_Production.md` §2. Ideas futuras y riesgos conocidos: `Producto/BRAMUlab_Backlog.md`. |
+| **Pendientes reales** | Seguimiento del expediente AAIP, smoke humano mínimo de Production, decisión de backups (G4), QA humano de la fecha de nacimiento en Android, **seguimiento legal de la Política de las invitaciones ya publicadas y cerradas (`Pre_Production.md` §2.8)** y el frente independiente de repositorio público/GitHub Pages. Detalle: `Operacion/Pre_Production.md` §2. Ideas futuras y riesgos conocidos: `Producto/BRAMUlab_Backlog.md`. |
 | **BRAMUlab Metrics** | **CERRADO** — publicado en Production y aprobado por Sebastián el 14/10/2026 (§3). |
 
 Historia por ronda (V04.11 – V04.37): `Versiones/README.md` (mapa) y `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md`, sección «registro consolidado de rondas».
