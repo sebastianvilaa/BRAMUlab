@@ -17,6 +17,16 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
+## 15/10/2026 — V04.50 + web V04.47 PUBLICADAS en Production (aprobación de Sebastián)
+
+**App:** BRAMUlab V04.50 desde el commit exacto `ef199a9d5098186af169636a9d115ba11238a346`, build Vercel **Production** `dpl_42GsC1rojB7KLcHrpZXQ5S9BDGJA` (READY), alias `app.bramulab.com` verificado con Get Alias. Reemplaza al deployment `dpl_ToDGYUVzi2ZN3uKwvbnkTaS6uxdz` (punto de retorno). Incluye menú, Ayuda, autoguardado, invitaciones/copiar-pegar y etiquetas Open Graph de la app; no se modificó Supabase ni el servicio de invitaciones.
+
+**Web:** franja «Cada partido tiene una historia.» y bucles aprobados, desde Preview `dpl_Hcriz2KDcQb3aGAQbLHx2zXqDXvJ` (commit de web `17af0db773603676c392f83fb8b31e9fab0f7b30`), redeploy de **Production** `dpl_7FKXg96Lginw7DLp5GBrhaQr8hrH` (READY); aliases `bramulab.com` y `www.bramulab.com` verificados. Punto de retorno web `dpl_2w8Jz1nGMBVrs2hL9SYYsgnUqXJH`. La fuente de web conserva `api/metrics.js`, `web-metrics.js`, el `vercel.json` con reescritura de `/invitacion/*` y los assets de la Preview (incluidos los no versionados en Git). Las tres variables de Web Metrics se encuentran configuradas para Production en el proyecto web (valores no consultados).
+
+**Alcance y límites de verificación:** el equipo aprobó las pantallas en Staging; se comprobaron el commit exacto, READY y los aliases con Vercel. No se completó una navegación HTTP pública independiente en esta sesión (la herramienta externa bloqueó la lectura directa de los dominios), ni una prueba real de la tarjeta WhatsApp/contador después de publicar; comprobar estos dos comportamientos puntualmente sin generar datos de prueba innecesarios. No hubo merge a `main`, cambios de Supabase ni cambios en BRAMUlive. Los deployments anteriores permanecen como puntos de reversión. Cierre administrativo del frente de Dropbox aún pendiente.
+
+---
+
 ## 15/10/2026 — V04.50 (Staging): una sola bienvenida universal
 
 Decisión final de producto: una única bienvenida (logo, claim, tres tarjetas, INICIAR SESIÓN lima y CREAR CUENTA oscuro); con invitación solo se agrega la tarjeta «Te invitaron a BRAMUlab». Las variantes de V04.48/V04.49 quedan descartadas. Fuente: `Producto/Experiencia_Inicial.md` §34. Sin cambios en Production.
