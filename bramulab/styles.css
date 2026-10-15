@@ -2972,9 +2972,6 @@ input, select{ font-family: inherit; }
 #signup-password-rules li.is-missing{ color:var(--danger); font-weight:700; }
 #signup-password-rules li.is-missing::before{ content:'!'; font-weight:800; }
 #signup-password.is-invalid{ border-bottom-color:var(--danger); }
-.signup-password-guidance{ margin:2px 0 10px; font-size:12px; color:var(--paper-dim); line-height:1.4; }
-.signup-password-guidance.is-error{ color:var(--danger); font-weight:700; }
-.signup-password-guidance.is-ok{ color:var(--brand-lime); }
 .signup-password-repeat-field.is-locked .field-with-toggle{ opacity:.42; }
 #signup-password-rules.has-missing{ animation:signup-pw-nudge .22s ease-out 1; }
 @keyframes signup-pw-nudge{ 0%,100%{ transform:translateX(0); } 25%{ transform:translateX(-3px); } 75%{ transform:translateX(3px); } }
