@@ -35,7 +35,9 @@
     const hasUpper = /[A-ZÁÉÍÓÚÑ]/.test(p);
     const hasLower = /[a-záéíóúñ]/.test(p);
     const hasNumber = /[0-9]/.test(p);
-    const hasSymbol = /[^A-Za-z0-9]/.test(p);
+    // Una letra acentuada (ej. á/ñ) y un espacio NO equivalen a un símbolo.
+    // Acepta puntuación y símbolos Unicode: ! + - . , * @ #, etc.
+    const hasSymbol = /[\p{P}\p{S}]/u.test(p);
     const hasMinLength = p.length >= PASSWORD_MIN_LENGTH;
     return {
       hasUpper, hasLower, hasNumber, hasSymbol, hasMinLength,
