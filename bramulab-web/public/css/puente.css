@@ -1,0 +1,135 @@
+/* BRAMUlab Web · franja «Jugás. Lo cargás. Empieza a sumar.» — puente narrativo entre el hero y «Cómo funciona».
+   Tres momentos conectados (Jugaste → Lo cargás → Empieza a contar). Es una secuencia CONCEPTUAL: sin estadísticas, usuarios ni métricas reales.
+   Base = estado FINAL (se entiende sin animaciones, sin JS y con movimiento reducido). Con JS y movimiento permitido, `.is-armed` deja cada pieza en su
+   estado inicial (animaciones pausadas en t=0) y `.is-play` las corre una vez al entrar en pantalla. Solo transform/opacity/stroke: no afecta al scroll. */
+
+.bridge {
+  --vis: clamp(96px, 27vw, 150px);
+  --at1: .1s; --at2: 2.3s; --at3: 4.4s;
+  position: relative; padding: clamp(44px, 9vw, 84px) 0 clamp(40px, 8vw, 72px); background: var(--ink-1); overflow: hidden;
+}
+.bridge::before {                                  /* luz de cancha, muy contenida */
+  content: ""; position: absolute; left: 50%; top: 52%; width: min(860px, 130%); height: 260px; transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, rgba(25, 159, 255, .10), rgba(25, 159, 255, 0)); pointer-events: none;
+}
+.bridge .wrap { position: relative; }
+.bridge__title { text-align: center; margin-bottom: clamp(26px, 5vw, 44px); font-size: clamp(26px, 7.2vw, 46px); }
+.bridge__title span { white-space: nowrap; }
+
+.bridge__stage { position: relative; }
+.bridge__steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(8px, 3vw, 36px); position: relative; z-index: 1; }
+.bs { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; }
+.bs__vis {
+  width: var(--vis); height: var(--vis); border-radius: clamp(18px, 4.6vw, 28px); background: linear-gradient(180deg, var(--ink-3), var(--ink-2));
+  border: 1px solid var(--line-strong); box-shadow: 0 0 0 1px rgba(149, 255, 25, .0), 0 14px 34px -18px rgba(0, 0, 0, .8), 0 0 26px -6px rgba(149, 255, 25, .30);
+  display: grid; place-items: center; position: relative; overflow: hidden;
+}
+.bs__vis svg { width: 82%; height: 82%; overflow: visible; }
+.bs__k { margin-top: 14px; font-size: clamp(14px, 3.9vw, 20px); font-weight: 800; letter-spacing: -.01em; line-height: 1.15; color: var(--white); }
+.bs__t { margin-top: 6px; max-width: 24ch; font-size: clamp(11.5px, 3.2vw, 15px); line-height: 1.38; color: var(--text-2); text-wrap: balance; }
+.bridge__note { margin-top: clamp(22px, 4vw, 34px); text-align: center; font-size: 12px; line-height: 1.4; color: var(--text-3); }
+
+/* Conector: línea base + relleno lima→azul + pelota que viaja */
+.bridge__rail { position: absolute; z-index: 0; left: 16.667%; right: 16.667%; top: calc(var(--vis) / 2 - 1px); height: 2px; border-radius: 2px; background: var(--line-strong); }
+.bridge__fill { position: absolute; inset: 0; border-radius: 2px; background: linear-gradient(90deg, var(--lime), var(--blue)); transform-origin: 0 50%; box-shadow: 0 0 12px rgba(149, 255, 25, .45); }
+.bridge__ball { position: absolute; top: 50%; left: 100%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 4px rgba(149, 255, 25, .18), 0 0 16px rgba(149, 255, 25, .8); opacity: 0; }
+
+/* ---- SVG compartido ---- */
+.pv-line { fill: none; stroke: rgba(183, 211, 235, .42); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.pv-net { stroke: var(--lime); stroke-width: 2; }
+.pv-ball { fill: var(--lime); }
+.pv-ring { fill: none; stroke: var(--lime); stroke-width: 1.4; opacity: .5; transform-box: fill-box; transform-origin: center; }
+.pv-ph { fill: var(--ink-1); stroke: rgba(183, 211, 235, .5); stroke-width: 1.8; }
+.pv-card { fill: var(--ink-3); stroke: rgba(183, 211, 235, .22); stroke-width: 1; }
+.pv-a { fill: var(--lime); } .pv-b { fill: var(--blue); }
+.pv-set { font: 800 9px/1 "Inter", system-ui, sans-serif; fill: var(--white); }
+.pv-set--w { fill: var(--lime); }
+.pv-ph, .pv-card, .pv-row, .pv-set, .pv-ball, .pv-ok { transform-box: fill-box; transform-origin: center; }
+.pv-ok circle { fill: var(--lime); } .pv-ok path { fill: none; stroke: var(--ink-1); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.pv-bar { fill: var(--blue); opacity: .85; transform-box: fill-box; transform-origin: 50% 100%; }
+.pv-bar--hot { fill: var(--lime); opacity: 1; }
+.pv-trend { fill: none; stroke: var(--white); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 100; stroke-dashoffset: 0; }
+.pv-rowbg { fill: var(--ink-4); stroke: var(--lime); stroke-width: 1.4; }
+.pv-dot { fill: var(--lime); } .pv-txt { fill: rgba(183, 211, 235, .5); }
+
+/* ---- Estado inicial (solo con JS + movimiento permitido) y secuencia ---- */
+.bridge.is-armed .bs__vis, .bridge.is-armed .bridge__fill, .bridge.is-armed .bridge__ball, .bridge.is-armed .bs__k, .bridge.is-armed .bs__t,
+.bridge.is-armed .pv-ball, .bridge.is-armed .pv-ring, .bridge.is-armed .pv-ph, .bridge.is-armed .pv-card, .bridge.is-armed .pv-set, .bridge.is-armed .pv-ok,
+.bridge.is-armed .pv-bar, .bridge.is-armed .pv-trend, .bridge.is-armed .pv-row {
+  animation-duration: var(--dur, .8s); animation-timing-function: var(--ease); animation-fill-mode: both; animation-play-state: paused;
+}
+.bridge.is-play .bs__vis, .bridge.is-play .bridge__fill, .bridge.is-play .bridge__ball, .bridge.is-play .bs__k, .bridge.is-play .bs__t,
+.bridge.is-play .pv-ball, .bridge.is-play .pv-ring, .bridge.is-play .pv-ph, .bridge.is-play .pv-card, .bridge.is-play .pv-set, .bridge.is-play .pv-ok,
+.bridge.is-play .pv-bar, .bridge.is-play .pv-trend, .bridge.is-play .pv-row { animation-play-state: running; }
+
+/* cada momento se enciende cuando le toca: panel + título */
+.bridge.is-armed .bs--1 .bs__vis, .bridge.is-armed .bs--1 .bs__k, .bridge.is-armed .bs--1 .bs__t { animation-name: pv-lit; animation-delay: var(--at1); }
+.bridge.is-armed .bs--2 .bs__vis, .bridge.is-armed .bs--2 .bs__k, .bridge.is-armed .bs--2 .bs__t { animation-name: pv-lit; animation-delay: var(--at2); }
+.bridge.is-armed .bs--3 .bs__vis, .bridge.is-armed .bs--3 .bs__k, .bridge.is-armed .bs--3 .bs__t { animation-name: pv-lit; animation-delay: var(--at3); }
+.bridge.is-armed .bs__k { --dur: .6s; } .bridge.is-armed .bs__t { --dur: .6s; }
+@keyframes pv-lit {
+  from { opacity: .38; border-color: var(--line); box-shadow: 0 0 0 1px rgba(149, 255, 25, 0), 0 14px 34px -18px rgba(0, 0, 0, .8), 0 0 0 0 rgba(149, 255, 25, 0); }
+  to   { opacity: 1; }
+}
+
+/* 1 · Jugaste: la pelota cruza la red y cae; un aro marca el punto */
+.bridge.is-armed .pv-ball { animation-name: pv-ball; animation-delay: calc(var(--at1) + .15s); --dur: 1.6s; animation-timing-function: cubic-bezier(.4, 0, .4, 1); }
+@keyframes pv-ball {
+  0%   { opacity: 0; transform: translate(-16px, 38px); }
+  14%  { opacity: 1; }
+  46%  { transform: translate(8px, -22px); }
+  70%  { transform: translate(18px, 8px); }
+  84%  { transform: translate(21px, -2px); }
+  100% { opacity: 1; transform: translate(22px, 10px); }
+}
+.bridge.is-armed .pv-ring { animation-name: pv-ring; animation-delay: calc(var(--at1) + 1.2s); --dur: .9s; }
+@keyframes pv-ring { 0% { opacity: 0; transform: scale(.2); } 40% { opacity: .9; } 100% { opacity: .5; transform: scale(1); } }
+
+/* conector: el relleno crece en dos tramos y la pelota lo recorre */
+.bridge.is-armed .bridge__fill { animation-name: pv-fill; animation-delay: .9s; --dur: 4.4s; animation-timing-function: linear; }
+@keyframes pv-fill { 0% { transform: scaleX(0); } 21% { transform: scaleX(.5); } 48% { transform: scaleX(.5); } 71% { transform: scaleX(1); } 100% { transform: scaleX(1); } }
+.bridge.is-armed .bridge__ball { animation-name: pv-travel; animation-delay: .9s; --dur: 4.4s; animation-timing-function: linear; }
+@keyframes pv-travel {
+  0%   { left: 0%; opacity: 0; } 3% { opacity: 1; } 21% { left: 50%; opacity: 1; } 24% { left: 50%; opacity: .0; }
+  48%  { left: 50%; opacity: 0; } 51% { left: 50%; opacity: 1; } 71% { left: 100%; opacity: 1; } 75%, 100% { left: 100%; opacity: 0; }
+}
+
+/* 2 · Lo cargás: el celular recibe el resultado (sets que aparecen) y queda cargado */
+.bridge.is-armed .pv-ph { animation-name: pv-pop; animation-delay: var(--at2); --dur: .7s; }
+.bridge.is-armed .pv-card { animation-name: pv-pop; animation-delay: calc(var(--at2) + .35s); --dur: .6s; }
+.bridge.is-armed .pv-set--1 { animation-name: pv-type; animation-delay: calc(var(--at2) + .8s); --dur: .35s; }
+.bridge.is-armed .pv-set--2 { animation-name: pv-type; animation-delay: calc(var(--at2) + 1.05s); --dur: .35s; }
+.bridge.is-armed .pv-set--3 { animation-name: pv-type; animation-delay: calc(var(--at2) + 1.3s); --dur: .35s; }
+.bridge.is-armed .pv-set--4 { animation-name: pv-type; animation-delay: calc(var(--at2) + 1.55s); --dur: .35s; }
+.bridge.is-armed .bs--2 .pv-ok { animation-name: pv-check; animation-delay: calc(var(--at2) + 1.85s); --dur: .5s; transform-box: fill-box; transform-origin: center; }
+@keyframes pv-pop { from { opacity: 0; transform: translateY(8px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes pv-type { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes pv-check { 0% { opacity: 0; transform: scale(.2); } 70% { opacity: 1; transform: scale(1.18); } 100% { opacity: 1; transform: scale(1); } }
+
+/* 3 · Empieza a contar: barras que suben, línea que se dibuja y una fila nueva que entra al historial */
+.bridge.is-armed .pv-bar { animation-name: pv-rise; --dur: .8s; }
+.bridge.is-armed .pv-bar:nth-of-type(1) { animation-delay: calc(var(--at3) + .15s); }
+.bridge.is-armed .pv-bar:nth-of-type(2) { animation-delay: calc(var(--at3) + .27s); }
+.bridge.is-armed .pv-bar:nth-of-type(3) { animation-delay: calc(var(--at3) + .39s); }
+.bridge.is-armed .pv-bar:nth-of-type(4) { animation-delay: calc(var(--at3) + .51s); }
+.bridge.is-armed .pv-trend { animation-name: pv-draw; animation-delay: calc(var(--at3) + .5s); --dur: 1.1s; }
+.bridge.is-armed .pv-row { animation-name: pv-slide; animation-delay: calc(var(--at3) + 1.1s); --dur: .8s; }
+.bridge.is-armed .bs--3 .pv-ok { animation-name: pv-check; animation-delay: calc(var(--at3) + 1.7s); --dur: .5s; transform-box: fill-box; transform-origin: center; }
+@keyframes pv-rise { from { transform: scaleY(.04); opacity: .4; } to { transform: scaleY(1); opacity: .85; } }
+@keyframes pv-draw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+@keyframes pv-slide { 0% { opacity: 0; transform: translateY(14px); } 100% { opacity: 1; transform: none; } }
+
+/* Escritorio: más aire entre los tres momentos */
+@media (min-width: 820px) {
+  .bridge { --vis: 150px; }
+  .bridge__steps { gap: 48px; }
+  .bs__k { margin-top: 18px; }
+}
+/* Movimiento reducido: estado final inmediato (la regla global ya anula duraciones); sin pausas ni pelota viajera */
+@media (prefers-reduced-motion: reduce) {
+  .bridge__ball { display: none; }
+  .bridge.is-armed * { animation: none !important; }
+}
+@media (prefers-contrast: more) {
+  .bs__t { color: #C9D3DE; }
+}

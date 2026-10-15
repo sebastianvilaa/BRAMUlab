@@ -162,18 +162,15 @@ test('Editar datos: vista acotada al viewport y .access-scroll scrolleable con s
   assert.match(scrollRule, /--bottomnav-h/);
   assert.doesNotMatch(scrollRule, /overflow:hidden/, 'el scroller nunca es overflow:hidden');
 });
-test('Editar datos: GUARDAR está dentro del .access-scroll', () => {
+test('Editar datos (V04.47): sin botón GUARDAR (guardado automático) y la confirmación vive en el header, no en el scroller', () => {
   const html = read('index.html');
   const start = html.indexOf('id="view-edit-data"');
   const end = html.indexOf('</section>', start);
   const sec = html.slice(start, end);
-  const scrollAt = sec.indexOf('class="access-scroll');
-  assert.ok(scrollAt > 0);
-  assert.ok(sec.indexOf('>GUARDAR<') > scrollAt);
-  // el cierre del scroller es lo último de la sección: no hay otro </div> de nivel del scroller antes de GUARDAR
-  let depth = 0; const body = sec.slice(scrollAt - 5); const re = /<div\b|<\/div>/g; let m, saveAt = body.indexOf('>GUARDAR<'), inside = true;
-  while ((m = re.exec(body)) && m.index < saveAt) { depth += m[0] === '</div>' ? -1 : 1; if (depth <= 0) { inside = false; break; } }
-  assert.ok(inside, 'GUARDAR dentro del contenedor scrolleable');
+  assert.ok(sec.indexOf('class="access-scroll') > 0);
+  assert.doesNotMatch(sec, />GUARDAR</, 'ya no hay botón GUARDAR');
+  assert.doesNotMatch(sec, /type="submit"/);
+  assert.match(sec, /id="profile-edit-autosave"/);
 });
 test('Vistas con bottom-nav comparten el patrón (Completar acceso, Cambiar contraseña) y Configuración del grupo sigue igual', () => {
   const css = read('styles.css');

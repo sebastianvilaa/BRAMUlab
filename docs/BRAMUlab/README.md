@@ -17,6 +17,12 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
+## 15/10/2026 — V04.47 (Staging): menú general, invitación desde la app instalada, autoguardado y franja web
+
+Ronda coordinada **solo en Staging/Preview** (sin `main`, Production, Supabase ni BRAMUlive; sin migraciones): menú ☰ del Home (Ayuda pasa al menú), «¿Ya tenés BRAMUlab instalada?» + «¿Recibiste una invitación?» (copiar → pegar; pegar no reclama), Editar datos con guardado automático («Apodo») y la franja web «Jugás. Lo cargás. Empieza a sumar.». Fuente: `Producto/Experiencia_Inicial.md` §31 y `bramulab-web/docs/BRAMUlab_Web.md` §12. **Pendiente: revisión visual de Sebastián y, solo con su aprobación expresa, Production.**
+
+---
+
 ## 14/10/2026 — Invitación a jugadores sin cuenta (V04.41 → V04.46): PUBLICADA en Production y CERRADA (15/10/2026)
 
 App `dpl_ToDGYUVzi2ZN3uKwvbnkTaS6uxdz` (V04.46; Metrics intacto), migración `get_invitation_card` en Supabase Production, instancia `bramu-i-prod` y enlace oficial **`https://bramulab.com/invitacion/{código}`**; Política aclarada (`legal_v2`, sin reaceptación). **Sebastián la probó con un usuario real en Production el 15/10/2026: funcionó perfectamente.** Único seguimiento (legal, independiente; no es un fallo funcional): revisión de la Política y su correspondencia con AAIP (`Operacion/Pre_Production.md` §2.8). Ids y reversión: `Operacion/Operacion_Vercel_Staging_Production.md`; fuente: `Producto/Experiencia_Inicial.md` §30.

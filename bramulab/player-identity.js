@@ -171,7 +171,73 @@
     return `https://wa.me/${normalizePhoneForWhatsApp(phone)}?text=${encodeURIComponent(message || '')}`;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* V04.47 — enlace de invitación pegado/importado (menú «¿Recibiste una invitación?»). */
+  /* Funciones puras: aceptan el enlace compartido (`{base}/invitacion/{43 base64url|64 hex}`, el alias legado */
+  /* `/i/{código}` o `/?claim={hex}`) dentro de cualquier texto (p. ej. el mensaje completo de WhatsApp) y devuelven */
+  /* el token hex de 64 caracteres, el MISMO que ya usa la captura de `?claim=`. Nunca consumen ni validan contra el */
+  /* servidor: eso lo hace el flujo existente (`previewClaimLink` → «¿JUGASTE ESTE PARTIDO?»). */
+  /* ------------------------------------------------------------------ */
+  const INVITE_HEX_RE = /^[0-9a-f]{64}$/;
+  const INVITE_B64URL_RE = /^[A-Za-z0-9_-]{43}$/;
+  /** Hosts del circuito legítimo de BRAMUlab que SIEMPRE se aceptan (sitio, app y su alias www). */
+  const INVITE_BASE_HOSTS = ['bramulab.com', 'www.bramulab.com', 'app.bramulab.com'];
+
+  /** Código del enlace (43 base64url o 64 hex) → token hex minúsculas, o null. Canónico: el base64url debe recodificar idéntico. */
+  function invitationCodeToHex(code) {
+    const c = String(code || '');
+    if (c.length === 64 && INVITE_HEX_RE.test(c.toLowerCase())) return c.toLowerCase();
+    if (!INVITE_B64URL_RE.test(c)) return null;
+    let bin;
+    try {
+      bin = (typeof atob === 'function' ? atob : (s) => Buffer.from(s, 'base64').toString('binary'))(c.replace(/-/g, '+').replace(/_/g, '/') + '=');
+    } catch (e) { return null; }
+    if (bin.length !== 32) return null;
+    let hex = '';
+    for (let i = 0; i < bin.length; i += 1) hex += bin.charCodeAt(i).toString(16).padStart(2, '0');
+    // Canónico: sin bits sobrantes en el último carácter del base64url.
+    return hexToInvitationCode(hex) === c ? hex : null;
+  }
+
+  /** Token hex de 64 caracteres → código base64url de 43 (recodificación sin pérdida), o null. */
+  function hexToInvitationCode(hex) {
+    if (!INVITE_HEX_RE.test(String(hex || ''))) return null;
+    let bin = '';
+    for (let i = 0; i < 64; i += 2) bin += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+    const b64 = (typeof btoa === 'function' ? btoa : (s) => Buffer.from(s, 'binary').toString('base64'))(bin);
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  /** Extrae el token de invitación de un texto pegado.
+   *  `allowedHosts`: hosts extra del entorno (base del servicio de invitaciones, origen de la app) además de los oficiales.
+   *  Devuelve `{ ok: true, token }` o `{ ok: false, code }` con code ∈ `empty` | `not_invitation` | `foreign_host`. */
+  function parseInvitationLink(text, allowedHosts) {
+    const raw = String(text || '').trim();
+    if (!raw) return { ok: false, code: 'empty' };
+    const hosts = INVITE_BASE_HOSTS.concat((allowedHosts || []).map((h) => String(h || '').toLowerCase()).filter(Boolean));
+    const urls = raw.match(/https?:\/\/[^\s<>"'`]+/gi) || [];
+    let sawForeign = false;
+    for (const candidate of urls) {
+      let url;
+      try { url = new URL(candidate.replace(/[)\].,;!?]+$/, '')); } catch (e) { continue; }
+      if (url.protocol !== 'https:' && !(url.protocol === 'http:' && /^(localhost|127\.0\.0\.1)$/.test(url.hostname))) continue;
+      const host = url.hostname.toLowerCase();
+      const m = url.pathname.match(/^\/(?:invitacion|i)\/([^/?#]+)\/?$/);
+      const claim = url.searchParams.get('claim');
+      const hexFromLink = m ? invitationCodeToHex(m[1]) : (claim ? invitationCodeToHex(claim.trim()) : null);
+      if (!hexFromLink) continue;
+      if (hosts.indexOf(host) === -1 && !/^(localhost|127\.0\.0\.1)$/.test(host)) { sawForeign = true; continue; }
+      return { ok: true, token: hexFromLink };
+    }
+    if (sawForeign) return { ok: false, code: 'foreign_host' };
+    // Código suelto (43/64 caracteres) sin enlace: solo si el texto ES el código.
+    const bare = invitationCodeToHex(raw);
+    if (bare) return { ok: true, token: bare };
+    return { ok: false, code: 'not_invitation' };
+  }
+
   global.PLIdentity = {
+    invitationCodeToHex, hexToInvitationCode, parseInvitationLink,
     isValidEmail, normalizeEmail,
     PASSWORD_MIN_LENGTH, checkPasswordStrength, passwordsMatch,
     slugifyUsername, isValidUsernameFormat, isUsernameReserved, isUsernameTaken, isEmailTaken, suggestUsername,

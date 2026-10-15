@@ -182,11 +182,12 @@ test('Invitación genérica: sin tokens, tablas, RPC ni seguimiento; el circuito
 });
 
 // ---------------------------------------------------------------- 3. Ayuda
-test('Ayuda: se abre con el «?» del header del Home, vuelve al Home, no está duplicada en Configuración y no tiene bottom nav', () => {
+test('Ayuda (V04.47): vive en el menú general (☰), vuelve al Home, no está duplicada en Configuración ni en el header y no tiene bottom nav', () => {
   const home = section('view-player-home');
-  assert.match(home, /id="player-home-help-btn"[^>]*aria-label="Ayuda y preguntas frecuentes"[^>]*>\s*<span class="ranking-help-icon-btn__circle" aria-hidden="true">\?<\/span>/);
-  assert.ok(home.indexOf('player-home-help-btn') < home.indexOf('player-home-ranking-btn') && home.indexOf('player-home-ranking-btn') < home.indexOf('player-home-bell-btn'), 'h5: orden Ayuda → Ranking → Notificaciones');
-  assert.match(appJs, /\$\('#player-home-help-btn'\)\.addEventListener\('click', openHelpScreen\)/);
+  assert.doesNotMatch(home, /player-home-help-btn/, 'Ayuda dejó el encabezado del Home');
+  assert.match(home, /id="app-menu-btn"[^>]*aria-controls="app-menu"/);
+  assert.match(appJs, /\{ id: 'help', label: 'Ayuda'/);
+  assert.match(appJs, /else if \(id === 'help'\) openHelpScreen\(\)/);
   assert.match(appJs, /\$\('#help-back-btn'\)\.addEventListener\('click', \(\) => openPlayerHome\(\)\)/);
   assert.match(fnBody('openHelpScreen'), /showView\('help'\)/);
   assert.match(fnBody('openHelpScreen'), /getCurrentUser\(\)/, 'mismo gate de sesión');
@@ -197,7 +198,6 @@ test('Ayuda: se abre con el «?» del header del Home, vuelve al Home, no está 
   assert.ok(!nav.includes("'help'"));
   assert.match(css, /#view-help, #view-legal-doc\{\s*height:100vh/);
   assert.match(css, /#view-help \.access-scroll\{/);
-  assert.match(css, /\.player-home-help\{[^}]*min-width:40px; min-height:40px/);
 });
 
 test('Ayuda V04.40: 9 preguntas en 4 categorías, reglas verificadas y SIN publicar la escala del Nivel', () => {

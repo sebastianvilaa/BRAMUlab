@@ -60,10 +60,10 @@ test('Signup y edición usan el mismo feedback que normaliza antes de validar', 
   assert.match(app, /renderUsernameFeedback\('profile-edit-username', 'profile-edit-username-feedback'/);
   assert.match(app, /signupDraft\.username = \$\('#signup-username'\)\.value\.trim\(\)\.toLowerCase\(\)/);
   assert.match(app, /if \(signupDraft\.username\) signupDraft\.username = signupDraft\.username\.trim\(\)\.toLowerCase\(\)/);
-  assert.match(app, /const username = \$\('#profile-edit-username'\)\.value\.trim\(\)\.toLowerCase\(\)/);
+  assert.match(app, /username: \$\('#profile-edit-username'\)\.value\.trim\(\)\.toLowerCase\(\)/);
 });
 
 test('No desbloquea edición de @usuario en cuentas reales: sigue protegido en servidor', () => {
   assert.match(app, /\$\('#profile-edit-username'\)\.disabled = serverBacked;/);
-  assert.match(app, /if \(user\.serverBacked\) \{ await submitServerBackedProfileEdit\(user\); return; \}/);
+  assert.match(app, /user\.serverBacked \? await saveServerBackedProfile\(user, form, \{ baseline: profileAutosave\.lastForm \}\) : saveLocalProfile\(user, form\)/);
 });

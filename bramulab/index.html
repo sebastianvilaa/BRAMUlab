@@ -12,7 +12,7 @@
 <meta name="application-name" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-title" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<link rel="icon" href="icons/favicon-64.png?v=04.46" sizes="64x64" type="image/png" />
+<link rel="icon" href="icons/favicon-64.png?v=04.47" sizes="64x64" type="image/png" />
 <!-- G2 — iOS pide el apple-touch-icon al "Agregar a inicio" SIN cookies/credenciales: en un deployment protegido (Staging) esa
      request recibe la página de login de Vercel en vez del PNG y el ícono queda con la inicial/captura. Se incrusta el MISMO
      PNG real (icons/apple-touch-icon.png, 180x180 opaco) como data: URI, que no depende de ninguna request. Un test verifica
@@ -31,7 +31,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.46" />
+<link rel="stylesheet" href="styles.css?v=04.47" />
 </head>
 <body>
 
@@ -558,10 +558,6 @@
         <button id="player-home-lab-preview-btn" class="icon-btn player-home-lab-preview" type="button" aria-label="Vista previa de Nivel BRAMU V1">
           <svg viewBox="0 0 24 24" class="player-home-lab-preview__icon"><rect x="10" y="2" width="4" height="7" rx="1"/><path d="M9.3 8.5 4.6 18.3c-.6 1.3.4 2.7 1.8 2.7h11.2c1.4 0 2.4-1.4 1.8-2.7L14.7 8.5z"/></svg>
         </button>
-        <!-- V04.39 h4 — AYUDA / Preguntas frecuentes: «?» primero en el header (Ayuda → Ranking → Notificaciones; mismo círculo que el «?» de Ranking). -->
-        <button id="player-home-help-btn" class="icon-btn player-home-help" type="button" aria-label="Ayuda y preguntas frecuentes">
-          <span class="ranking-help-icon-btn__circle" aria-hidden="true">?</span>
-        </button>
         <!-- BRAMUlab_V03.5 (§4, Bloque 1) — acceso a RANKING BRAMU: vuelve al header del Home
              (nunca a la bottom nav, ver comentario junto a #bottom-nav más abajo). Ícono de
              podio/barras a propósito, no una copa (§4: "evitar una copa demasiado asociada a
@@ -575,6 +571,11 @@
         <button id="player-home-bell-btn" class="icon-btn player-home-bell" type="button" aria-label="Notificaciones">
           <svg viewBox="0 0 24 24" class="player-home-bell__icon"><path d="M12 2a1.6 1.6 0 0 0-1.6 1.6v.66C7.6 4.9 5.6 7.5 5.6 10.6v4.1L4 17.4v.9h16v-.9l-1.6-2.7v-4.1c0-3.1-2-5.7-4.8-6.34v-.66A1.6 1.6 0 0 0 12 2zm0 19.4a2.4 2.4 0 0 0 2.38-2.1H9.62A2.4 2.4 0 0 0 12 21.4z"/></svg>
           <span id="player-home-bell-badge" class="notif-badge" hidden></span>
+        </button>
+        <!-- V04.47 — MENÚ GENERAL: hamburguesa arriba a la derecha (Ayuda pasó al menú). Sus tres líneas se transforman en una X mientras el panel
+             está abierto; el panel nace DEBAJO de este encabezado, así el botón nunca queda tapado y sigue siendo el control para cerrar. -->
+        <button id="app-menu-btn" class="icon-btn app-menu-btn" type="button" aria-label="Abrir menú" aria-haspopup="dialog" aria-expanded="false" aria-controls="app-menu">
+          <span class="app-menu-btn__bars" aria-hidden="true"><i></i><i></i><i></i></span>
         </button>
       </div>
     </div>
@@ -1556,7 +1557,7 @@
             <div class="profile-identity-compact__info">
               <div class="profile-identity-compact__name" id="profile-data-fullname">—</div>
               <div class="profile-identity-compact__handle" id="profile-data-username">—</div>
-              <div class="profile-identity-compact__display"><span class="profile-field__label">Nombre visible</span> <span id="profile-data-displayname">—</span></div>
+              <div class="profile-identity-compact__display"><span class="profile-field__label">Apodo</span> <span id="profile-data-displayname">—</span></div>
             </div>
           </div>
         </div>
@@ -1922,6 +1923,8 @@
       <div class="invitation-card" id="access-invitation-card" hidden>
         <div class="invitation-card__title">Te invitaron a BRAMUlab</div>
         <p class="invitation-card__text">Creá tu cuenta o iniciá sesión: después te mostramos el partido para que confirmes si jugaste y recuperes tus partidos en tu historial.</p>
+        <!-- V04.47 — alternativa SECUNDARIA y discreta para quien ya tiene la app instalada (no agrega ningún paso al alta). Se oculta dentro de la app instalada. -->
+        <button type="button" id="access-installed-btn" class="invitation-card__link">¿Ya tenés BRAMUlab instalada?</button>
       </div>
       <p class="edit-error" id="access-backend-unavailable" hidden>No pudimos conectar con el servidor. Probá de nuevo más tarde.</p>
       <div class="welcome-spacer welcome-spacer--mid" aria-hidden="true"></div>
@@ -1952,7 +1955,7 @@
         <!-- 07OCT26 h9 — ficha superior inspirada en el patrón visual de una ficha de app,
              sin simular App Store: identidad BRAMUlab + capacidades reales del producto. -->
         <div class="install-prompt__app">
-          <span class="install-prompt__app-icon-frame" aria-hidden="true"><img class="install-prompt__app-icon" src="icons/icon-512.png?v=04.46" alt="" /></span>
+          <span class="install-prompt__app-icon-frame" aria-hidden="true"><img class="install-prompt__app-icon" src="icons/icon-512.png?v=04.47" alt="" /></span>
           <div class="install-prompt__app-meta">
             <h2 class="install-prompt__app-name" id="install-prompt-title">BRAMUlab</h2>
             <p class="install-prompt__app-sub">Donde vive tu pádel</p>
@@ -2006,7 +2009,7 @@
 
       <div id="install-prompt-ios-guide" class="install-prompt__panel" hidden>
         <div class="install-prompt__ios-head">
-          <span class="install-prompt__ios-icon-frame" aria-hidden="true"><img class="install-prompt__ios-icon" src="icons/icon-512.png?v=04.46" alt="" /></span>
+          <span class="install-prompt__ios-icon-frame" aria-hidden="true"><img class="install-prompt__ios-icon" src="icons/icon-512.png?v=04.47" alt="" /></span>
           <div>
             <div class="install-prompt__eyebrow">EN iOS / iPadOS</div>
             <h2 class="install-prompt__title">Agregá BRAMUlab a Inicio</h2>
@@ -2266,7 +2269,7 @@
             <p class="signup-username-feedback" id="signup-username-feedback"></p>
           </div>
           <div class="field field--labeled" hidden>
-            <label class="field-label" for="signup-display-name">Nombre visible</label>
+            <label class="field-label" for="signup-display-name">Apodo</label>
             <input id="signup-display-name" class="field__input" type="text" maxlength="18" />
             <p class="field-hint">Así te va a mostrar BRAMU en partidos, rankings y grupos.</p>
           </div>
@@ -2534,6 +2537,10 @@
     <div class="analysis-header">
       <button type="button" id="profile-edit-cancel" class="icon-btn" aria-label="Volver">←</button>
       <span class="analysis-header__title">EDITAR DATOS</span>
+      <span class="autosave-status" id="profile-edit-autosave" role="status" aria-live="polite" data-state="idle">
+        <span class="autosave-status__icon" aria-hidden="true"></span><span class="autosave-status__text" id="profile-edit-autosave-text"></span>
+        <button type="button" class="autosave-status__retry" id="profile-edit-autosave-retry" hidden>Reintentar</button>
+      </span>
     </div>
     <div class="access-scroll access-scroll--under-header access-scroll--with-bottom-nav">
       <div class="signup-avatar-upload">
@@ -2556,7 +2563,7 @@
           <p class="signup-username-feedback" id="profile-edit-username-feedback"></p>
         </div>
         <div class="field field--labeled">
-          <label class="field-label" for="profile-edit-display-name">Nombre visible</label>
+          <label class="field-label" for="profile-edit-display-name">Apodo</label>
           <input id="profile-edit-display-name" class="field__input" type="text" maxlength="18" />
           <p class="field-hint">Así te va a mostrar BRAMU en partidos, rankings y grupos.</p>
         </div>
@@ -2637,7 +2644,8 @@
         </div>
         <p class="edit-error" id="profile-edit-whatsapp-hint" hidden></p>
         <p class="edit-error" id="profile-edit-error" hidden></p>
-        <button type="submit" class="btn-start btn-save">GUARDAR</button>
+        <!-- V04.47 — GUARDADO AUTOMÁTICO: ya no hay botón de guardado. Cada cambio se guarda al salir del campo, con Enter, al elegir una opción o al salir de la pantalla;
+             esta línea es la confirmación discreta (tilde recién cuando el servidor confirmó) y, si falla, ofrece reintentar sin perder lo escrito. -->
       </form>
     </div>
   </section>
@@ -3493,6 +3501,80 @@
        la muestra/oculta según la vista activa. Nunca aparece durante el partido en vivo
        (view-match), para no competir con el control-bar del marcador.
        ============================================================ -->
+  <!-- ============================================================
+       V04.47 — MENÚ GENERAL (panel desde la derecha, debajo del encabezado del Home). Los ítems se pintan desde APP_MENU_ITEMS (app.js): la misma
+       fuente alimenta la microdemostración de «¿Ya tenés BRAMUlab instalada?», así la demo nunca dibuja una interfaz distinta de la real.
+       ============================================================ -->
+  <div id="app-menu-scrim" class="app-menu-scrim" hidden></div>
+  <aside id="app-menu" class="app-menu" role="dialog" aria-label="Menú de BRAMUlab" hidden>
+    <nav class="app-menu__list" id="app-menu-list" aria-label="Menú"></nav>
+    <div class="app-menu__footer" id="app-menu-footer"></div>
+  </aside>
+
+  <!-- ============================================================
+       V04.47 — «¿RECIBISTE UNA INVITACIÓN?» (desde el menú de la app instalada). Pegar/importar NO reclama ninguna identidad: el enlace entra al flujo
+       vigente (vista previa segura → «¿JUGASTE ESTE PARTIDO?»). El usuario nunca escribe un código.
+       ============================================================ -->
+  <div id="invite-paste-scrim" class="sheet-scrim" hidden>
+    <div id="invite-paste-sheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="invite-paste-title">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title" id="invite-paste-title">¿RECIBISTE UNA INVITACIÓN?</span>
+        <button type="button" id="invite-paste-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="bottom-sheet__level invite-sheet__body">
+        <p class="invite-sheet__text">Pegá el enlace que te enviaron y te mostramos el partido para que confirmes si jugaste.</p>
+        <button type="button" id="invite-paste-btn" class="btn-start btn-save">PEGAR INVITACIÓN</button>
+        <div id="invite-paste-manual" class="invite-paste__manual" hidden>
+          <label class="field-label" for="invite-paste-input">Pegá el enlace acá</label>
+          <textarea id="invite-paste-input" class="invite-sheet__link invite-sheet__message" rows="3" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://bramulab.com/invitacion/…"></textarea>
+          <button type="button" id="invite-paste-continue" class="btn-secondary btn-secondary--lime">CONTINUAR</button>
+        </div>
+        <p class="invite-sheet__feedback invite-sheet__feedback--error" id="invite-paste-error" role="alert" hidden></p>
+        <button type="button" id="invite-paste-manual-toggle" class="invite-sheet__more">Prefiero pegarlo yo</button>
+        <p class="invite-sheet__note">Pegar la invitación no vincula nada por sí solo: primero te mostramos el partido y vos confirmás.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       V04.47 — «¿YA TENÉS BRAMULAB INSTALADA?» (pantalla de invitación antes del login, solo en el navegador). Alternativa SECUNDARIA para quien ya usa la app
+       instalada: copia el enlace completo y explica cómo importarlo desde el menú. La demo reutiliza los ítems reales del menú (APP_MENU_ITEMS).
+       ============================================================ -->
+  <div id="invite-installed-scrim" class="sheet-scrim" hidden>
+    <div id="invite-installed-sheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="invite-installed-title">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title" id="invite-installed-title">¿YA TENÉS BRAMULAB INSTALADA?</span>
+        <button type="button" id="invite-installed-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="bottom-sheet__level invite-sheet__body">
+        <div class="mdemo" id="invite-installed-demo" aria-hidden="true">
+          <div class="mdemo__header"><img class="mdemo__logo" src="icons/logo.svg" alt="" /><span class="app-menu-btn__bars mdemo__bars"><i></i><i></i><i></i></span></div>
+          <div class="mdemo__scrim"></div>
+          <div class="app-menu mdemo__menu" id="invite-installed-demo-menu"></div>
+          <div class="mdemo__paste"><span class="mdemo__paste-line"><i></i></span><span class="mdemo__paste-check"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></div>
+          <span class="mdemo__tap mdemo__tap--menu"></span><span class="mdemo__tap mdemo__tap--item"></span>
+        </div>
+        <ol class="invite-steps">
+          <li>Copiá esta invitación.</li>
+          <li>Abrí BRAMUlab desde el ícono de tu celular.</li>
+          <li>Tocá el menú y elegí «¿Recibiste una invitación?».</li>
+          <li>Pegá la invitación para continuar.</li>
+        </ol>
+        <button type="button" id="invite-copy-btn" class="btn-start btn-save invite-copy-btn">
+          <span class="invite-copy-btn__icon" aria-hidden="true">
+            <svg class="invite-copy-btn__ico-msg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7.2l8.5 6.3 8.5-6.3"/></svg>
+            <svg class="invite-copy-btn__ico-ok" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          </span>
+          <span class="invite-copy-btn__label" id="invite-copy-label">COPIAR INVITACIÓN</span>
+        </button>
+        <p class="invite-sheet__feedback" id="invite-copy-feedback" role="status" aria-live="polite" hidden></p>
+        <textarea id="invite-copy-manual" class="invite-sheet__link invite-sheet__message" readonly rows="3" hidden aria-label="Enlace de la invitación"></textarea>
+      </div>
+    </div>
+  </div>
+
   <nav id="bottom-nav" class="bottom-nav" hidden>
     <button type="button" class="bottom-nav__item" data-nav="player-home" aria-label="Inicio">
       <svg viewBox="0 0 24 24" class="bottom-nav__icon"><path d="M12 3.2 2.5 11h2.6v9h5.4v-6h3v6h5.4v-9h2.6z"/></svg>
@@ -3565,45 +3647,45 @@
        cambiar versión+hash JUNTOS (los tests verifican que el pin tenga la forma exacta y que haya integrity). -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.46"></script>
-  <script src="stats.js?v=04.46"></script>
-  <script src="store.js?v=04.46"></script>
+  <script src="engine.js?v=04.47"></script>
+  <script src="stats.js?v=04.47"></script>
+  <script src="store.js?v=04.47"></script>
   <!-- Hardening V04.37-h8 (exposición/IP) — el navegador YA NO carga `level.js` ni `level-context.js`: el motor
        dinámico de Nivel (expectativa, margen, K, repetición, círculo, confianza, inactividad) corre solo en las
        Edge Functions y en tests. `level-public.js` expone únicamente lo que la app usa de `PLLevel`
        (STATES, ALGORITHM_VERSION, roundPublicLevel, clampLevel). `level-calibration.js` (cuestionario/estimador
        inicial V1.3) sigue siendo client-side a propósito. Ver docs/.../139_Resultado_Hardening_Exposicion_IP_06OCT.md. -->
-  <script src="level-public.js?v=04.46"></script>
-  <script src="level-calibration.js?v=04.46"></script>
-  <script src="player-home.js?v=04.46"></script>
-  <script src="match-load.js?v=04.46"></script>
-  <script src="player-identity.js?v=04.46"></script>
-  <script src="groups.js?v=04.46"></script>
-  <script src="locations.js?v=04.46"></script>
-  <script src="ranking.js?v=04.46"></script>
+  <script src="level-public.js?v=04.47"></script>
+  <script src="level-calibration.js?v=04.47"></script>
+  <script src="player-home.js?v=04.47"></script>
+  <script src="match-load.js?v=04.47"></script>
+  <script src="player-identity.js?v=04.47"></script>
+  <script src="groups.js?v=04.47"></script>
+  <script src="locations.js?v=04.47"></script>
+  <script src="ranking.js?v=04.47"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.46"></script>
+  <script src="auth.js?v=04.47"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.46"></script>
-  <script src="match-sync.js?v=04.46"></script>
+  <script src="matches.js?v=04.47"></script>
+  <script src="match-sync.js?v=04.47"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.46"></script>
+  <script src="match-validation.js?v=04.47"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.46"></script>
+  <script src="match-self-heal.js?v=04.47"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.46"></script>
-  <script src="app.js?v=04.46"></script>
+  <script src="intelligence-client.js?v=04.47"></script>
+  <script src="app.js?v=04.47"></script>
 </body>
 </html>

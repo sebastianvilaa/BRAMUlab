@@ -30,6 +30,7 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"BRAMUlab","url":"https://bramulab.com/","inLanguage":"es-AR","description":"Cargá tus partidos de pádel, descubrí tus estadísticas, compañeros y rivales, y competí con tus amigos.","publisher":{"@type":"Organization","name":"BRAMUlab","url":"https://bramulab.com/","logo":"https://bramulab.com/assets/brand/icon-192.png","sameAs":["https://www.instagram.com/bramulab"]}}</script>
   <link rel="preload" href="assets/fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/puente.css">
   <link rel="stylesheet" href="css/demos.css">
   <link rel="stylesheet" href="css/club.css">
   <link rel="stylesheet" href="css/nivel.css">
@@ -90,6 +91,72 @@
             </a>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ============ 1.5 · PUENTE · JUGÁS → LO CARGÁS → EMPIEZA A CONTAR ============
+         Franja corta entre el hero y el tutorial: el valor central de un vistazo. Secuencia CONCEPTUAL (sin estadísticas ni usuarios reales). El relato se
+         entiende sin animaciones: los tres títulos y sus frases son texto real; los dibujos son decorativos (aria-hidden). -->
+    <section class="bridge" id="puente" aria-labelledby="bridge-titulo">
+      <div class="wrap">
+        <h2 class="h2 bridge__title" id="bridge-titulo" data-reveal>Jugás. Lo cargás. <span class="accent">Empieza a sumar.</span></h2>
+
+        <div class="bridge__stage" id="bridge-stage">
+          <div class="bridge__rail" aria-hidden="true"><i class="bridge__fill"></i><b class="bridge__ball"></b></div>
+          <ol class="bridge__steps">
+            <li class="bs bs--1">
+              <div class="bs__vis" aria-hidden="true">
+                <svg viewBox="0 0 120 120" focusable="false">
+                  <rect class="pv-line" x="32" y="6" width="56" height="108" rx="4"/>
+                  <line class="pv-line pv-net" x1="32" y1="60" x2="88" y2="60"/>
+                  <path class="pv-line" d="M32 33h56M32 87h56M60 33v54"/>
+                  <circle class="pv-ring" cx="82" cy="78" r="13"/>
+                  <circle class="pv-ball" cx="60" cy="68" r="4.6"/>
+                </svg>
+              </div>
+              <p class="bs__k">Jugaste</p>
+              <p class="bs__t">Terminó el partido.</p>
+            </li>
+            <li class="bs bs--2">
+              <div class="bs__vis" aria-hidden="true">
+                <svg viewBox="0 0 120 120" focusable="false">
+                  <rect class="pv-ph" x="34" y="6" width="52" height="108" rx="9"/>
+                  <rect class="pv-line" x="51" y="11" width="18" height="3" rx="1.5"/>
+                  <rect class="pv-card" x="40" y="30" width="40" height="42" rx="6"/>
+                  <rect class="pv-a" x="44" y="38" width="14" height="4" rx="2"/>
+                  <text class="pv-set pv-set--w pv-set--1" x="64" y="43">6</text><text class="pv-set pv-set--w pv-set--2" x="72" y="43">6</text>
+                  <rect class="pv-b" x="44" y="58" width="14" height="4" rx="2"/>
+                  <text class="pv-set pv-set--3" x="64" y="63">3</text><text class="pv-set pv-set--4" x="72" y="63">4</text>
+                  <g class="pv-ok"><circle cx="60" cy="92" r="10"/><path d="M55 92.5l3.6 3.6L65.5 88"/></g>
+                </svg>
+              </div>
+              <p class="bs__k">Lo cargás</p>
+              <p class="bs__t">El resultado entra desde el celular.</p>
+            </li>
+            <li class="bs bs--3">
+              <div class="bs__vis" aria-hidden="true">
+                <svg viewBox="0 0 120 120" focusable="false">
+                  <g>
+                    <rect class="pv-bar" x="22" y="42" width="14" height="22" rx="3"/>
+                    <rect class="pv-bar" x="42" y="30" width="14" height="34" rx="3"/>
+                    <rect class="pv-bar" x="62" y="36" width="14" height="28" rx="3"/>
+                    <rect class="pv-bar pv-bar--hot" x="82" y="18" width="14" height="46" rx="3"/>
+                  </g>
+                  <path class="pv-trend" pathLength="100" d="M29 38 49 26 69 31 89 14"/>
+                  <g class="pv-row">
+                    <rect class="pv-rowbg" x="18" y="74" width="84" height="32" rx="9"/>
+                    <circle class="pv-dot" cx="32" cy="90" r="5.5"/>
+                    <rect class="pv-txt" x="43" y="84" width="34" height="4" rx="2"/><rect class="pv-txt" x="43" y="93" width="22" height="4" rx="2"/>
+                    <g class="pv-ok"><circle cx="90" cy="90" r="7"/><path d="M86.4 90.3l2.6 2.6 4.8-5.2"/></g>
+                  </g>
+                </svg>
+              </div>
+              <p class="bs__k">Empieza a contar</p>
+              <p class="bs__t">Suma a tu historial y, al confirmarse, a tus estadísticas.</p>
+            </li>
+          </ol>
+        </div>
+        <p class="bridge__note">Ilustración conceptual: no muestra datos de jugadores reales.</p>
       </div>
     </section>
 
@@ -616,6 +683,7 @@
     </div>
   </footer>
 
+  <script src="js/puente.js"></script>
   <script src="js/demos.js"></script>
   <script src="js/club.js"></script>
   <script src="js/nivel.js"></script>

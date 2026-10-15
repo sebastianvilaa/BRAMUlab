@@ -205,7 +205,7 @@
 // casilla opcional en el alta, fila «Medición de uso» en Configuración). La medición queda APAGADA hasta que el servidor fije la versión vigente.
 // V04.39 (09/10/2026) — Ronda 1 post-lanzamiento: Bienvenida con la fotografía de BRAMUlab-Inicio (bundle h5), invitación genérica en Buscar jugadores y Ayuda / Preguntas frecuentes.
 // V04.40 (09/10/2026) — cierre de Ronda 1 + Ronda 2: mensaje de invitación definitivo, tarjeta azul BRAMU, Ayuda en 9 preguntas / 4 categorías y descubrimiento de jugadores en Buscar jugadores (RPC get_player_discovery).
-const CACHE_NAME = 'bramulab-v04-46';
+const CACHE_NAME = 'bramulab-v04-47';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -216,49 +216,49 @@ const CACHE_NAME = 'bramulab-v04-46';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=04.46',
-  './engine.js?v=04.46',
-  './stats.js?v=04.46',
-  './store.js?v=04.46',
+  './styles.css?v=04.47',
+  './engine.js?v=04.47',
+  './stats.js?v=04.47',
+  './store.js?v=04.47',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level-public.js?v=04.46',
-  './level-calibration.js?v=04.46',
-  './player-home.js?v=04.46',
-  './match-load.js?v=04.46',
-  './player-identity.js?v=04.46',
-  './groups.js?v=04.46',
-  './locations.js?v=04.46',
-  './ranking.js?v=04.46',
+  './level-public.js?v=04.47',
+  './level-calibration.js?v=04.47',
+  './player-home.js?v=04.47',
+  './match-load.js?v=04.47',
+  './player-identity.js?v=04.47',
+  './groups.js?v=04.47',
+  './locations.js?v=04.47',
+  './ranking.js?v=04.47',
   // Backend Bloque 2 — auth.js (nuevo). El CDN de supabase-js y env.generated.js NO se
   // pre-cachean acá a propósito: el primero es de otro origen (el fetch handler de abajo ya
   // trata cualquier origen externo aparte, "mejor esfuerzo" sin bloquear el install), y el
   // segundo varía por deploy (Vercel lo genera en build) — igual queda cacheado la primera vez
   // que se pide, por el fetch handler genérico de más abajo.
-  './auth.js?v=04.46',
+  './auth.js?v=04.47',
   // Backend Bloque 5 — matches.js/match-sync.js (nuevos). Igual criterio que auth.js: quedan
   // inertes sin backend configurado, pero se pre-cachean igual (offline-first para todos).
-  './matches.js?v=04.46',
-  './match-sync.js?v=04.46',
-  './match-validation.js?v=04.46',
+  './matches.js?v=04.47',
+  './match-sync.js?v=04.47',
+  './match-validation.js?v=04.47',
   // Hotfix 27/09/2026 (handoff 37) — match-self-heal.js (nuevo). Mismo criterio: sin red/DOM
   // propios, pre-cacheado igual.
-  './match-self-heal.js?v=04.46',
+  './match-self-heal.js?v=04.47',
   // Backend Bloque 8 (Fase D) — intelligence-client.js (nuevo). Mismo criterio: inerte sin
   // backend configurado, pre-cacheado igual.
-  './intelligence-client.js?v=04.46',
-  './app.js?v=04.46',
+  './intelligence-client.js?v=04.47',
+  './app.js?v=04.47',
   './manifest.webmanifest',
-  './icons/icon-192.png?v=04.46',
-  './icons/icon-512.png?v=04.46',
-  './icons/icon-512-maskable.png?v=04.46',
-  './icons/apple-touch-icon.png?v=04.46',
-  './icons/favicon-64.png?v=04.46',
-  './assets/home-primer-partido.jpg?v=04.46',
-  './assets/bienvenida-hero.jpg?v=04.46',
-  './assets/bienvenida-hero-desktop.jpg?v=04.46',
+  './icons/icon-192.png?v=04.47',
+  './icons/icon-512.png?v=04.47',
+  './icons/icon-512-maskable.png?v=04.47',
+  './icons/apple-touch-icon.png?v=04.47',
+  './icons/favicon-64.png?v=04.47',
+  './assets/home-primer-partido.jpg?v=04.47',
+  './assets/bienvenida-hero.jpg?v=04.47',
+  './assets/bienvenida-hero-desktop.jpg?v=04.47',
   './icons/padel-court-example.svg',
-  './icons/logo.svg?v=04.46',
+  './icons/logo.svg?v=04.47',
 ];
 
 self.addEventListener('install', (event) => {

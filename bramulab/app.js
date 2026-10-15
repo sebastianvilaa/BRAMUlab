@@ -354,6 +354,10 @@
   const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'pending', 'activity'];
 
   function showView(name) {
+    // V04.47 — cualquier cambio de pantalla cierra el menú general al instante y, si se sale de Editar datos, vacía el último cambio pendiente.
+    if (appMenuOpen && name !== 'player-home') closeAppMenu({ immediate: true });
+    const editView = $('#view-edit-data');
+    if (editView && !editView.hidden && name !== 'edit-data') profileAutosaveOnExit();
     // BRAMUlive (2026-09-18) — se retiran 'setup'/'match'/'timeline': eran las tres vistas
     // exclusivas del registro en vivo (configuración previa, marcador y timeline completo),
     // separadas ahora a BRAMUlive como producto propio. 'analysis'/'manual-load'
@@ -6723,6 +6727,9 @@
   function renderAccessInvitationCard() {
     const card = $('#access-invitation-card');
     if (card) card.hidden = !(Store.loadClaimToken && Store.loadClaimToken());
+    // V04.47 — la alternativa «¿Ya tenés BRAMUlab instalada?» solo tiene sentido en el navegador; dentro de la app instalada ya estás en ella.
+    const installedLink = $('#access-installed-btn');
+    if (installedLink) installedLink.hidden = isStandaloneApp();
   }
 
   function openAccessFlow(afterAction) {
@@ -8630,6 +8637,290 @@
     if (scroller) scroller.scrollTop = 0;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* V04.47 — MENÚ GENERAL (☰ en el encabezado del Home)                    */
+  /* Panel desde la derecha, DEBAJO del encabezado: el botón (☰ → X) nunca   */
+  /* queda tapado y sigue siendo el control de cerrar. Suma accesos          */
+  /* alternativos; no reemplaza ninguna pantalla. Los ítems se definen acá   */
+  /* UNA vez y también alimentan la microdemostración de la invitación.      */
+  /* ------------------------------------------------------------------ */
+  const APP_MENU_ICONS = {
+    edit: '<svg viewBox="0 0 24 24"><circle cx="9" cy="7.5" r="3.4"/><path d="M2.8 19.5c.2-3.3 2.8-5.4 6.2-5.4 1.1 0 2.1.2 3 .7"/><path d="M13.8 20.6l.7-3 5.6-5.6 2.3 2.3-5.6 5.6z"/></svg>',
+    players: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17.2" cy="9" r="2.5"/><path d="M17.6 14.6c2.3.3 4.2 2 4.2 4.9"/></svg>',
+    invitation: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.6"/><path d="M3.6 7.3l8.4 6.2 8.4-6.2"/></svg>',
+    help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 0 1 4.8.9c0 1.7-2.3 2-2.3 3.6"/><circle cx="12" cy="17.2" r=".6" fill="currentColor" stroke="none"/></svg>',
+    logout: '<svg viewBox="0 0 24 24"><path d="M10 4.5H6.5A2 2 0 0 0 4.5 6.5v11a2 2 0 0 0 2 2H10"/><path d="M15.5 8l4 4-4 4M19.5 12H9.5"/></svg>',
+  };
+  const APP_MENU_ITEMS = [
+    { id: 'edit-profile', label: 'Editar mi perfil', icon: APP_MENU_ICONS.edit },
+    { id: 'players', label: 'Mis jugadores', icon: APP_MENU_ICONS.players },
+    { id: 'invitation', label: '¿Recibiste una invitación?', icon: APP_MENU_ICONS.invitation },
+    { id: 'help', label: 'Ayuda', icon: APP_MENU_ICONS.help },
+  ];
+  const APP_MENU_FOOTER_ITEMS = [{ id: 'logout', label: 'Cerrar sesión', icon: APP_MENU_ICONS.logout, secondary: true }];
+  let appMenuOpen = false;
+  let appMenuCloseTimer = null;
+
+  function appMenuItemHTML(item, index) {
+    return `<button type="button" class="app-menu__item${item.secondary ? ' app-menu__item--secondary' : ''}" data-menu-action="${item.id}" style="--i:${index}">`
+      + `<span class="app-menu__icon" aria-hidden="true">${item.icon}</span><span class="app-menu__label">${escapeHtml(item.label)}</span>`
+      + (item.secondary ? '' : '<span class="app-menu__chev" aria-hidden="true">›</span>') + '</button>';
+  }
+  function appMenuMarkup() {
+    return {
+      list: APP_MENU_ITEMS.map((it, i) => appMenuItemHTML(it, i)).join(''),
+      footer: APP_MENU_FOOTER_ITEMS.map((it, i) => appMenuItemHTML(it, APP_MENU_ITEMS.length + i)).join(''),
+    };
+  }
+
+  function positionAppMenu() {
+    const header = $('#view-player-home .player-home-header');
+    if (!header) return;
+    document.documentElement.style.setProperty('--app-menu-top', `${Math.max(0, Math.round(header.getBoundingClientRect().bottom))}px`);
+  }
+
+  function setAppMenuButtonState(open) {
+    const btn = $('#app-menu-btn');
+    btn.classList.toggle('is-open', open);
+    btn.setAttribute('aria-expanded', String(open));
+    btn.setAttribute('aria-label', open ? 'Cerrar menú' : 'Abrir menú');
+  }
+
+  function openAppMenu(viaKeyboard) {
+    if (appMenuOpen || !Store.getCurrentUser() || $('#view-player-home').hidden) return;
+    const menu = $('#app-menu'); const scrim = $('#app-menu-scrim');
+    clearTimeout(appMenuCloseTimer);
+    positionAppMenu();
+    menu.style.transform = '';
+    menu.classList.remove('is-dragging');
+    menu.hidden = false; scrim.hidden = false;
+    appMenuOpen = true;
+    setAppMenuButtonState(true);
+    // dos frames: el panel necesita pintarse fuera de pantalla antes de transicionar
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (!appMenuOpen) return; menu.classList.add('is-open'); scrim.classList.add('is-open'); }));
+    if (viaKeyboard) setTimeout(() => { const first = menu.querySelector('.app-menu__item'); if (appMenuOpen && first) first.focus({ preventScroll: true }); }, 330);
+  }
+
+  function closeAppMenu(opts) {
+    if (!appMenuOpen) return;
+    const o = opts || {};
+    const menu = $('#app-menu'); const scrim = $('#app-menu-scrim');
+    appMenuOpen = false;
+    setAppMenuButtonState(false);
+    menu.classList.remove('is-open'); scrim.classList.remove('is-open');
+    menu.style.transform = ''; menu.classList.remove('is-dragging');
+    const finish = () => { menu.hidden = true; scrim.hidden = true; };
+    clearTimeout(appMenuCloseTimer);
+    if (o.immediate) finish(); else appMenuCloseTimer = setTimeout(finish, 340);
+    if (o.restoreFocus) $('#app-menu-btn').focus({ preventScroll: true });
+  }
+
+  function onAppMenuAction(id) {
+    // El panel empieza a cerrarse y la acción se ejecuta un instante después: la transición se siente continua y los modales no quedan detrás del panel.
+    closeAppMenu();
+    setTimeout(() => {
+      if (id === 'edit-profile') { profileEditReturnView = 'home'; openProfileEditModal(); }
+      else if (id === 'players') openProfileScreen('jugadores');
+      else if (id === 'invitation') openInvitePasteSheet();
+      else if (id === 'help') openHelpScreen();
+      else if (id === 'logout') openLogoutOptions();
+    }, 190);
+  }
+
+  function initAppMenu() {
+    const markup = appMenuMarkup();
+    const menu = $('#app-menu');
+    menu.classList.add('app-menu--real');
+    $('#app-menu-list').innerHTML = markup.list;
+    $('#app-menu-footer').innerHTML = markup.footer;
+    // La demostración de «¿Ya tenés BRAMUlab instalada?» usa exactamente los mismos ítems.
+    $('#invite-installed-demo-menu').innerHTML = `<nav class="app-menu__list">${markup.list}</nav><div class="app-menu__footer">${markup.footer}</div>`;
+    $('#app-menu-btn').addEventListener('click', (e) => { if (appMenuOpen) closeAppMenu(); else openAppMenu(e.detail === 0); });
+    $('#app-menu-scrim').addEventListener('click', () => closeAppMenu());
+    menu.addEventListener('click', (e) => {
+      const item = e.target.closest('[data-menu-action]');
+      if (item) onAppMenuAction(item.dataset.menuAction);
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && appMenuOpen) { e.preventDefault(); closeAppMenu({ restoreFocus: true }); } });
+    window.addEventListener('resize', () => { if (appMenuOpen) positionAppMenu(); });
+    // Gesto: arrastrar el panel hacia la derecha lo cierra (sigue al dedo; umbral de distancia o velocidad).
+    let drag = null;
+    menu.addEventListener('touchstart', (e) => {
+      const t = e.touches[0];
+      drag = { x: t.clientX, y: t.clientY, t: Date.now(), dx: 0, active: false };
+    }, { passive: true });
+    menu.addEventListener('touchmove', (e) => {
+      if (!drag) return;
+      const t = e.touches[0];
+      const dx = t.clientX - drag.x; const dy = t.clientY - drag.y;
+      if (!drag.active) {
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.3 && dx > 0) { drag.active = true; menu.classList.add('is-dragging'); }
+        else if (Math.abs(dy) > 10) { drag = null; return; }
+        else return;
+      }
+      drag.dx = Math.max(0, dx);
+      menu.style.transform = `translateX(${drag.dx}px)`;
+      $('#app-menu-scrim').style.opacity = String(Math.max(0, 1 - drag.dx / Math.max(1, menu.offsetWidth)));
+    }, { passive: true });
+    const endDrag = () => {
+      if (!drag) return;
+      const d = drag; drag = null;
+      $('#app-menu-scrim').style.opacity = '';
+      if (!d.active) return;
+      const velocity = d.dx / Math.max(1, Date.now() - d.t);
+      menu.classList.remove('is-dragging');
+      if (d.dx > 80 || velocity > 0.55) closeAppMenu(); else menu.style.transform = '';
+    };
+    menu.addEventListener('touchend', endDrag);
+    menu.addEventListener('touchcancel', endDrag);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V04.47 — INVITACIÓN RECIBIDA POR WHATSAPP                              */
+  /* Un enlace de WhatsApp abre el navegador, no la PWA instalada (iOS no    */
+  /* enruta enlaces comunes a una web app; en Android solo si el enlace cae */
+  /* dentro del scope del WebAPK, y la invitación vive en bramulab.com, no  */
+  /* en app.bramulab.com). Camino universal: copiar acá, pegar en la app.    */
+  /* Pegar NO reclama nada: entra al flujo vigente (vista previa segura →    */
+  /* «¿JUGASTE ESTE PARTIDO?»).                                              */
+  /* ------------------------------------------------------------------ */
+  function inviteAllowedHosts() {
+    const hosts = [];
+    try { hosts.push(window.location.hostname); } catch (e) { /* noop */ }
+    try {
+      const base = window.__BRAMU_ENV__ && window.__BRAMU_ENV__.inviteBase;
+      if (base) hosts.push(new URL(base).hostname);
+    } catch (e) { /* noop */ }
+    return hosts.filter(Boolean);
+  }
+
+  function openSheetScrim(scrimSel) {
+    const scrim = $(scrimSel);
+    scrim.hidden = false;
+    requestAnimationFrame(() => { scrim.classList.add('is-open'); });
+  }
+  function closeSheetScrim(scrimSel) {
+    const scrim = $(scrimSel);
+    scrim.classList.remove('is-open');
+    setTimeout(() => { if (!scrim.classList.contains('is-open')) scrim.hidden = true; }, 240);
+  }
+
+  /* -- Dentro de la app instalada: pegar / importar -- */
+  function setInvitePasteError(text) {
+    const el = $('#invite-paste-error');
+    el.textContent = text || '';
+    el.hidden = !text;
+  }
+  function showInvitePasteManual(message) {
+    $('#invite-paste-manual').hidden = false;
+    $('#invite-paste-manual-toggle').hidden = true;
+    setInvitePasteError(message || '');
+    setTimeout(() => { try { $('#invite-paste-input').focus(); } catch (e) { /* noop */ } }, 60);
+  }
+  function openInvitePasteSheet() {
+    if (!Store.getCurrentUser()) { showView('access'); return; }
+    $('#invite-paste-input').value = '';
+    $('#invite-paste-manual').hidden = true;
+    $('#invite-paste-manual-toggle').hidden = false;
+    $('#invite-paste-btn').disabled = false;
+    setInvitePasteError('');
+    openSheetScrim('#invite-paste-scrim');
+  }
+  function closeInvitePasteSheet() { closeSheetScrim('#invite-paste-scrim'); }
+
+  const INVITE_PASTE_ERROR_TEXT = {
+    empty: 'Pegá el enlace de la invitación.',
+    not_invitation: 'Ese texto no parece una invitación de BRAMUlab. Revisá que sea el enlace completo.',
+    foreign_host: 'Ese enlace no pertenece a BRAMUlab, así que no lo abrimos.',
+  };
+
+  /** Valida el texto pegado y, si es una invitación legítima, la guarda como intención pendiente y abre el flujo existente de confirmación. */
+  async function importPastedInvitation(text) {
+    const parsed = PLI.parseInvitationLink(text, inviteAllowedHosts());
+    if (!parsed.ok) { showInvitePasteManual(INVITE_PASTE_ERROR_TEXT[parsed.code] || INVITE_PASTE_ERROR_TEXT.not_invitation); return; }
+    if (!Auth.isConfigured()) { setInvitePasteError('No pudimos conectar con el servidor. Probá de nuevo más tarde.'); return; }
+    closeInvitePasteSheet();
+    Store.saveClaimToken(parsed.token);
+    await handlePendingInvitation({ onboardingDone: true });
+  }
+
+  async function pasteInvitationFromClipboard() {
+    setInvitePasteError('');
+    const btn = $('#invite-paste-btn');
+    btn.disabled = true;
+    try {
+      let text = '';
+      try {
+        if (!(navigator.clipboard && navigator.clipboard.readText)) throw new Error('unsupported');
+        text = await navigator.clipboard.readText();
+      } catch (e) {
+        showInvitePasteManual('No pudimos leer el portapapeles. Pegá el enlace en el campo de abajo.');
+        return;
+      }
+      if (!String(text || '').trim()) { showInvitePasteManual('No encontramos nada copiado. Copiá la invitación y volvé, o pegala acá.'); return; }
+      await importPastedInvitation(text);
+    } finally { btn.disabled = false; }
+  }
+
+  /* -- En el navegador: copiar la invitación para llevarla a la app instalada -- */
+  let inviteCopyResetTimer = null;
+  function openInviteInstalledSheet() {
+    try { if (typeof closeInstallPromptSheet === 'function') closeInstallPromptSheet(); } catch (e) { /* noop */ }
+    resetInviteCopyUi();
+    openSheetScrim('#invite-installed-scrim');
+  }
+  function closeInviteInstalledSheet() { closeSheetScrim('#invite-installed-scrim'); resetInviteCopyUi(); }
+  function resetInviteCopyUi() {
+    clearTimeout(inviteCopyResetTimer);
+    $('#invite-copy-btn').classList.remove('is-copied');
+    $('#invite-copy-label').textContent = 'COPIAR INVITACIÓN';
+    const fb = $('#invite-copy-feedback'); fb.hidden = true; fb.textContent = ''; fb.classList.remove('invite-sheet__feedback--error');
+    const box = $('#invite-copy-manual'); box.hidden = true; box.value = '';
+  }
+  /** Copia el enlace completo de la invitación pendiente en este navegador (mismo token que ya capturó `?claim=`, recodificado al enlace corto oficial). */
+  async function copyPendingInvitationLink() {
+    const token = Store.loadClaimToken();
+    const fb = $('#invite-copy-feedback');
+    if (!token) {
+      fb.textContent = 'No encontramos la invitación en este navegador. Volvé a abrir el enlace que te enviaron.';
+      fb.classList.add('invite-sheet__feedback--error'); fb.hidden = false;
+      return;
+    }
+    const url = buildInviteLinkUrl(token);
+    const copied = await copyInviteText(url);
+    if (copied) {
+      $('#invite-copy-btn').classList.add('is-copied');
+      $('#invite-copy-label').textContent = 'Invitación copiada';
+      fb.classList.remove('invite-sheet__feedback--error');
+      fb.textContent = 'Ahora abrí BRAMUlab desde el ícono de tu celular.'; fb.hidden = false;
+      $('#invite-copy-manual').hidden = true;
+      clearTimeout(inviteCopyResetTimer);
+      inviteCopyResetTimer = setTimeout(() => { $('#invite-copy-btn').classList.remove('is-copied'); $('#invite-copy-label').textContent = 'COPIAR INVITACIÓN'; }, 4200);
+    } else {
+      fb.classList.remove('invite-sheet__feedback--error');
+      fb.textContent = 'Copiá el enlace a mano y abrí BRAMUlab desde el ícono de tu celular.'; fb.hidden = false;
+      const box = $('#invite-copy-manual'); box.value = url; box.hidden = false;
+      try { box.focus(); box.select(); } catch (e) { /* noop */ }
+    }
+  }
+
+  function initInvitationImport() {
+    $('#invite-paste-close').addEventListener('click', closeInvitePasteSheet);
+    $('#invite-paste-scrim').addEventListener('click', (e) => { if (e.target.id === 'invite-paste-scrim') closeInvitePasteSheet(); });
+    $('#invite-paste-btn').addEventListener('click', pasteInvitationFromClipboard);
+    $('#invite-paste-manual-toggle').addEventListener('click', () => showInvitePasteManual(''));
+    $('#invite-paste-continue').addEventListener('click', () => importPastedInvitation($('#invite-paste-input').value));
+    $('#invite-paste-input').addEventListener('paste', () => {
+      // Pegar un enlace válido continúa solo (sin otro toque); si no lo es, se muestra el motivo al tocar CONTINUAR.
+      setTimeout(() => { if (PLI.parseInvitationLink($('#invite-paste-input').value, inviteAllowedHosts()).ok) importPastedInvitation($('#invite-paste-input').value); }, 0);
+    });
+    $('#invite-paste-input').addEventListener('input', () => setInvitePasteError(''));
+    $('#access-installed-btn').addEventListener('click', openInviteInstalledSheet);
+    $('#invite-installed-close').addEventListener('click', closeInviteInstalledSheet);
+    $('#invite-installed-scrim').addEventListener('click', (e) => { if (e.target.id === 'invite-installed-scrim') closeInviteInstalledSheet(); });
+    $('#invite-copy-btn').addEventListener('click', copyPendingInvitationLink);
+  }
+
   function openLegalDoc(doc, origin, hash) {
     const d = LEGAL_DOCS[doc];
     if (!d) return;
@@ -9775,8 +10066,7 @@
     // completo dentro de renderPlayerHomeCarousel en cada render, porque cambian de
     // cantidad/contenido en cada carga; no hay nada fijo que cablear una sola vez acá.
     $('#player-home-bell-btn').addEventListener('click', openNotificationsScreen);
-    // V04.39 h4 — «?» del header: abre AYUDA / Preguntas frecuentes (pantalla propia); volver regresa al Home.
-    $('#player-home-help-btn').addEventListener('click', openHelpScreen);
+    // V04.47 — Ayuda ya no vive en el encabezado: se abre desde el menú general (☰); volver regresa al Home.
     $('#help-back-btn').addEventListener('click', () => openPlayerHome());
     // BRAMUlab_V03.5 (§4, Bloque 1) — acceso a RANKING BRAMU desde el header del Home.
     $('#player-home-ranking-btn').addEventListener('click', openRankingScreen);
@@ -14776,6 +15066,7 @@
   let profileEditLocation = null; // BRAMUlab_V03.4.1 (§9) — { locality, region, country } | null.
   let profileEditBranch = null; // Pre-Production P0.1C — 'F' | 'M' | null, mismo criterio de reset que hand/side/gender.
   let profileEditStoredBranch = null;
+  let profileEditReturnView = 'profile'; // V04.47 — a dónde vuelve la flecha de Editar datos ('home' si se abrió desde el menú general)
   let profileEditAllowWhatsApp = false; // BRAMUlab_V03.6 (§3) — `false` por defecto, mismo criterio de reset que hand/side/gender.
 
   /** BRAMUlab_V03.4.1 (§10) — un único mapa para las 4 filas compactas de elección fija
@@ -14842,6 +15133,9 @@
     profileEditStoredBranch = user.competitiveBranch || null;
     profileEditBranch = profileEditStoredBranch || inferCompetitiveBranchFromGender(profileEditGender);
     profileEditAllowWhatsApp = !!user.allowWhatsAppContact;
+    profileAutosave.session += 1;
+    clearTimeout(profileAutosave.timer);
+    profileAutosave.failedSig = null; profileAutosave.savedAny = false; profileAutosave.leaveWarned = false;
     $('#profile-edit-phone').value = user.phone || '';
     $('#profile-edit-whatsapp-hint').hidden = true;
     updateProfileWhatsappToggleDisplay();
@@ -14870,7 +15164,22 @@
     $('#profile-edit-username').disabled = serverBacked;
     $('#profile-edit-error').textContent = '';
     $('#profile-edit-error').hidden = true;
-    $all('#profile-edit-form button[type="submit"]').forEach((btn) => { btn.disabled = false; btn.textContent = 'GUARDAR'; });
+    setProfileAutosaveStatus('idle', '');
+    profileAutosave.lastForm = readProfileEditForm();
+    profileAutosave.lastSig = profileEditFormSignature(profileAutosave.lastForm);
+    // Cambios que no llegaron al servidor en una apertura anterior: se recuperan en pantalla y se reintentan.
+    const draft = profileAutosave.draft;
+    if (draft && draft.userId === user.id && serverBacked) {
+      const f = draft.form;
+      $('#profile-edit-first-name').value = f.firstName; $('#profile-edit-last-name').value = f.lastName; $('#profile-edit-display-name').value = f.displayName;
+      $('#profile-edit-birthdate').value = f.birthDate || ''; $('#profile-edit-phone').value = f.phone;
+      profileEditGender = f.gender; profileEditHand = f.hand; profileEditSide = f.side; profileEditCategory = f.category; profileEditBranch = f.branch;
+      profileEditLocation = f.location; profileEditAllowWhatsApp = f.allowWhatsApp; profileEditPhotoDataUrl = f.photoDataUrl; profileEditPhotoRemoved = f.photoRemoved;
+      ['gender', 'hand', 'side', 'category', 'branch'].forEach(updateProfileSelectRowDisplay);
+      syncProfileBranchFromGender(); updateProfileLocationRowDisplay(); updateProfileWhatsappToggleDisplay();
+      if (f.photoDataUrl) setAvatarPreview('profile-edit-avatar-img', 'profile-edit-avatar-initials', f.photoDataUrl, f.displayName);
+      scheduleProfileAutosave(0);
+    }
     showView('edit-data');
   }
 
@@ -14900,6 +15209,8 @@
         field.set(btn.dataset.value);
         if (field.onSelect) field.onSelect(); else updateProfileSelectRowDisplay(fieldKeyOrConfig);
         closeProfilePickerSheet();
+        // V04.47 — elegir una opción en Editar datos la guarda al instante (el selector de Ranking trae su propio config y no pasa por acá).
+        if (typeof fieldKeyOrConfig === 'string' && !$('#view-edit-data').hidden) scheduleProfileAutosave(0);
       });
     });
     $('#profile-picker-sheet-scrim').hidden = false;
@@ -15042,10 +15353,12 @@
   // ahora acepta un config crudo `{get,set,onSelect}` — mismo criterio ya usado por
   // `openProfilePickerSheet` para reutilizar UNA sola hoja en vez de duplicarla (acá, para que
   // el paso 3 del alta reutilice exactamente la misma hoja/búsqueda GeoRef sin copiar nada).
-  let activeLocationTarget = { get: () => profileEditLocation, set: (loc) => { profileEditLocation = loc; }, onSelect: updateProfileLocationRowDisplay };
+  // V04.47 — elegir ubicación en Editar datos la guarda (autoguardado); el selector de Ranking pasa su propio config.
+  const profileEditLocationTarget = { get: () => profileEditLocation, set: (loc) => { profileEditLocation = loc; }, onSelect: () => { updateProfileLocationRowDisplay(); scheduleProfileAutosave(0); } };
+  let activeLocationTarget = profileEditLocationTarget;
 
   function openProfileLocationSheet(config) {
-    activeLocationTarget = config || { get: () => profileEditLocation, set: (loc) => { profileEditLocation = loc; }, onSelect: updateProfileLocationRowDisplay };
+    activeLocationTarget = config || profileEditLocationTarget;
     $('#profile-location-search').value = '';
     setProfileLocationStatus('');
     clearProfileLocationList();
@@ -15117,126 +15430,325 @@
    *  que cada RPC ya es su propia transacción atómica. Al final siempre se refresca el perfil
    *  real desde el servidor (nunca se confía en un cache optimista como única verdad, handoff
    *  §9). */
-  async function submitServerBackedProfileEdit(user) {
-    const displayName = normalizePlayerName($('#profile-edit-display-name').value);
-    const firstName = $('#profile-edit-first-name').value.trim();
-    const phone = $('#profile-edit-phone').value.trim();
-    const errorEl = $('#profile-edit-error');
-    errorEl.hidden = true;
-    errorEl.textContent = '';
-
-    if (!firstName) { errorEl.textContent = 'Ingresá al menos tu nombre.'; errorEl.hidden = false; return; }
-    if (!displayName) { errorEl.textContent = 'El nombre visible no puede quedar vacío.'; errorEl.hidden = false; return; }
-    if (profileEditAllowWhatsApp && !PLI.isValidWhatsAppPhone(phone)) {
-      errorEl.textContent = 'Para permitir contacto por WhatsApp, cargá primero un número de WhatsApp válido.';
-      errorEl.hidden = false;
-      return;
-    }
-
-    const saveBtn = $all('#profile-edit-form button[type="submit"]')[0];
-    $all('#profile-edit-form button[type="submit"]').forEach((btn) => { btn.disabled = true; });
-    if (saveBtn) saveBtn.textContent = 'GUARDANDO…';
-
-    const partialErrors = [];
-
-    // 1) Núcleo de Perfil (complete_profile) — @usuario sin cambios, siempre.
-    const coreResult = await Auth.completeProfile({
-      username: user.username,
-      firstName,
+  /** V04.47 — lee TODO el formulario de Editar datos en un objeto plano (copia). Cada guardado trabaja sobre esta copia: aunque la persona siga
+   *  escribiendo o navegue mientras la solicitud viaja, lo que se envía es exactamente lo que se midió acá. */
+  function readProfileEditForm() {
+    return {
+      firstName: $('#profile-edit-first-name').value.trim(),
       lastName: $('#profile-edit-last-name').value.trim(),
-      displayName,
+      username: $('#profile-edit-username').value.trim().toLowerCase(),
+      displayName: normalizePlayerName($('#profile-edit-display-name').value),
       birthDate: $('#profile-edit-birthdate').value || null,
-      gender: profileEditGender,
-      dominantHand: profileEditHand,
-      preferredSide: profileEditSide,
+      phone: $('#profile-edit-phone').value.trim(),
+      gender: profileEditGender, hand: profileEditHand, side: profileEditSide,
+      category: profileEditCategory, branch: profileEditBranch,
+      location: profileEditLocation ? { locality: profileEditLocation.locality, region: profileEditLocation.region || null, country: profileEditLocation.country || null, localityId: profileEditLocation.localityId || null, provinceId: profileEditLocation.provinceId || null } : null,
+      allowWhatsApp: !!profileEditAllowWhatsApp,
+      photoDataUrl: profileEditPhotoDataUrl || null,
+      photoRemoved: !!profileEditPhotoRemoved,
+    };
+  }
+  /** Firma comparable de un formulario (para saber si hay algo nuevo que guardar). La foto pendiente cuenta por su contenido. */
+  function profileEditFormSignature(f) {
+    return JSON.stringify([f.firstName, f.lastName, f.username, f.displayName, f.birthDate, f.phone, f.gender, f.hand, f.side, f.category, f.branch,
+      f.location && [f.location.locality, f.location.region, f.location.country], f.allowWhatsApp, f.photoDataUrl ? `p${f.photoDataUrl.length}:${f.photoDataUrl.slice(-24)}` : '', f.photoRemoved]);
+  }
+  /** Firma del estado ya guardado de una cuenta (mismo orden que la del formulario) — punto de partida de «no hay cambios». */
+  function profileEditUserSignature(user) {
+    const branch = user.competitiveBranch || inferCompetitiveBranchFromGender(user.gender || null);
+    return profileEditFormSignature({
+      firstName: (user.firstName || '').trim(), lastName: (user.lastName || '').trim(), username: String(user.username || '').toLowerCase(), displayName: normalizePlayerName(user.displayName || ''),
+      birthDate: user.birthDate || null, phone: (user.phone || '').trim(), gender: user.gender || null, hand: user.dominantHand || null, side: user.preferredSide || null,
+      category: (user.serverBacked ? user.currentCategory : user.declaredCategory) || null, branch: branch || null,
+      location: user.locality ? { locality: user.locality, region: user.region || null, country: user.country || null } : null,
+      allowWhatsApp: !!user.allowWhatsAppContact, photoDataUrl: null, photoRemoved: false,
     });
-    if (!coreResult.ok) {
-      errorEl.textContent = COMPLETE_PROFILE_ERROR_TEXT[coreResult.code] || COMPLETE_PROFILE_ERROR_TEXT.unknown;
-      errorEl.hidden = false;
-      $all('#profile-edit-form button[type="submit"]').forEach((btn) => { btn.disabled = false; });
-      if (saveBtn) saveBtn.textContent = 'GUARDAR';
-      return;
+  }
+
+  /** Pre-Production P0.1C / V04.47 — camino real de guardado para cuentas server-backed (ahora automático: lo dispara el controlador de abajo, nunca un botón).
+   *  Reutiliza los contratos ya existentes (nunca un segundo sistema de Perfil):
+   *  - complete_profile (Bloque 2/3): nombre/apellido/apodo/fecha/género/mano/lado. @usuario SIEMPRE se envía sin cambios (fijo) — nunca dispara username_locked.
+   *  - complete_ranking_profile_data (Bloque 7): rama + ubicación, SOLO si alguna cambió (mismo cooldown de 30 días).
+   *  - complete_contact_profile_data: teléfono + consentimiento WhatsApp, solo si alguno cambió.
+   *  - update_current_category: categoría actual, solo si cambió.
+   *  - Storage (avatars) + update_profile_avatar: solo si la foto cambió.
+   *  Cada paso es independiente (cada RPC es su propia transacción): un error parcial no impide guardar el resto. Al final se refresca el perfil real
+   *  desde el servidor. Devuelve `{ ok, kind?, message?, partialErrors, reverted }`: `kind` = 'validation' | 'core'; `reverted` = campos que el servidor
+   *  rechazó y deben volver a su valor real en pantalla. */
+  async function saveServerBackedProfile(user, form, opts) {
+    const o = opts || {};
+    if (!form.firstName) return { ok: false, kind: 'validation', message: 'Ingresá al menos tu nombre.', partialErrors: [], reverted: [] };
+    if (!form.displayName) return { ok: false, kind: 'validation', message: 'El apodo no puede quedar vacío.', partialErrors: [], reverted: [] };
+    if (form.allowWhatsApp && !PLI.isValidWhatsAppPhone(form.phone)) {
+      return { ok: false, kind: 'validation', message: 'Para permitir contacto por WhatsApp, cargá primero un número de WhatsApp válido.', partialErrors: [], reverted: [] };
+    }
+    const partialErrors = [];
+    const reverted = [];
+
+    // 1) Núcleo de Perfil (complete_profile) — solo si algo de él cambió respecto de lo guardado (evita enviar lo mismo en cada autoguardado).
+    const coreChanged = form.firstName !== (user.firstName || '').trim() || form.lastName !== (user.lastName || '').trim()
+      || form.displayName !== normalizePlayerName(user.displayName || '') || (form.birthDate || null) !== (user.birthDate || null)
+      || (form.gender || null) !== (user.gender || null) || (form.hand || null) !== (user.dominantHand || null) || (form.side || null) !== (user.preferredSide || null);
+    if (coreChanged) {
+      const coreResult = await Auth.completeProfile({
+        username: user.username, firstName: form.firstName, lastName: form.lastName, displayName: form.displayName,
+        birthDate: form.birthDate, gender: form.gender, dominantHand: form.hand, preferredSide: form.side,
+      });
+      if (!coreResult.ok) return { ok: false, kind: 'core', message: COMPLETE_PROFILE_ERROR_TEXT[coreResult.code] || COMPLETE_PROFILE_ERROR_TEXT.unknown, partialErrors, reverted };
     }
 
     // 2) Rama + ubicación (complete_ranking_profile_data) — solo si alguna cambió.
-    const branchChanged = profileEditBranch !== (user.competitiveBranch || null);
-    const locationChanged = JSON.stringify(profileEditLocation) !== JSON.stringify(
-      user.locality ? { locality: user.locality, region: user.region || null, country: user.country || null } : null
-    );
-    const inferredBranch = inferCompetitiveBranchFromGender(profileEditGender);
-    const deferInferredBranch = branchChanged
-      && !locationChanged
-      && !profileEditLocation
-      && !user.competitiveBranch
-      && inferredBranch === profileEditBranch;
-    if ((branchChanged || locationChanged) && !deferInferredBranch) {
-      if (!profileEditBranch || !profileEditLocation) {
+    const branchChanged = form.branch !== (user.competitiveBranch || null);
+    const locationChanged = JSON.stringify(form.location && [form.location.locality, form.location.region, form.location.country])
+      !== JSON.stringify(user.locality ? [user.locality, user.region || null, user.country || null] : null);
+    const inferredBranch = inferCompetitiveBranchFromGender(form.gender);
+    const deferInferredBranch = branchChanged && !locationChanged && !form.location && !user.competitiveBranch && inferredBranch === form.branch;
+    // Solo se toca Ranking si la persona cambió rama/ubicación en ESTA edición (no por guardar un apodo): evita reintentos y avisos repetidos de algo que no tocó.
+    const locKey = (l) => JSON.stringify(l ? [l.locality, l.region || null, l.country || null] : null);
+    const rankingTouched = !o.baseline || form.branch !== o.baseline.branch || locKey(form.location) !== locKey(o.baseline.location);
+    if ((branchChanged || locationChanged) && rankingTouched && !deferInferredBranch) {
+      if (!form.branch || !form.location) {
         partialErrors.push('Para cambiar rama competitiva o ubicación necesitás completar ambos datos (podés hacerlo también desde Ranking).');
+        reverted.push('branch', 'location');
       } else {
-        const rankingResult = await Auth.completeRankingProfileData({ competitiveBranch: profileEditBranch, location: profileEditLocation });
-        if (!rankingResult.ok) partialErrors.push(RANKING_GATE_ERROR_TEXT[rankingResult.code] || RANKING_GATE_ERROR_TEXT.unknown);
+        const rankingResult = await Auth.completeRankingProfileData({ competitiveBranch: form.branch, location: form.location });
+        if (!rankingResult.ok) { partialErrors.push(RANKING_GATE_ERROR_TEXT[rankingResult.code] || RANKING_GATE_ERROR_TEXT.unknown); reverted.push('branch', 'location'); }
       }
     }
 
     // 3) Teléfono + consentimiento WhatsApp (complete_contact_profile_data) — solo si cambió.
-    const phoneChanged = (phone || null) !== (user.phone || null);
-    const whatsappChanged = profileEditAllowWhatsApp !== !!user.allowWhatsAppContact;
+    const phoneChanged = (form.phone || null) !== (user.phone || null);
+    const whatsappChanged = form.allowWhatsApp !== !!user.allowWhatsAppContact;
     if (phoneChanged || whatsappChanged) {
-      const contactResult = await Auth.completeContactProfileData({ phone: phone || null, allowWhatsAppContact: profileEditAllowWhatsApp });
-      if (!contactResult.ok) partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[contactResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
+      const contactResult = await Auth.completeContactProfileData({ phone: form.phone || null, allowWhatsAppContact: form.allowWhatsApp });
+      if (!contactResult.ok) { partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[contactResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown); reverted.push('contact'); }
     }
 
-    // 4) Categoría ACTUAL (update_current_category) — solo si cambió. Pre-Production P0.1C
-    // (revisión 2): dato puramente declarativo de Perfil, deliberadamente separado de
-    // level_states.declared_category (histórico/inmutable del onboarding, nunca se toca acá) —
-    // nunca afecta mu/confidence/evidence_units ni recalcula Nivel.
-    const categoryChanged = profileEditCategory !== (user.currentCategory || null);
-    if (categoryChanged) {
-      const categoryResult = await Auth.updateCurrentCategory(profileEditCategory);
-      if (!categoryResult.ok) partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[categoryResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
+    // 4) Categoría ACTUAL (update_current_category) — dato declarativo de Perfil, nunca toca level_states.declared_category ni recalcula Nivel.
+    if ((form.category || null) !== (user.currentCategory || null)) {
+      const categoryResult = await Auth.updateCurrentCategory(form.category || null);
+      if (!categoryResult.ok) { partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[categoryResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown); reverted.push('category'); }
     }
 
-    // 5) Avatar (Storage + update_profile_avatar) — solo si cambió (nueva foto o "quitar foto").
-    // Pre-Production P0.1C (revisión 2): uploadAvatar devuelve la RUTA cruda (bucket privado, no
-    // hay URL pública) — update_profile_avatar persiste esa ruta tal cual.
-    if (profileEditPhotoRemoved) {
+    // 5) Avatar (Storage + update_profile_avatar) — solo si cambió (nueva foto o «quitar foto»). Bucket privado: se persiste la RUTA cruda.
+    if (form.photoRemoved) {
       const cleanup = await Auth.removeAvatarFiles(user.id);
       if (cleanup.ok) {
         const avatarResult = await Auth.updateProfileAvatar(null);
-        if (!avatarResult.ok) partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[avatarResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
-      } else {
-        partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[cleanup.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
-      }
-    } else if (profileEditPhotoDataUrl) {
+        if (!avatarResult.ok) { partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[avatarResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown); reverted.push('photo'); }
+      } else { partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[cleanup.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown); reverted.push('photo'); }
+    } else if (form.photoDataUrl) {
       try {
-        const blob = await (await fetch(profileEditPhotoDataUrl)).blob();
+        const blob = await (await fetch(form.photoDataUrl)).blob();
         const uploadResult = await Auth.uploadAvatar(user.id, blob);
         if (uploadResult.ok) {
           const avatarResult = await Auth.updateProfileAvatar(uploadResult.path);
-          if (!avatarResult.ok) partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[avatarResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
-        } else {
-          partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[uploadResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
-        }
-      } catch (err) {
-        partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
-      }
+          if (!avatarResult.ok) { partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[avatarResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown); reverted.push('photo'); }
+        } else { partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[uploadResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown); reverted.push('photo'); }
+      } catch (err) { partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown); reverted.push('photo'); }
     }
 
-    // Handoff §9 — "al éxito: refrescar perfil desde servidor" (siempre, haya habido errores
-    // parciales o no: lo que sí se guardó debe reflejarse igual).
+    // Siempre se refresca el perfil real desde el servidor (nunca se confía en un caché optimista como única verdad).
     const serverUser = await Auth.fetchOwnProfile();
     if (serverUser) Store.cacheServerUser(serverUser);
     syncCurrentIdentityFromStore();
-    Store.addNotification({
-      userId: user.id, type: 'profile_updated', category: 'info',
-      title: 'Perfil actualizado', body: 'Guardaste cambios en tus datos.', action: 'profile',
+    return { ok: true, partialErrors, reverted };
+  }
+
+  /** V04.47 — cuentas locales/legacy (laboratorio): mismo contrato de resultado que el camino server-backed, guardado síncrono en Store. */
+  function saveLocalProfile(user, form) {
+    let error = null;
+    if (!form.firstName) error = 'Ingresá al menos tu nombre.';
+    else if (!form.displayName) error = 'El apodo no puede quedar vacío.';
+    else if (!PLI.isValidUsernameFormat(form.username)) error = '@usuario: entre 3 y 20 caracteres, sin espacios.';
+    else if (PLI.isUsernameTaken(form.username, Store.loadUsers(), user.id)) error = 'Ese @usuario ya está en uso.';
+    else if (form.allowWhatsApp && !PLI.isValidWhatsAppPhone(form.phone)) error = 'Para permitir contacto por WhatsApp, cargá primero un número de WhatsApp válido.';
+    if (error) return { ok: false, kind: 'validation', message: error, partialErrors: [], reverted: [] };
+    // V03.1 (§4) — la fecha de declaración se reestampa SOLO si el valor de categoría cambia.
+    const nextCategory = form.category || null;
+    const categoryChanged = nextCategory !== (user.declaredCategory || null);
+    const patch = {
+      firstName: form.firstName, lastName: form.lastName, username: form.username, displayName: form.displayName, birthDate: form.birthDate,
+      gender: form.gender, dominantHand: form.hand, preferredSide: form.side, declaredCategory: nextCategory,
+      declaredCategoryAt: categoryChanged ? (nextCategory ? new Date().toISOString() : null) : (user.declaredCategoryAt || null),
+      locality: form.location ? form.location.locality : null, region: form.location ? form.location.region : null, country: form.location ? form.location.country : null,
+      phone: form.phone || null, allowWhatsAppContact: form.allowWhatsApp,
+    };
+    if (form.photoRemoved) patch.profilePhoto = null;
+    else if (form.photoDataUrl) patch.profilePhoto = form.photoDataUrl;
+    Store.updateUserAccount(user.id, patch);
+    if (form.displayName) { Store.saveCurrentPlayerName(form.displayName); Store.rememberPlayerNames([form.displayName]); }
+    syncCurrentIdentityFromStore();
+    return { ok: true, partialErrors: [], reverted: [] };
+  }
+
+  /* ---- V04.47 — GUARDADO AUTOMÁTICO de Editar datos ---- */
+  const PROFILE_AUTOSAVE_DEBOUNCE_MS = 1100;
+  const profileAutosave = {
+    session: 0, timer: null, statusTimer: null, savingTimer: null,
+    inflight: null, rerun: false,
+    lastForm: null,       // el formulario correspondiente a `lastSig` (base para saber qué cambió en esta edición)
+    lastSig: null,        // firma de lo último confirmado por el servidor (o lo que se cargó al abrir)
+    failedSig: null,      // firma de un intento que falló (no se reintenta solo con la misma firma: evita bucles)
+    savedAny: false,      // hubo al menos un guardado confirmado en esta apertura (para el aviso final)
+    leaveWarned: false,
+    draft: null,          // { userId, form } — cambios que no llegaron al servidor, conservados para reintentar
+  };
+
+  function setProfileAutosaveStatus(state, text) {
+    const el = $('#profile-edit-autosave');
+    if (!el) return;
+    clearTimeout(profileAutosave.statusTimer);
+    el.dataset.state = state;
+    $('#profile-edit-autosave-text').textContent = text || '';
+    $('#profile-edit-autosave-retry').hidden = state !== 'error';
+    if (state === 'saved') profileAutosave.statusTimer = setTimeout(() => setProfileAutosaveStatus('idle', ''), 2400);
+  }
+
+  function scheduleProfileAutosave(delayMs) {
+    clearTimeout(profileAutosave.timer);
+    profileAutosave.timer = setTimeout(() => { runProfileAutosave({ final: delayMs === 0 }); }, delayMs == null ? PROFILE_AUTOSAVE_DEBOUNCE_MS : delayMs);
+  }
+
+  /** Revierte en pantalla lo que el servidor rechazó (ubicación en cooldown, categoría inválida, etc.), para que lo que se ve sea lo que está guardado. */
+  function applyProfileEditReverts(reverted, user) {
+    if (!reverted.length) return;
+    if (reverted.includes('branch') || reverted.includes('location')) {
+      profileEditLocation = user.locality ? { locality: user.locality, region: user.region || null, country: user.country || null } : null;
+      profileEditStoredBranch = user.competitiveBranch || null;
+      profileEditBranch = profileEditStoredBranch || inferCompetitiveBranchFromGender(profileEditGender);
+      syncProfileBranchFromGender(); updateProfileLocationRowDisplay();
+    }
+    if (reverted.includes('category')) { profileEditCategory = user.currentCategory || null; updateProfileSelectRowDisplay('category'); }
+    if (reverted.includes('contact')) {
+      $('#profile-edit-phone').value = user.phone || '';
+      profileEditAllowWhatsApp = !!user.allowWhatsAppContact; updateProfileWhatsappToggleDisplay();
+    }
+    if (reverted.includes('photo')) {
+      profileEditPhotoDataUrl = null; profileEditPhotoRemoved = false;
+      setAvatarPreview('profile-edit-avatar-img', 'profile-edit-avatar-initials', user.profilePhoto, user.displayName);
+      $('#profile-edit-avatar-remove-btn').hidden = !user.profilePhoto;
+    }
+  }
+
+  /** Copia de un formulario ya enviado con los campos que el servidor rechazó puestos en su valor real (base de la firma «ya guardado»). */
+  function revertedProfileForm(form, reverted, user) {
+    const f = Object.assign({}, form);
+    if (reverted.includes('branch') || reverted.includes('location')) {
+      f.branch = user.competitiveBranch || inferCompetitiveBranchFromGender(f.gender) || null;
+      f.location = user.locality ? { locality: user.locality, region: user.region || null, country: user.country || null } : null;
+    }
+    if (reverted.includes('category')) f.category = user.currentCategory || null;
+    if (reverted.includes('contact')) { f.phone = (user.phone || '').trim(); f.allowWhatsApp = !!user.allowWhatsAppContact; }
+    if (reverted.includes('photo')) { f.photoDataUrl = null; f.photoRemoved = false; }
+    return f;
+  }
+
+  /** Corre UN guardado (nunca dos a la vez: si ya hay uno en vuelo marca `rerun` y, al terminar, vuelve a leer el formulario — así el último cambio
+   *  nunca se pisa ni se pierde). `final` = el campo/acción terminó (blur, Enter, selección, salida): ahí sí se muestran los errores de validación;
+   *  mientras se escribe (debounce) un campo incompleto no molesta. `force` reintenta aunque la firma sea la de un intento fallido. */
+  function runProfileAutosave(opts) {
+    const o = opts || {};
+    clearTimeout(profileAutosave.timer);
+    if (profileAutosave.inflight) { profileAutosave.rerun = true; return profileAutosave.inflight; }
+    const user = Store.getCurrentUser();
+    if (!user) return Promise.resolve();
+    const form = readProfileEditForm();
+    const sig = profileEditFormSignature(form);
+    if (sig === profileAutosave.lastSig) { if (o.final) $('#profile-edit-error').hidden = true; return Promise.resolve(); }
+    if (sig === profileAutosave.failedSig && !o.force) return Promise.resolve();
+    const session = profileAutosave.session;
+    const errorEl = $('#profile-edit-error');
+    clearTimeout(profileAutosave.savingTimer);
+    profileAutosave.savingTimer = setTimeout(() => setProfileAutosaveStatus('saving', 'Guardando…'), 380);
+    profileAutosave.inflight = (async () => {
+      let result;
+      try {
+        result = user.serverBacked ? await saveServerBackedProfile(user, form, { baseline: profileAutosave.lastForm }) : saveLocalProfile(user, form);
+      } catch (e) {
+        result = { ok: false, kind: 'core', message: 'No pudimos guardar. Revisá tu conexión.', partialErrors: [], reverted: [] };
+      }
+      clearTimeout(profileAutosave.savingTimer);
+      const sameSession = session === profileAutosave.session;
+      if (result.ok) {
+        if (sameSession) {
+          profileAutosave.lastSig = sig; profileAutosave.lastForm = form; profileAutosave.failedSig = null; profileAutosave.savedAny = true; profileAutosave.leaveWarned = false;
+          errorEl.hidden = true; errorEl.textContent = '';
+          const fresh = Store.getCurrentUser();
+          if (form.photoDataUrl && profileEditPhotoDataUrl === form.photoDataUrl) profileEditPhotoDataUrl = null; // ya subida: no se vuelve a subir
+          if (form.photoRemoved && profileEditPhotoRemoved && !result.reverted.includes('photo')) profileEditPhotoRemoved = false;
+          if (fresh && result.reverted.length) {
+            // Lo rechazado vuelve a su valor real en pantalla; «lo guardado» se calcula desde lo que SE ENVIÓ (con esos campos revertidos), nunca desde el
+            // formulario actual: así un cambio posterior en otro campo sigue figurando como pendiente.
+            applyProfileEditReverts(result.reverted, fresh);
+            profileAutosave.lastForm = revertedProfileForm(form, result.reverted, fresh);
+            profileAutosave.lastSig = profileEditFormSignature(profileAutosave.lastForm);
+          }
+          setProfileAutosaveStatus('saved', 'Guardado');
+        }
+        if (profileAutosave.draft && profileAutosave.draft.userId === user.id) profileAutosave.draft = null;
+        if (result.partialErrors.length) showToast(result.partialErrors[0], 3600);
+      } else if (result.kind === 'validation') {
+        if (sameSession && o.final) { errorEl.textContent = result.message; errorEl.hidden = false; }
+        if (sameSession) { profileAutosave.failedSig = sig; setProfileAutosaveStatus('idle', ''); }
+      } else {
+        // El servidor no confirmó: los datos quedan pendientes (en el formulario y como borrador) para reintentar.
+        profileAutosave.draft = { userId: user.id, form };
+        if (sameSession) { profileAutosave.failedSig = sig; errorEl.textContent = result.message; errorEl.hidden = false; setProfileAutosaveStatus('error', 'No se guardó'); }
+        else showToast('No pudimos guardar tus cambios. Los conservamos para reintentar.', 3800);
+      }
+    })().finally(() => {
+      profileAutosave.inflight = null;
+      if (profileAutosave.rerun) { profileAutosave.rerun = false; runProfileAutosave({ final: true }); }
     });
+    return profileAutosave.inflight;
+  }
+
+  /** Salida de Editar datos (flecha o cualquier otra navegación): nunca se pierde el último campo editado. */
+  function profileAutosaveOnExit() {
+    clearTimeout(profileAutosave.timer);
+    const active = document.activeElement;
+    if (active && typeof active.blur === 'function' && $('#view-edit-data').contains(active)) active.blur();
+    if (profileEditFormSignature(readProfileEditForm()) !== profileAutosave.lastSig || profileAutosave.inflight) runProfileAutosave({ final: true });
+  }
+
+  async function leaveProfileEdit() {
+    clearTimeout(profileAutosave.timer);
+    const active = document.activeElement;
+    if (active && typeof active.blur === 'function' && $('#view-edit-data').contains(active)) active.blur();
+    if (profileAutosave.inflight) await profileAutosave.inflight;
+    if (profileEditFormSignature(readProfileEditForm()) !== profileAutosave.lastSig) await runProfileAutosave({ final: true });
+    const unsaved = profileEditFormSignature(readProfileEditForm()) !== profileAutosave.lastSig;
+    if (unsaved && !profileAutosave.leaveWarned) {
+      // Primer intento de salir con algo sin guardar: se avisa y se queda (o se puede corregir). Si insiste, sale conservando el borrador para reintentar.
+      profileAutosave.leaveWarned = true;
+      showToast($('#profile-edit-error').hidden ? 'Tus cambios todavía no se guardaron. Tocá de nuevo para salir.' : $('#profile-edit-error').textContent, 3800);
+      return;
+    }
+    const user = Store.getCurrentUser();
+    if (user && profileAutosave.savedAny) {
+      Store.addNotification({ userId: user.id, type: 'profile_updated', category: 'info', title: 'Perfil actualizado', body: 'Guardaste cambios en tus datos.', action: 'profile' });
+      renderNotificationsBadge();
+    }
+    const back = profileEditReturnView;
+    profileEditReturnView = 'profile';
+    if (back === 'home') { openPlayerHome(); return; }
     renderProfileView();
-    renderNotificationsBadge();
     showView('profile');
-    $all('#profile-edit-form button[type="submit"]').forEach((btn) => { btn.disabled = false; });
-    if (saveBtn) saveBtn.textContent = 'GUARDAR';
-    showToast(partialErrors.length ? partialErrors[0] : 'Datos guardados');
+  }
+
+  /** Reintenta en segundo plano un borrador que no llegó al servidor (vuelve la conexión / la app vuelve al frente / se reabre Editar datos). */
+  function retryPendingProfileDraft() {
+    const d = profileAutosave.draft;
+    const user = Store.getCurrentUser();
+    if (!d || !user || d.userId !== user.id || profileAutosave.inflight || !user.serverBacked) return;
+    if (!$('#view-edit-data').hidden) { runProfileAutosave({ final: true, force: true }); return; }
+    profileAutosave.inflight = (async () => {
+      try {
+        const r = await saveServerBackedProfile(user, d.form);
+        if (r.ok) { profileAutosave.draft = null; showToast('Tus cambios pendientes se guardaron.', 2600); }
+      } catch (e) { /* queda el borrador para la próxima vez */ }
+    })().finally(() => { profileAutosave.inflight = null; });
   }
 
   function initProfileEditModal() {
@@ -15253,12 +15765,14 @@
       profileEditPhotoRemoved = false;
       setAvatarPreview('profile-edit-avatar-img', 'profile-edit-avatar-initials', profileEditPhotoDataUrl);
       $('#profile-edit-avatar-remove-btn').hidden = false;
+      scheduleProfileAutosave(0);
     });
     $('#profile-edit-avatar-remove-btn').addEventListener('click', () => {
       profileEditPhotoDataUrl = null;
       profileEditPhotoRemoved = true;
       setAvatarPreview('profile-edit-avatar-img', 'profile-edit-avatar-initials', null, $('#profile-edit-display-name').value);
       $('#profile-edit-avatar-remove-btn').hidden = true;
+      scheduleProfileAutosave(0);
     });
 
     // BRAMUlab_V03.6 (§4/§8 caso C) — tocar el switch para ACTIVAR sin un teléfono válido
@@ -15275,81 +15789,28 @@
       profileEditAllowWhatsApp = !profileEditAllowWhatsApp;
       $('#profile-edit-whatsapp-hint').hidden = true;
       updateProfileWhatsappToggleDisplay();
+      scheduleProfileAutosave(0);
     });
 
-    $('#profile-edit-cancel').addEventListener('click', () => showView('profile'));
-    $('#profile-edit-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const user = Store.getCurrentUser();
-      if (!user) { showView('profile'); return; }
-      // Pre-Production P0.1C — cuenta real: persistencia server-side de verdad, nunca el caché
-      // local (ver submitServerBackedProfileEdit). El resto de esta función (sin cambios) sigue
-      // siendo exclusivo del camino local/legacy.
-      if (user.serverBacked) { await submitServerBackedProfileEdit(user); return; }
-      const username = $('#profile-edit-username').value.trim().toLowerCase();
-      const displayName = normalizePlayerName($('#profile-edit-display-name').value);
-      const firstName = $('#profile-edit-first-name').value.trim();
-      const phone = $('#profile-edit-phone').value.trim();
-      let error = null;
-      if (!firstName) error = 'Ingresá al menos tu nombre.';
-      else if (!displayName) error = 'El nombre visible no puede quedar vacío.';
-      else if (!PLI.isValidUsernameFormat(username)) error = '@usuario: entre 3 y 20 caracteres, sin espacios.';
-      else if (PLI.isUsernameTaken(username, Store.loadUsers(), user.id)) error = 'Ese @usuario ya está en uso.';
-      // BRAMUlab_V03.6 (§8 caso C) — red de seguridad además del bloqueo en el propio switch
-      // (arriba): cubre el caso de activarlo con un teléfono válido y luego borrarlo/invalidarlo
-      // sin volver a tocar el switch.
-      else if (profileEditAllowWhatsApp && !PLI.isValidWhatsAppPhone(phone)) error = 'Para permitir contacto por WhatsApp, cargá primero un número de WhatsApp válido.';
-      if (error) { $('#profile-edit-error').textContent = error; $('#profile-edit-error').hidden = false; return; }
-
-      // V03.1 (§4) — "fecha en la que fue declarada": se reestampa SOLO si el valor de
-      // categoría cambia respecto al ya guardado. Guardar sin tocar el campo (o guardando
-      // el mismo valor) conserva la fecha de declaración original.
-      const nextCategory = profileEditCategory || null;
-      const categoryChanged = nextCategory !== (user.declaredCategory || null);
-      const patch = {
-        firstName,
-        lastName: $('#profile-edit-last-name').value.trim(),
-        username,
-        displayName,
-        birthDate: $('#profile-edit-birthdate').value || null,
-        gender: profileEditGender,
-        dominantHand: profileEditHand,
-        preferredSide: profileEditSide,
-        declaredCategory: nextCategory,
-        declaredCategoryAt: categoryChanged ? (nextCategory ? new Date().toISOString() : null) : (user.declaredCategoryAt || null),
-        // BRAMUlab_V03.4.1 (§9) — `rankingLocalZone` nunca se toca desde acá (queda tal cual
-        // estaba, `Store.updateUserAccount` solo mergea lo que sí se pasa en el patch).
-        locality: profileEditLocation ? profileEditLocation.locality : null,
-        region: profileEditLocation ? profileEditLocation.region : null,
-        country: profileEditLocation ? profileEditLocation.country : null,
-        // BRAMUlab_V03.6 (§3) — se guarda tal cual lo tipeó el usuario (solo recortado): la
-        // normalización a solo-dígitos (§7) es exclusiva del deep link, nunca del dato guardado
-        // — así el usuario sigue viendo/editando su número en el formato que reconoce.
-        phone: phone || null,
-        allowWhatsAppContact: profileEditAllowWhatsApp,
-      };
-      if (profileEditPhotoRemoved) patch.profilePhoto = null;
-      else if (profileEditPhotoDataUrl) patch.profilePhoto = profileEditPhotoDataUrl;
-
-      Store.updateUserAccount(user.id, patch);
-      // V03.0 (§1) — cambiar el nombre visible YA NO desvincula el historial: los partidos que
-      // ya tienen userId estampado siguen resolviendo por id (ver player-home.js). Se mantiene
-      // CURRENT_PLAYER sincronizado solo por compatibilidad con los call sites que todavía
-      // muestran ese string plano — nunca es la fuente de "es mío" desde V03.0.
-      if (displayName) {
-        Store.saveCurrentPlayerName(displayName);
-        Store.rememberPlayerNames([displayName]);
-      }
-      syncCurrentIdentityFromStore();
-      Store.addNotification({
-        userId: user.id, type: 'profile_updated', category: 'info',
-        title: 'Perfil actualizado', body: 'Guardaste cambios en tus datos.', action: 'profile',
-      });
-      renderProfileView();
-      renderNotificationsBadge();
-      showView('profile');
-      showToast('Datos guardados');
+    // V04.47 — GUARDADO AUTOMÁTICO: sin botón GUARDAR. Al salir del campo / Enter / elegir una opción / salir de la pantalla se guarda; mientras se
+    // escribe, un debounce evita una solicitud por tecla. La confirmación es el tilde de `#profile-edit-autosave` (solo cuando el servidor confirmó).
+    $('#profile-edit-cancel').addEventListener('click', leaveProfileEdit);
+    $('#profile-edit-form').addEventListener('submit', (e) => { e.preventDefault(); runProfileAutosave({ final: true }); });
+    $('#profile-edit-autosave-retry').addEventListener('click', () => { profileAutosave.leaveWarned = false; runProfileAutosave({ final: true, force: true }); });
+    ['first-name', 'last-name', 'username', 'display-name', 'phone'].forEach((key) => {
+      const input = $(`#profile-edit-${key}`);
+      input.addEventListener('input', () => { profileAutosave.leaveWarned = false; scheduleProfileAutosave(); });
+      input.addEventListener('blur', () => runProfileAutosave({ final: true }));
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
     });
+    $('#profile-edit-birthdate').addEventListener('change', () => { profileAutosave.leaveWarned = false; scheduleProfileAutosave(0); });
+    $('#profile-edit-birthdate').addEventListener('blur', () => runProfileAutosave({ final: true }));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { if (!$('#view-edit-data').hidden) profileAutosaveOnExit(); }
+      else retryPendingProfileDraft();
+    });
+    window.addEventListener('pagehide', () => { if (!$('#view-edit-data').hidden) profileAutosaveOnExit(); });
+    window.addEventListener('online', retryPendingProfileDraft);
   }
 
   /* Etapa 2 (§4) — barra inferior fija: Inicio/Historial/+/Ranking/Perfil.
@@ -16559,6 +17020,8 @@
     initPendingScreen();
     initManualLoadScreen();
     initPlayerHomeScreen();
+    initAppMenu();
+    initInvitationImport();
     initRankingScreen();
     initRankingGateModal();
     initGroupsLobbyScreen();

@@ -5646,8 +5646,6 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .help-faq__a p:last-child{ margin-bottom: 0; }
 .help-faq__a strong{ color: var(--paper); font-weight: 700; }
 
-/* V04.39 h4 — «?» de AYUDA en el header del Home: área táctil de 40×40 (el resto de los íconos del header comparten `.icon-btn`). */
-.player-home-help{ display:inline-flex; align-items:center; justify-content:center; min-width:40px; min-height:40px; padding:0; }
 
 /* V04.40 · Ronda 2 — DESCUBRIMIENTO dentro de BUSCAR JUGADORES: secciones livianas con el mismo componente de fila del buscador. */
 .player-discovery{ margin-top: 4px; }
@@ -5656,3 +5654,151 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .player-discovery__note{ margin: 14px 4px; font-size: 13px; line-height: 1.5; color: var(--paper-dim); }
 /* V04.40 — AYUDA agrupada por categorías (reutiliza .settings-group / .settings-list). */
 .help-cat{ margin-bottom: 18px; }
+
+/* ==========================================================================
+   V04.47 — MENÚ GENERAL · «¿RECIBISTE UNA INVITACIÓN?» · GUARDADO AUTOMÁTICO
+   Todo con los tokens existentes (superficies azul noche, lima como foco, azul BRAMU secundario); sin colores nuevos.
+   ========================================================================== */
+
+/* --- Hamburguesa → X (el botón vive en el encabezado del Home; el panel nace DEBAJO de él, así nunca lo tapa). --- */
+.app-menu-btn{ position:relative; display:inline-flex; align-items:center; justify-content:center; min-width:40px; min-height:40px; padding:0; color: var(--paper-dim); -webkit-tap-highlight-color: transparent; transition: color .2s ease, transform .15s ease; }
+.app-menu-btn:active{ transform: scale(.92); }
+.app-menu-btn.is-open{ color: var(--paper); }
+.app-menu-btn__bars{ position:relative; display:block; width:20px; height:14px; flex:none; }
+.app-menu-btn__bars i{ position:absolute; left:0; width:100%; height:2px; border-radius:2px; background: currentColor; transform-origin:50% 50%;
+  transition: transform .32s cubic-bezier(.22,.8,.24,1), opacity .18s ease; }
+.app-menu-btn__bars i:nth-child(1){ top:0; }
+.app-menu-btn__bars i:nth-child(2){ top:6px; }
+.app-menu-btn__bars i:nth-child(3){ top:12px; }
+.app-menu-btn.is-open .app-menu-btn__bars i:nth-child(1){ transform: translateY(6px) rotate(45deg); }
+.app-menu-btn.is-open .app-menu-btn__bars i:nth-child(2){ opacity:0; transform: scaleX(.2); }
+.app-menu-btn.is-open .app-menu-btn__bars i:nth-child(3){ transform: translateY(-6px) rotate(-45deg); }
+
+/* --- Panel (derecha → izquierda) --- */
+.app-menu-scrim{ position:fixed; left:0; right:0; bottom:0; top: var(--app-menu-top, 64px); z-index: 37; background: rgba(3,6,12,0.62);
+  opacity:0; transition: opacity .26s ease; -webkit-tap-highlight-color: transparent; }
+.app-menu-scrim.is-open{ opacity:1; }
+.app-menu{ position:fixed; top: var(--app-menu-top, 64px); right:0; bottom:0; z-index: 38; width: min(86vw, 340px); box-sizing:border-box;
+  display:flex; flex-direction:column; padding: 14px 12px calc(14px + var(--safe-bottom));
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--bg) 100%); border-left: 1px solid var(--line-strong); border-top: 1px solid var(--line-strong);
+  border-top-left-radius: 20px; box-shadow: -18px 0 40px -14px rgba(0,0,0,0.6);
+  transform: translateX(104%); transition: transform .32s cubic-bezier(.22,.8,.24,1); will-change: transform; touch-action: pan-y; overscroll-behavior: contain; }
+.app-menu.is-open{ transform: translateX(0); }
+.app-menu.is-dragging{ transition:none; }
+.app-menu__list{ display:flex; flex-direction:column; gap:2px; }
+.app-menu__item{ display:flex; align-items:center; gap:14px; width:100%; min-height:54px; padding:0 12px; border:1px solid transparent; border-radius:14px; background:none;
+  color: var(--paper); font: inherit; font-size:15px; font-weight:700; text-align:left; cursor:pointer; -webkit-tap-highlight-color: transparent;
+  transition: background .15s ease, border-color .15s ease, transform .12s ease; }
+.app-menu__item:active{ background: var(--surface-active); transform: scale(.985); }
+.app-menu__item:focus-visible, .app-menu-btn:focus-visible{ outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
+.app-menu__icon{ flex:none; display:grid; place-items:center; width:36px; height:36px; border-radius:11px; background: var(--surface-3); color: var(--paper-dim); transition: color .2s ease, background .2s ease; }
+.app-menu__icon svg{ width:20px; height:20px; fill:none; stroke: currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.app-menu__label{ flex:1 1 auto; min-width:0; }
+.app-menu__chev{ flex:none; color: var(--paper-faint); font-size:18px; line-height:1; }
+.app-menu__item.is-highlight{ background: rgba(149,255,25,0.08); border-color: rgba(149,255,25,0.45); }
+.app-menu__item.is-highlight .app-menu__icon{ color: var(--brand-lime); background: rgba(149,255,25,0.12); }
+.app-menu__footer{ margin-top:auto; padding-top:10px; border-top: 1px solid var(--line); }
+.app-menu__item--secondary{ min-height:48px; font-size:14px; font-weight:600; color: var(--paper-dim); }
+.app-menu__item--secondary .app-menu__icon{ background: transparent; }
+/* Entrada escalonada de los ítems (solo el panel real; la demo los muestra siempre). */
+.app-menu--real .app-menu__item{ opacity:0; transform: translateX(14px); transition: opacity .28s ease, transform .32s cubic-bezier(.22,.8,.24,1), background .15s ease, border-color .15s ease; }
+.app-menu--real.is-open .app-menu__item{ opacity:1; transform:none; transition-delay: calc(var(--i, 0) * 38ms + 90ms), calc(var(--i, 0) * 38ms + 90ms), 0s, 0s; }
+.app-menu--real.is-open .app-menu__item:active{ transform: scale(.985); }
+@media (prefers-reduced-motion: reduce){
+  .app-menu, .app-menu-scrim, .app-menu--real .app-menu__item, .app-menu-btn__bars i{ transition-duration: .01s !important; transition-delay: 0s !important; }
+  .app-menu{ transform: none; opacity:0; transition: opacity .01s; }
+  .app-menu.is-open{ opacity:1; }
+}
+
+/* --- Guardado automático (Editar datos) --- */
+.autosave-status{ grid-column: 3; justify-self:end; display:inline-flex; align-items:center; gap:6px; min-height:24px; font-size:12px; font-weight:700; color: var(--paper-dim);
+  opacity:0; transform: translateY(2px); transition: opacity .2s ease, transform .2s ease; pointer-events:none; white-space:nowrap; }
+.autosave-status[data-state="saving"], .autosave-status[data-state="saved"], .autosave-status[data-state="error"]{ opacity:1; transform:none; }
+.autosave-status[data-state="error"]{ pointer-events:auto; color: var(--danger); }
+.autosave-status__icon{ display:inline-grid; place-items:center; width:16px; height:16px; border-radius:50%; font-size:10px; line-height:1; }
+.autosave-status[data-state="saving"] .autosave-status__icon{ border:2px solid var(--line-strong); border-top-color: var(--paper-dim); animation: autosave-spin .8s linear infinite; }
+.autosave-status[data-state="saved"] .autosave-status__icon{ background: var(--brand-lime); color: var(--bg); animation: autosave-pop .32s cubic-bezier(.22,.8,.24,1); }
+.autosave-status[data-state="saved"] .autosave-status__icon::after{ content:"✓"; font-weight:900; }
+.autosave-status[data-state="saved"]{ color: var(--brand-lime); }
+.autosave-status[data-state="error"] .autosave-status__icon{ background: var(--danger); color: var(--bg); }
+.autosave-status[data-state="error"] .autosave-status__icon::after{ content:"!"; font-weight:900; }
+.autosave-status__retry{ background:none; border:0; padding:4px 2px; font: inherit; font-weight:800; color: var(--paper); text-decoration: underline; text-underline-offset:3px; cursor:pointer; }
+@keyframes autosave-spin{ to{ transform: rotate(360deg); } }
+@keyframes autosave-pop{ 0%{ transform: scale(.3); } 70%{ transform: scale(1.18); } 100%{ transform: scale(1); } }
+@media (prefers-reduced-motion: reduce){ .autosave-status__icon{ animation:none !important; } }
+
+/* --- Invitación en el navegador: acción secundaria + hoja «¿Ya tenés BRAMUlab instalada?» --- */
+.invitation-card__link{ display:inline-flex; align-items:center; min-height:40px; margin: 6px 0 -6px; padding:0; background:none; border:0; font: inherit; font-size:13px; font-weight:700;
+  color: var(--accent-cyan); text-decoration: underline; text-underline-offset:3px; cursor:pointer; -webkit-tap-highlight-color: transparent; }
+#invite-installed-sheet, #invite-paste-sheet{ max-height: 92dvh; overflow-y:auto; overscroll-behavior: contain; touch-action: pan-y; }
+.invite-steps{ margin:0; padding:0; list-style:none; counter-reset: istep; text-align:left; display:flex; flex-direction:column; gap:8px; }
+.invite-steps li{ counter-increment: istep; display:flex; align-items:flex-start; gap:10px; font-size:13.5px; line-height:1.35; color: var(--paper); }
+.invite-steps li::before{ content: counter(istep); flex:none; display:grid; place-items:center; width:20px; height:20px; margin-top:-1px; border-radius:50%; background: var(--surface-3); color: var(--brand-lime); font-size:11px; font-weight:800; }
+.invite-paste__manual{ display:flex; flex-direction:column; gap:8px; text-align:left; }
+.invite-paste__manual .btn-secondary{ width:100%; }
+
+/* Botón COPIAR INVITACIÓN: mensaje → tilde lima + «Invitación copiada» */
+.invite-copy-btn{ display:flex; align-items:center; justify-content:center; gap:10px; position:relative; overflow:hidden;
+  transition: background .28s ease, color .28s ease, box-shadow .28s ease; }
+.invite-copy-btn__icon{ position:relative; display:inline-block; width:22px; height:22px; flex:none; }
+.invite-copy-btn__icon svg{ position:absolute; inset:1px; transition: transform .34s cubic-bezier(.22,.8,.24,1), opacity .22s ease; }
+.invite-copy-btn__ico-ok{ opacity:0; transform: scale(.2) rotate(-35deg); }
+.invite-copy-btn.is-copied{ background: var(--surface-2); color: var(--brand-lime); box-shadow: inset 0 0 0 1.5px var(--brand-lime), 0 0 20px -6px rgba(149,255,25,0.55); }
+.invite-copy-btn.is-copied .invite-copy-btn__ico-msg{ opacity:0; transform: translate(7px,-9px) scale(.5); }
+.invite-copy-btn.is-copied .invite-copy-btn__ico-ok{ opacity:1; transform: scale(1) rotate(0); }
+
+/* --- Microdemostración: la secuencia real (BRAMUlab → ☰ → menú → «¿Recibiste una invitación?» → pegar). Mismos componentes del menú real. --- */
+.mdemo{ --md: 8.5s; position:relative; height:206px; border-radius:18px; overflow:hidden; background: var(--bg-gradient-app); border:1px solid var(--line); text-align:left; }
+.mdemo__header{ position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; box-sizing:border-box; height:44px; padding:0 14px; border-bottom:1px solid var(--line); }
+.mdemo__logo{ height:15px; width:auto; display:block; }
+.mdemo__bars{ color: var(--paper-dim); }
+.mdemo__bars i{ transition:none; }
+.mdemo__scrim{ position:absolute; left:0; right:0; bottom:0; top:44px; background: rgba(3,6,12,0.62); opacity:0; }
+.mdemo__menu.app-menu{ position:absolute; top:44px; right:0; bottom:0; width:68%; z-index:2; padding:8px; border-radius:14px 0 0 0; transform: translateX(104%); transition:none; box-shadow:none; }
+.mdemo .app-menu__list{ gap:0; }
+.mdemo .app-menu__item{ min-height:31px; padding:0 6px; gap:8px; font-size:10.5px; border-radius:9px; }
+.mdemo .app-menu__icon{ width:20px; height:20px; border-radius:7px; }
+.mdemo .app-menu__icon svg{ width:12px; height:12px; }
+.mdemo .app-menu__chev{ display:none; }
+.mdemo .app-menu__footer{ padding-top:4px; }
+.mdemo .app-menu__item--secondary{ min-height:28px; font-size:10px; }
+.mdemo__paste{ position:absolute; left:10px; right:10px; bottom:10px; z-index:3; height:40px; display:flex; align-items:center; gap:10px; padding:0 12px; border-radius:14px;
+  background: var(--surface-2); border:1px solid var(--line-strong); opacity:0; transform: translateY(14px); }
+.mdemo__paste-line{ flex:1; height:8px; border-radius:4px; background: var(--surface-active); overflow:hidden; }
+.mdemo__paste-line i{ display:block; height:100%; width:0; border-radius:4px; background: var(--brand-lime); opacity:.85; }
+.mdemo__paste-check{ display:grid; place-items:center; width:20px; height:20px; border-radius:50%; background: var(--brand-lime); color: var(--bg); transform: scale(0); }
+.mdemo__tap{ position:absolute; z-index:4; width:24px; height:24px; margin:-12px 0 0 -12px; border-radius:50%; border:2px solid var(--brand-lime); background: rgba(149,255,25,0.28); opacity:0; pointer-events:none; }
+.mdemo__tap--menu{ right:24px; top:22px; left:auto; margin:-12px -12px 0 0; }
+.mdemo__tap--item{ left:60%; top:111px; }
+.mdemo .app-menu__item[data-menu-action="invitation"]{ animation: md-item var(--md) infinite; }
+.mdemo__bars i:nth-child(1){ animation: md-bar1 var(--md) infinite; }
+.mdemo__bars i:nth-child(2){ animation: md-bar2 var(--md) infinite; }
+.mdemo__bars i:nth-child(3){ animation: md-bar3 var(--md) infinite; }
+.mdemo__scrim{ animation: md-scrim var(--md) infinite; }
+.mdemo__menu.app-menu{ animation: md-menu var(--md) infinite; }
+.mdemo__tap--menu{ animation: md-tap1 var(--md) infinite; }
+.mdemo__tap--item{ animation: md-tap2 var(--md) infinite; }
+.mdemo__paste{ animation: md-paste var(--md) infinite; }
+.mdemo__paste-line i{ animation: md-type var(--md) infinite; }
+.mdemo__paste-check{ animation: md-check var(--md) infinite; }
+@keyframes md-bar1{ 0%,12%{ transform:none; } 18%,56%{ transform: translateY(6px) rotate(45deg); } 62%,100%{ transform:none; } }
+@keyframes md-bar2{ 0%,12%{ opacity:1; transform:none; } 18%,56%{ opacity:0; transform: scaleX(.2); } 62%,100%{ opacity:1; transform:none; } }
+@keyframes md-bar3{ 0%,12%{ transform:none; } 18%,56%{ transform: translateY(-6px) rotate(-45deg); } 62%,100%{ transform:none; } }
+@keyframes md-scrim{ 0%,14%{ opacity:0; } 24%,54%{ opacity:1; } 62%,100%{ opacity:0; } }
+@keyframes md-menu{ 0%,14%{ transform: translateX(104%); } 26%,56%{ transform: translateX(0); } 66%,100%{ transform: translateX(104%); } }
+@keyframes md-tap1{ 0%,6%{ opacity:0; transform: scale(1.5); } 10%{ opacity:1; transform: scale(1); } 16%{ opacity:1; transform: scale(.85); } 21%,100%{ opacity:0; transform: scale(1.4); } }
+@keyframes md-tap2{ 0%,32%{ opacity:0; transform: scale(1.5); } 37%{ opacity:1; transform: scale(1); } 43%{ opacity:1; transform: scale(.85); } 48%,100%{ opacity:0; transform: scale(1.4); } }
+@keyframes md-item{ 0%,36%{ background:none; border-color: transparent; } 42%,56%{ background: rgba(149,255,25,0.1); border-color: rgba(149,255,25,0.5); } 62%,100%{ background:none; border-color: transparent; } }
+@keyframes md-paste{ 0%,60%{ opacity:0; transform: translateY(14px); } 68%,90%{ opacity:1; transform:none; } 97%,100%{ opacity:0; transform: translateY(6px); } }
+@keyframes md-type{ 0%,68%{ width:0; } 82%,100%{ width:88%; } }
+@keyframes md-check{ 0%,83%{ transform: scale(0); } 87%{ transform: scale(1.25); } 90%,100%{ transform: scale(1); } }
+/* Sin animaciones: se ve el cuadro final que explica el camino (menú abierto, la opción destacada). */
+@media (prefers-reduced-motion: reduce){
+  .mdemo *{ animation:none !important; }
+  .mdemo__scrim{ opacity:1; }
+  .mdemo__menu.app-menu{ transform:none; opacity:1; }
+  .mdemo__bars i:nth-child(1){ transform: translateY(6px) rotate(45deg); }
+  .mdemo__bars i:nth-child(2){ opacity:0; }
+  .mdemo__bars i:nth-child(3){ transform: translateY(-6px) rotate(-45deg); }
+  .mdemo .app-menu__item[data-menu-action="invitation"]{ background: rgba(149,255,25,0.1); border-color: rgba(149,255,25,0.5); }
+}
