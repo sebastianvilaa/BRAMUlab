@@ -4,7 +4,7 @@
 
 ## Dónde están (Dropbox, fuera de Git)
 `/Otros Trabajos/BRAMU/Sistema grafico/Redes Sociales/Instagram/Trabajo en curso/`
-- `Publicacion_01/` (4 PNG) · `Publicacion_02/` (5) · `Publicacion_03/` (4), 1080 × 1350, numerados, cada una con su `copy.md` actualizado.
+- `Publicacion_01/` (4 PNG) · `Publicacion_02/` (5) · `Publicacion_03/` (4), 1080 × 1350, numerados, cada una con su archivo de texto del post actualizado.
 - `Comparativa_portadas.png`: las tres portadas juntas simulando la grilla de Instagram (recorte 3:4).
 - `Descartadas/`: opciones B y C de la 01, cierres alternativos y `Ronda_anterior_v1/` (versión previa, con cierres y leyendas).
 
