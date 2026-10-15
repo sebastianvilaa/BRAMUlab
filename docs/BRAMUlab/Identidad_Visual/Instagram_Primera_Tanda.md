@@ -4,7 +4,7 @@
 
 ## Dónde están (Dropbox, fuera de Git)
 `/Otros Trabajos/BRAMU/Sistema grafico/Redes Sociales/Instagram/Trabajo en curso/`
-- `Publicacion_01/` (5 PNG) · `Publicacion_02/` (6 PNG) · `Publicacion_03/` (5 PNG), todos 1080 × 1350, numerados; cada carpeta con su `copy.md` (texto del post, hashtags y texto alternativo).
+- `Publicacion_01/` (5 PNG) · `Publicacion_02/` (6 PNG) · `Publicacion_03/` (5 PNG), todos 1080 × 1350, numerados; cada carpeta con su archivo de texto del post (texto del post, hashtags y texto alternativo).
 - `Descartadas/`: opciones B y C de la Publicación 01 y los cierres alternativos.
 - `Publicaciones finales/01`, `02`, `03`: vacías hasta la aprobación.
 
@@ -20,4 +20,4 @@ Foto, Inter, paleta y logo oficiales de la web. Las pantallas son las **recreaci
 1. Foto del hero provisoria (generada por IA, «no aprobada para publicación definitiva» en la web): se usa también acá.
 2. Sin fotos de personas: las fotos de la web están autorizadas solo para ella; se usan iniciales y nombres ficticios.
 3. Pantallas recreadas, no capturas reales; si se prefieren capturas de Staging/Production hay que pedirlas.
-4. `copy.md`: no incluye usuario de Instagram ni enlace en la bio (no confirmados); remite a bramulab.com.
+4. Textos del post: no incluyen usuario de Instagram ni enlace en la bio (no confirmados); remite a bramulab.com.
