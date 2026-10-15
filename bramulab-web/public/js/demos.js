@@ -380,9 +380,49 @@
   })();
 
   var demos = { 1: d1, 2: d2, 3: d3, 4: d4 };
-  function activate(n) { var d = demos[n]; if (!d) return; if (reduced()) d.finish(); else d.play(); }
-  function deactivate(n) { var d = demos[n]; if (d) d.stop(); }
-  function finish(n) { var d = demos[n]; if (d) d.finish(); }
+  /* Bucle de las cuatro demostraciones del recorrido «Cómo funciona»: secuencia completa → pausa de ~3 s con el estado final → fundido corto → vuelve a empezar,
+     mientras la demo siga activa (visible). `deactivate`/`finish` y las pestañas en segundo plano cortan el ciclo sin dejar temporizadores. Con movimiento
+     reducido no hay bucle: se muestra el estado final. (Las mini-demos de las preguntas frecuentes siguen reproduciéndose una vez al abrirse.) */
+  var LOOP_PAUSE = 3000, LOOP_FADE = 380;
+  var SEQ_MS = { 1: 7800, 2: 6800, 3: 4300, 4: 9300 };   // fin de cada secuencia (ms, medido sobre sus líneas de tiempo)
+  var looping = {};                                       // n -> { timer }
+  function demoEl(n) { return $('.demo--' + n); }
+  function loopStop(n) {
+    var l = looping[n]; if (!l) return;
+    clearTimeout(l.timer); delete looping[n];
+    var el = demoEl(n); if (el) el.classList.remove('is-loopfade');
+  }
+  function loopPlay(n) {
+    var d = demos[n]; if (!d) return;
+    var l = looping[n] = looping[n] || {};
+    var el = demoEl(n); if (el) el.classList.remove('is-loopfade');
+    d.play();
+    l.timer = setTimeout(function () {
+      if (!looping[n]) return;
+      if (el) el.classList.add('is-loopfade');            // fundido: la repetición no «salta»
+      l.timer = setTimeout(function () { if (looping[n]) loopPlay(n); }, LOOP_FADE);
+    }, SEQ_MS[n] + LOOP_PAUSE);
+  }
+  function activate(n) {
+    var d = demos[n]; if (!d) return;
+    loopStop(n);
+    if (reduced()) { d.finish(); return; }
+    if (doc.hidden) { d.finish(); return; }
+    loopPlay(n);
+  }
+  function deactivate(n) { loopStop(n); var d = demos[n]; if (d) d.stop(); }
+  function finish(n) { loopStop(n); var d = demos[n]; if (d) d.finish(); }
+  // pestaña en segundo plano: se detiene (estado final); al volver, se retoman las demos que seguían activas
+  var wasLooping = [];
+  doc.addEventListener('visibilitychange', function () {
+    if (doc.hidden) {
+      wasLooping = Object.keys(looping).map(Number);
+      wasLooping.forEach(function (n) { loopStop(n); var d = demos[n]; if (d) { d.stop(); d.finish(); } });
+    } else {
+      wasLooping.forEach(function (n) { if (!reduced()) { loopStop(n); loopPlay(n); } });
+      wasLooping = [];
+    }
+  });
   // estado inicial: pantallas completas (sin JS de secuencia, o antes de activarse)
   [1, 2, 3, 4].forEach(function (n) { if (demos[n]) demos[n].finish(); });
 

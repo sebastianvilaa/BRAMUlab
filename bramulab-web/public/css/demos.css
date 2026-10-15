@@ -337,3 +337,7 @@
   .a4-card.is-glow .a4-card__l, .a4-card.is-press .a4-tap { animation: none; }
   .a-caret, .a-cta.is-pulse { animation: none; }
 }
+
+/* Bucle del recorrido «Cómo funciona»: fundido corto entre repeticiones (ver `loopPlay` en js/demos.js). Solo opacidad. */
+.step__demo .demo { transition: opacity .38s ease; }
+.demo.is-loopfade { opacity: 0 !important; transition: opacity .38s ease !important; }

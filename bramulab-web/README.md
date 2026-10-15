@@ -56,8 +56,8 @@ Mide solo **visitas** (aperturas de `bramulab.com`, recargas incluidas) y **clic
 - **Política de Privacidad:** ya menciona el sitio web y su medición (14/10/2026). Selector iPhone/Android sin navegación con flechas y logo del encabezado con área táctil chica (menores).
 - **Para publicar cambios:** desde esta carpeta, `npx vercel deploy --prod --scope bramu-lab` (actualiza `bramulab.com`); `npx vercel deploy --target preview --scope bramu-lab` genera una Preview protegida. Nota: una Preview nunca debe ser el primer deploy de un proyecto (Vercel lo manda a Production).
 
-## Franja «Jugás. Lo cargás. Empieza a sumar.» (V04.47)
-Sección `#puente` entre el hero y «Cómo funciona» (`public/css/puente.css`, `public/js/puente.js`). Conceptual, sin datos reales; estado final sin animaciones/JS/movimiento reducido. Detalle: `docs/BRAMUlab_Web.md` §12. Solo en Preview hasta aprobación.
+## Franja «Cada partido tiene una historia.» (V04.47)
+Sección `#puente` entre el hero y «Cómo funciona» (`public/css/puente.css`, `public/js/puente.js`): cancha real con peloteo → celular → historial, en bucle con pausa mientras es visible; las cuatro demostraciones de «Cómo funciona» (`js/demos.js`) también repiten. Estado final sin animaciones/JS/movimiento reducido. Pruebas: `tests/puente.test.mjs`. Detalle: `docs/BRAMUlab_Web.md` §12. Solo en Preview hasta aprobación.
 
 ## Condiciones de contenido
 - Las pantallas son recreaciones con **datos ilustrativos** (rotulados). No mostrar métricas de adopción ni capturas inventadas.

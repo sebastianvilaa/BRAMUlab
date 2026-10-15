@@ -99,7 +99,7 @@
          entiende sin animaciones: los tres títulos y sus frases son texto real; los dibujos son decorativos (aria-hidden). -->
     <section class="bridge" id="puente" aria-labelledby="bridge-titulo">
       <div class="wrap">
-        <h2 class="h2 bridge__title" id="bridge-titulo" data-reveal>Jugás. Lo cargás. <span class="accent">Empieza a sumar.</span></h2>
+        <h2 class="h2 bridge__title" id="bridge-titulo" data-reveal>Cada partido tiene una <span class="accent">historia.</span></h2>
 
         <div class="bridge__stage" id="bridge-stage">
           <div class="bridge__rail" aria-hidden="true"><i class="bridge__fill"></i><b class="bridge__ball"></b></div>
@@ -107,15 +107,16 @@
             <li class="bs bs--1">
               <div class="bs__vis" aria-hidden="true">
                 <svg viewBox="0 0 120 120" focusable="false">
-                  <rect class="pv-line" x="32" y="6" width="56" height="108" rx="4"/>
-                  <line class="pv-line pv-net" x1="32" y1="60" x2="88" y2="60"/>
-                  <path class="pv-line" d="M32 33h56M32 87h56M60 33v54"/>
-                  <circle class="pv-ring" cx="82" cy="78" r="13"/>
-                  <circle class="pv-ball" cx="60" cy="68" r="4.6"/>
+                  <!-- Cancha de pádel real vista desde arriba: 20 × 10 m (104 × 52), red al centro, líneas de saque a 6,95 m de la red y línea central entre ellas. -->
+                  <rect class="pv-line pv-wall" x="8" y="34" width="104" height="52" rx="3"/>
+                  <path class="pv-line" d="M24 34v52M96 34v52M24 60h72"/>
+                  <line class="pv-line pv-net" x1="60" y1="29" x2="60" y2="91"/>
+                  <circle class="pv-post" cx="60" cy="29" r="1.8"/><circle class="pv-post" cx="60" cy="91" r="1.8"/>
+                  <g class="pv-fly"><ellipse class="pv-shadow" cx="98" cy="58.6" rx="4.2" ry="2.3"/><circle class="pv-ball" cx="98" cy="56" r="4.4"/></g>
                 </svg>
               </div>
-              <p class="bs__k">Jugaste</p>
-              <p class="bs__t">Terminó el partido.</p>
+              <p class="bs__k">La jugás</p>
+              <p class="bs__t">Todo empieza en la cancha.</p>
             </li>
             <li class="bs bs--2">
               <div class="bs__vis" aria-hidden="true">
@@ -130,8 +131,8 @@
                   <g class="pv-ok"><circle cx="60" cy="92" r="10"/><path d="M55 92.5l3.6 3.6L65.5 88"/></g>
                 </svg>
               </div>
-              <p class="bs__k">Lo cargás</p>
-              <p class="bs__t">El resultado entra desde el celular.</p>
+              <p class="bs__k">La guardás</p>
+              <p class="bs__t">Registrás el resultado en BRAMUlab.</p>
             </li>
             <li class="bs bs--3">
               <div class="bs__vis" aria-hidden="true">
@@ -151,12 +152,11 @@
                   </g>
                 </svg>
               </div>
-              <p class="bs__k">Empieza a contar</p>
-              <p class="bs__t">Suma a tu historial y, al confirmarse, a tus estadísticas.</p>
+              <p class="bs__k">La descubrís</p>
+              <p class="bs__t">Tu historial y tus estadísticas te cuentan cómo venís jugando.</p>
             </li>
           </ol>
         </div>
-        <p class="bridge__note">Ilustración conceptual: no muestra datos de jugadores reales.</p>
       </div>
     </section>
 
