@@ -1,25 +1,25 @@
-# Instagram · primera tanda de 3 carruseles
+# Instagram · primera tanda (Publicaciones 01 a 04 + imagen de perfil)
 
-**Estado (15/10/2026):** ronda de refinamiento hecha; las tres publicaciones están **pendientes de aprobación definitiva** de Sebastián. No se movió nada a `Publicaciones finales`. Sin cambios en la app, la web publicada, Production, `main` ni BRAMUlive. La Publicación 04 (instalación) no se empezó.
+**Estado (15/10/2026):** todo en borrador, **pendiente de aprobación** de Sebastián. No se movió nada a `Publicaciones finales`. Sin cambios en la app, la web publicada, Production, `main` ni BRAMUlive.
 
 ## Dónde están (Dropbox, fuera de Git)
 `/Otros Trabajos/BRAMU/Sistema grafico/Redes Sociales/Instagram/Trabajo en curso/`
-- `Publicacion_01/` (4 PNG) · `Publicacion_02/` (5) · `Publicacion_03/` (4), 1080 × 1350, numerados, cada una con su archivo de texto del post actualizado.
-- `Comparativa_portadas.png`: las tres portadas juntas simulando la grilla de Instagram (recorte 3:4).
-- `Descartadas/`: opciones B y C de la 01, cierres alternativos y `Ronda_anterior_v1/` (versión previa, con cierres y leyendas).
+- `Publicacion_01/` (4 PNG) · `Publicacion_02/` (5) · `Publicacion_03/` (4) · `Publicacion_04/` (3, nueva); 1080 × 1350, numerados, cada carpeta con su archivo de texto del post.
+- `Imagen_de_perfil/`: `Perfil_A_icono.png` (ícono oficial, fondo oscuro) y `Perfil_B_lima.png` (fondo lima, mayor contraste en tamaño chico), 1080 × 1080, más `Vista_previa_circulo.png` (recorte circular a 300/110/55 px).
+- `Comparativa_portadas.png`: las cuatro portadas simulando la grilla de Instagram (recorte 3:4).
+- `Descartadas/`: opciones B y C de la 01, `Ronda_anterior_v1/` y `Ronda_anterior_v2/` (con su comparativa).
 
 ## Qué cambió en esta ronda
-1. **Sin placas de cierre** (logo/web/llamado a la acción): cada carrusel termina con su último contenido (01: 4 imágenes; 02: 5; 03: 4).
-2. **Marca discreta:** wordmark chico solo en las portadas; en el interior, solo el isotipo como firma. Ninguna imagen repite «BRAMUlab» (se quitó también de los subtítulos y de la pantalla de Inicio).
-3. **Sin leyendas** «Pantalla de ejemplo / Datos ilustrativos» en las imágenes (incluida la que traía el gráfico de grupos). La aclaración pasó al texto del post. Los datos son claramente ficticios (nombres Fran, Nico, Fede, Santi, Tomi…; ya no figura «Seba»).
-4. **Jerarquía:** título dominante (Inter 800, ~150 px), subtítulo secundario, indicador de avance discreto (barra) en lugar del riel con textos.
-5. **Portadas con personalidad propia:** 01 foto nocturna + pelota lima (emocional/deportiva); 02 fondo azul de producto con la pantalla grande (facilidad de uso); 03 círculo de compañeros/rivales lima-azul (social).
-6. **Contenido verificado contra las fuentes** (`Producto/Experiencia_Inicial.md` §7 y `Producto/Grupos_BRAMU.md` §1–§4): el partido queda pendiente hasta que **uno de los dos rivales** lo confirma; los grupos suman partidos oficiales/confirmados, necesitan 3 jugadores para sumar y tienen tabla semanal (Semana actual / pasada / Race anual). No se muestran valores de puntaje de reglas.
+- **Portada 01:** título arriba, alineado con las portadas 02 y 03, y un celular con la Home de la app rica (Nivel, último partido, «Tu momento», Actividad y Efectividad) sobre la foto nocturna, con la pelota lima como acento. Datos y nombres ficticios (Fran, Nico, Fede…).
+- **Logo completo chico** (38 px) en las cuatro portadas; en el interior queda solo el isotipo como firma. Sin cierres, sin leyendas en las imágenes.
+- **Portadas con sistema común** (logo arriba-izquierda, título en la misma línea, «Deslizá» abajo-derecha, contenido visual desde ~y 580) y personalidad propia: 01 foto + app, 02 producto azul, 03 círculo social, 04 práctica con celulares iOS/Android.
+- **Publicación 04 (instalación):** portada + iPhone/Safari + Android/Chrome, con los pasos de la sección «Instalación» de la web; el texto del post incluye que los nombres de los botones pueden variar.
+- **Imagen de perfil** a partir del ícono oficial (`Marca/BRAMUlab-IconoApp.svg`, isotipo `Marca/BRAMUlab-Isotipo.svg`), ampliado para el recorte circular de Instagram.
 
-## Origen
-Foto, Inter, paleta y logo oficiales de la web. Las pantallas son las **recreaciones HTML de la interfaz que ya usa la web**, no capturas de Staging; sin fotos de personas (las de la web están autorizadas solo para ella).
+## Origen y límites
+Foto provisoria de la web (aceptada para esta tanda), Inter, paleta y logo oficiales. Las pantallas (Home, carga, grupos, instalación) son las **recreaciones HTML que ya usa la web**, no capturas de Staging; sin fotos de personas.
 
-## Para aprobar
-1. Foto del hero provisoria (generada por IA, «no aprobada para publicación definitiva» en la web).
-2. Pantallas recreadas, no capturas reales (si se prefieren capturas de Staging/Production, hay que pedirlas).
-3. Aclaración de ejemplos solo en el texto del post; sin usuario de Instagram ni «link en la bio» (no confirmados).
+## Para aprobar / puntos abiertos
+1. En la portada 01 el logo aparece dos veces (wordmark chico y el encabezado de la app dentro del celular); si molesta, se oculta el del celular.
+2. La imagen de perfil: elegir A (ícono oficial) o B (lima).
+3. Pantallas recreadas, no capturas reales; sin usuario de Instagram ni «link en la bio» en los textos.
