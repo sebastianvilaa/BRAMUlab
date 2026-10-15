@@ -1,34 +1,23 @@
-# Instagram · primera tanda de 3 carruseles — Etapa 1 (dirección visual)
+# Instagram · primera tanda de 3 carruseles
 
-**Estado (15/10/2026):** Etapa 1 hecha + **comparación de 3 opciones para la Publicación 01** (A, B, C), **pendiente de aprobación visual de Sebastián**. No se produjo nada final; las Publicaciones 02 y 03 siguen solo como portadas de la Etapa 1. Sin cambios en la app, la web publicada, Production, `main` ni BRAMUlive.
+**Estado (15/10/2026):** Opción A elegida como línea gráfica base. Las tres publicaciones están **completas y pendientes de aprobación final** de Sebastián. No se movió nada a `Publicaciones finales`. Sin cambios en la app, la web publicada, Production, `main` ni BRAMUlive.
 
-## Dónde están los archivos (Dropbox, fuera de Git)
-`/Otros Trabajos/BRAMU/Sistema grafico/Redes Sociales/Instagram/`
-- `Trabajo en curso/Opcion_A`, `Opcion_B`, `Opcion_C` — carrusel completo de la Publicación 01 (5 PNG 1080 × 1350 cada una: `X_01_portada`, `X_02_la-jugas`, `X_03_la-guardas`, `X_04_la-descubris`, `X_05_cierre`).
-- `Trabajo en curso/P02_S01_portada.png`, `P03_S01_portada.png` — portadas de la Etapa 1 (sin desarrollar).
-- `Publicaciones finales/01`, `02`, `03` — vacías (solo recibirán PNG aprobados + el texto de Instagram).
+## Dónde están (Dropbox, fuera de Git)
+`/Otros Trabajos/BRAMU/Sistema grafico/Redes Sociales/Instagram/Trabajo en curso/`
+- `Publicacion_01/` (5 PNG) · `Publicacion_02/` (6 PNG) · `Publicacion_03/` (5 PNG), todos 1080 × 1350, numerados; cada carpeta con su `copy.md` (texto del post, hashtags y texto alternativo).
+- `Descartadas/`: opciones B y C de la Publicación 01 y los cierres alternativos.
+- `Publicaciones finales/01`, `02`, `03`: vacías hasta la aprobación.
 
-## Publicación 01 — qué distingue a cada opción
-| | Camino | Cómo se ve |
-|---|---|---|
-| **A** (la Etapa 1, + cierre) | Foto nocturna + pantallas | Foto vertical del hero de la web como portada y cierre; slides interiores sobre azul noche con pantalla de la app, riel lima→azul de 3 pasos y cancha vista desde arriba con peloteo. Sobria, clara, fiel a la web. |
-| **B** atmosférica | Clima, luz y pelota | Cinco slides con la foto de la cancha (recortes distintos de `hero-desktop.jpg`), grano, bloom de focos y viñeta; la pelota lima es protagonista y viaja de slide en slide (en el aire → en el piso → cierre). Las pantallas flotan inclinadas sobre la foto. |
-| **C** gráfica / editorial | Tipografía y composición | Sin foto: encabezado editorial (logo + «01 / 05», filetes), títulos enormes (Inter 900, texto sólido y contorno), el resultado como tipografía gigante (6-3-6 / 4-6-4 con colores de Equipo A lima y B azul), cancha de líneas finas con trayectoria, tarjetas reales del Home apiladas y banda de palabras como la de la web. |
+## Qué es cada publicación
+- **01 · Cada partido tiene una historia:** Opción A. Cierre cambiado a «Cada partido tiene una historia. / Guardala en BRAMUlab.» con logo grande, sin botón (se probó también «La jugás. La guardás. La descubrís. / Empezá en BRAMUlab.»; repite el trío ya visto en portada y riel).
+- **02 · Guardar un partido:** portada + 4 pasos con las pantallas del recorrido real de la web (Elegís · Cargás · Se guarda · Se confirma) + cierre «Jugás. Lo guardás. Queda en tu historia.».
+- **03 · Competí con tus amigos:** portada con el círculo de compañeros/rivales + Tu grupo · Se suma · La tabla + cierre «Tu pádel también se juega en grupo.».
 
-Los textos son los mismos en las tres. El cierre es «Jugaste. Ahora cargalo.» (titular de cierre de la web) con botón «Empezar en BRAMUlab» y bramulab.com.
+## Origen y límites
+Foto, Inter, paleta y logo oficiales de la web. Las pantallas son las **recreaciones HTML de la interfaz que ya usa la web** (datos ilustrativos, rotulados «Pantalla de ejemplo» / «Ejemplo ilustrativo»), no capturas de Staging. Las funciones de Grupos citadas (tabla semanal, 3 jugadores mínimo para sumar, «identifica los partidos que corresponden») salen de `Producto/Grupos_BRAMU.md` y del texto de la web; no se muestran valores de puntaje.
 
-## Qué se diseñó (Etapa 1)
-- **01 «Cada partido tiene una historia»** (fotográfico, emocional): portada con la foto nocturna del hero de la web; desarrollo «La jugás» (cancha vista desde arriba con peloteo, tomada de la franja de la web), «La guardás» (pantalla de carga del resultado) y «La descubrís» (Home). Riel lima→azul de tres pasos en cada slide.
-- **02 «Guardar un partido»** (producto): portada «Así se guarda un partido.» con tres pantallas del recorrido (elegir jugadores · cargar resultado · esperando validación).
-- **03 «Competí con tus amigos»** (social): portada con el círculo de compañeros/rivales (lima/azul) alrededor de «VOS». Copy de la web de Grupos BRAMU.
-
-## Origen de los recursos
-Foto `hero-mobile.jpg`, Inter, paleta y logo oficiales de la web. Las pantallas son **las recreaciones HTML/CSS de la interfaz que ya usa la web** (`bramulab-web/public`, datos ilustrativos), capturadas en su estado final; no son capturas de Staging (no hay sesión real en esta ronda). Cada slide con pantalla lleva «Pantalla de ejemplo · datos ilustrativos».
-
-## Decisiones a revisar
-1. **Sin fotos de personas.** Las fotos de Esteban, Gusti, Jona, Lucho y Matu están autorizadas «solo para esta web» (`bramulab-web/docs/BRAMUlab_Web.md` §11): se reemplazaron por iniciales y nombres ficticios (Nico, Fede, Juani, Santi, Tomi); `@seba_qa` → `@seba`.
-2. **La foto del hero es la provisoria** de la web (generada por IA, «no aprobada para publicación definitiva»): vale también para Instagram hasta que se reemplace.
-3. Las pantallas son recreaciones, no capturas reales. Si Sebastián prefiere capturas de Staging/Production, hay que pedirlas.
-
-## Falta aprobar
-Dirección visual de las tres portadas y del desarrollo del 01. Luego (Etapa 2): completar los tres carruseles (01 cierra con «Jugaste. Ahora cargalo.»), el texto de Instagram por publicación y mover los PNG aprobados a `Publicaciones finales/`.
+## Para aprobar
+1. Foto del hero provisoria (generada por IA, «no aprobada para publicación definitiva» en la web): se usa también acá.
+2. Sin fotos de personas: las fotos de la web están autorizadas solo para ella; se usan iniciales y nombres ficticios.
+3. Pantallas recreadas, no capturas reales; si se prefieren capturas de Staging/Production hay que pedirlas.
+4. `copy.md`: no incluye usuario de Instagram ni enlace en la bio (no confirmados); remite a bramulab.com.
