@@ -125,3 +125,17 @@ Proyecto **independiente** del proyecto `bramulab` (app): `bramulab-web`, `prj_f
 - *Base:* la migración es aditiva. Para desactivar la exposición sin borrar nada: `revoke execute on function public.get_invitation_card(text) from anon;` (la imagen cae sola a la tarjeta de marca); para quitarla del todo: `drop function public.get_invitation_card(text);`. No se revierten datos: no se creó ninguno.
 
 **Qué conservar / retirar:** `bramu-i` se conserva mientras Staging siga protegido (única forma de probar la tarjeta en WhatsApp con datos de Staging); `bramu-i-prod` es el servicio de Production; el alias legado `/i/{código}` existe solo en la instancia de Staging (retirarlo cuando no queden invitaciones de prueba vigentes). Ningún servicio huérfano: los deployments de prueba y los proyectos temporales se retiraron; los artefactos locales de la CLI (`.vercel`, `.env.local`) no se versionan.
+
+
+## Publicación final V04.50 + web V04.47 (15/10/2026)
+
+Con autorización expresa de Sebastián se completó la publicación final de esta ronda, sin merge a `main`, sin migraciones, sin cambios en Supabase y sin tocar BRAMUlive.
+
+- **App BRAMUlab:** proyecto Vercel `bramulab`, build **Production** desde el SHA exacto `ef199a9d5098186af169636a9d115ba11238a346` (rama `staging`), deployment `dpl_42GsC1rojB7KLcHrpZXQ5S9BDGJA`, estado **READY**. El alias `app.bramulab.com` apunta a ese deployment. Punto de retorno previo: `dpl_ToDGYUVzi2ZN3uKwvbnkTaS6uxdz`.
+- **Web pública:** proyecto independiente `bramulab-web`, contenido aprobado de la Preview asociado al commit `17af0db773603676c392f83fb8b31e9fab0f7b30`, redeploy **Production** `dpl_7FKXg96Lginw7DLp5GBrhaQr8hrH`, estado **READY**. Los aliases `bramulab.com` y `www.bramulab.com` apuntan a ese deployment (www redirige al apex). Punto de retorno previo: `dpl_2w8Jz1nGMBVrs2hL9SYYsgnUqXJH`.
+- **Preservado en la web:** `api/metrics.js`, `web-metrics.js`, la reescritura `/invitacion/*` hacia `bramu-i-prod` y los assets autorizados usados por la web.
+- **Preservado en la app:** la consola administrativa de BRAMU Metrics, las invitaciones ya publicadas y el resto del estado de Production previo. V04.50 agrega sobre esa base el menú/Ayuda/autoguardado/copiar-pegar y la bienvenida universal aprobada.
+- **Open Graph:** el HTML inicial de V04.50 publica `og:image=https://bramulab.com/assets/social/og-bramulab.jpg` (declarada como JPEG 1200×630), además de `og:url=https://app.bramulab.com/`. La visualización final dentro de WhatsApp depende de su propia caché y debe considerarse una comprobación externa del cliente, no una condición para la validez del deployment.
+- **Reversión:** los dos deployments anteriores quedan registrados como puntos de retorno. Ante una regresión real, revertir solamente el proyecto afectado a su deployment previo; no revertir datos ni Supabase.
+
+Verificación posterior: Vercel reporta ambos deployments **READY** y los aliases de los tres dominios públicos apuntando a los IDs anteriores. Se realizó smoke dirigido de contenido y estructura, sin repetir la batería completa ya aprobada en Staging.

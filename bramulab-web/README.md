@@ -57,7 +57,7 @@ Mide solo **visitas** (aperturas de `bramulab.com`, recargas incluidas) y **clic
 - **Para publicar cambios:** desde esta carpeta, `npx vercel deploy --prod --scope bramu-lab` (actualiza `bramulab.com`); `npx vercel deploy --target preview --scope bramu-lab` genera una Preview protegida. Nota: una Preview nunca debe ser el primer deploy de un proyecto (Vercel lo manda a Production).
 
 ## Franja «Cada partido tiene una historia.» (V04.47)
-Sección `#puente` entre el hero y «Cómo funciona» (`public/css/puente.css`, `public/js/puente.js`): cancha real con peloteo → celular → historial, secuencia inicial y luego «viva» (peloteo continuo, destello, tilde, barras que se re-arman) mientras es visible; las cuatro demostraciones de «Cómo funciona» (`js/demos.js`) también repiten. Estado final sin animaciones/JS/movimiento reducido. Pruebas: `tests/puente.test.mjs`. Detalle: `docs/BRAMUlab_Web.md` §12. Solo en Preview hasta aprobación.
+Sección `#puente` entre el hero y «Cómo funciona» (`public/css/puente.css`, `public/js/puente.js`): cancha real con peloteo → celular → historial, secuencia inicial y luego «viva» (peloteo continuo, destello, tilde, barras que se re-arman) mientras es visible; las cuatro demostraciones de «Cómo funciona» (`js/demos.js`) también repiten. Estado final sin animaciones/JS/movimiento reducido. Pruebas: `tests/puente.test.mjs`. Detalle: `docs/BRAMUlab_Web.md` §12. **Publicada en Production el 15/10/2026**: deployment `dpl_7FKXg96Lginw7DLp5GBrhaQr8hrH` (**READY**) sobre `bramulab.com` / `www.bramulab.com`; punto de retorno `dpl_2w8Jz1nGMBVrs2hL9SYYsgnUqXJH`.
 
 ## Condiciones de contenido
 - Las pantallas son recreaciones con **datos ilustrativos** (rotulados). No mostrar métricas de adopción ni capturas inventadas.

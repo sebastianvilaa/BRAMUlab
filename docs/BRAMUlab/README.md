@@ -17,6 +17,32 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
+## 15/10/2026 — Pulido del alta `04.50-h2` PUBLICADO en Production (estado vigente)
+
+**Único ajuste de UX:** se eliminó la línea redundante «Completá lo marcado en rojo antes de repetir» debajo del checklist de contraseña, así como el mensaje alternativo del mismo elemento (y sus estilos/atributo de descripción asociados). **No cambian** el checklist, los ejemplos de símbolos válidos, el rojo de reglas faltantes, el bloqueo de «Repetir contraseña» hasta cumplir los requisitos ni la validación de acceso. Se conservó el vínculo accesible del campo con la lista de requisitos.
+
+**Evidencia:** comprobaciones puntuales sobre el código real (contraseña sin símbolo → requisito rojo y repetición bloqueada; con símbolo → repetición habilitada y error limpio; mensaje/espacio eliminados); prueba de regresión actualizada; caché PWA renovada y coherente con `04.50-h2`. Vercel Staging `dpl_9hAhVnMJKv9HDu3ck89ndsgyb8Kg` READY, alias separado. **Production** SHA `0be3988bb34726c42da8eced45777565769994a3`, deployment `dpl_BAMyA6kUvyoFC8VFPwH4Y15KRf7D` READY y `app.bramulab.com` verificado. Vuelta atrás: `dpl_5PcL7x8bHqu5k8M3rZPkUTRZvfjD` (`04.50-h1`). Sin SQL, Supabase, `main`, BRAMUlive ni web. Verificación funcional automatizada y del despliegue; no se repitió un alta real en Production. Fuente maestra: `Producto/Experiencia_Inicial.md` §35.
+
+---
+
+## 15/10/2026 — Hotfix de contraseña `04.50-h1` PUBLICADO en Production (antecedente)
+
+**Motivo:** usuarios reales no entendían por qué no podían completar el alta cuando les faltaba un símbolo. **Cambio UX:** checklist de requisitos situado ANTES de «Repetir contraseña»; este último queda inhabilitado hasta cumplirlos. Al intentar avanzar con una contraseña incompleta, solo los requisitos faltantes se pintan en rojo y se explica cómo completarlos; al corregir, se habilita repetición y desaparece el error. Ejemplos visibles de símbolos `! + - . , *`. También se corrigió la detección de símbolo en `player-identity.js`: letras con acento y espacios no se consideran signos. No cambia ningún contrato de cuenta, correos, perfiles, consentimientos o dato deportivo.
+
+**Evidencia:** 5 pruebas puntuales PASS; Vercel **Staging** `dpl_HNmcZrzaK8jdKuVW3HpFaNXxvGio` READY, alias Staging verificado. **Production**: `04.50-h1`, código exacto `48ba3201f4f2a884b5faf710152313ed10d7cbcb`, Vercel `dpl_5PcL7x8bHqu5k8M3rZPkUTRZvfjD` READY, alias `app.bramulab.com` verificado; retorno anterior `dpl_42GsC1rojB7KLcHrpZXQ5S9BDGJA`. Sin nuevas migraciones ni cambios en `main`, Supabase, BRAMUlive o web. Prueba funcional automatizada y verificación de infraestructura, no recorrido manual de alta en Production. Fuente maestra: `Producto/Experiencia_Inicial.md` §35.
+
+---
+
+## 15/10/2026 — V04.50 + web V04.47 PUBLICADAS en Production (aprobación de Sebastián)
+
+**App:** BRAMUlab V04.50 desde el commit exacto `ef199a9d5098186af169636a9d115ba11238a346`, build Vercel **Production** `dpl_42GsC1rojB7KLcHrpZXQ5S9BDGJA` (READY), alias `app.bramulab.com` verificado con Get Alias. Reemplaza al deployment `dpl_ToDGYUVzi2ZN3uKwvbnkTaS6uxdz` (punto de retorno). Incluye menú, Ayuda, autoguardado, invitaciones/copiar-pegar y etiquetas Open Graph de la app; no se modificó Supabase ni el servicio de invitaciones.
+
+**Web:** franja «Cada partido tiene una historia.» y bucles aprobados, desde Preview `dpl_Hcriz2KDcQb3aGAQbLHx2zXqDXvJ` (commit de web `17af0db773603676c392f83fb8b31e9fab0f7b30`), redeploy de **Production** `dpl_7FKXg96Lginw7DLp5GBrhaQr8hrH` (READY); aliases `bramulab.com` y `www.bramulab.com` verificados. Punto de retorno web `dpl_2w8Jz1nGMBVrs2hL9SYYsgnUqXJH`. La fuente de web conserva `api/metrics.js`, `web-metrics.js`, el `vercel.json` con reescritura de `/invitacion/*` y los assets de la Preview (incluidos los no versionados en Git). Las tres variables de Web Metrics se encuentran configuradas para Production en el proyecto web (valores no consultados).
+
+**Alcance y límites de verificación:** el equipo aprobó las pantallas en Staging; se comprobaron el commit exacto, READY y los aliases con Vercel. No se completó una navegación HTTP pública independiente en esta sesión (la herramienta externa bloqueó la lectura directa de los dominios), ni una prueba real de la tarjeta WhatsApp/contador después de publicar; comprobar estos dos comportamientos puntualmente sin generar datos de prueba innecesarios. No hubo merge a `main`, cambios de Supabase ni cambios en BRAMUlive. Los deployments anteriores permanecen como puntos de reversión. Cierre administrativo del frente de Dropbox aún pendiente.
+
+---
+
 ## 15/10/2026 — V04.50 (Staging): una sola bienvenida universal
 
 Decisión final de producto: una única bienvenida (logo, claim, tres tarjetas, INICIAR SESIÓN lima y CREAR CUENTA oscuro); con invitación solo se agrega la tarjeta «Te invitaron a BRAMUlab». Las variantes de V04.48/V04.49 quedan descartadas. Fuente: `Producto/Experiencia_Inicial.md` §34. Sin cambios en Production.

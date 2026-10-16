@@ -1011,6 +1011,8 @@ Sebastián confirmó el 15/10/2026 que probó las invitaciones con un usuario re
 
 **Qué cambió:** titular con jerarquía intermedia, bajada siempre visible, distribución vertical sin huecos, «¿Ya tenés BRAMUlab instalada?» como enlace debajo de INICIAR SESIÓN; la app declara Open Graph/Twitter Card con la misma imagen pública de la web y su propia URL (`app.bramulab.com`). Detalle: `Producto/Experiencia_Inicial.md` §33. La vista previa real de WhatsApp queda pendiente hasta publicar en Production (Staging está protegido). Sin migraciones ni cambios en las invitaciones personales.
 
-## V04.50 — Una sola bienvenida universal (Staging, 15/10/2026)
+## V04.50 — Una sola bienvenida universal (PUBLICADA en Production, 15/10/2026)
 
 **Qué cambió:** se restauró la bienvenida original (anterior a V04.48) para todos los casos; con invitación pendiente solo se suma la cuarta tarjeta «Te invitaron a BRAMUlab» (con «¿Ya tenés BRAMUlab instalada?» dentro). Se descartan las variantes compactas de V04.48/V04.49. Detalle: `Producto/Experiencia_Inicial.md` §34. Se conservan Open Graph (V04.49) y todo lo aprobado en V04.47/V04.48.
+
+**Publicación final:** SHA exacto `ef199a9d5098186af169636a9d115ba11238a346` → Vercel Production `dpl_42GsC1rojB7KLcHrpZXQ5S9BDGJA` (**READY**) → `app.bramulab.com`. Punto de retorno: `dpl_ToDGYUVzi2ZN3uKwvbnkTaS6uxdz`. En la misma ronda, la web aprobada de `17af0db773603676c392f83fb8b31e9fab0f7b30` quedó en Production como `dpl_7FKXg96Lginw7DLp5GBrhaQr8hrH` (**READY**) sobre `bramulab.com` / `www.bramulab.com`, con retorno `dpl_2w8Jz1nGMBVrs2hL9SYYsgnUqXJH`. Sin `main`, Supabase, migraciones ni BRAMUlive. La vista previa real de `app.bramulab.com` dentro de WhatsApp queda sujeta a la caché del cliente; los metadatos OG ya están presentes en Production.
