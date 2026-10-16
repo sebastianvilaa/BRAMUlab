@@ -210,6 +210,14 @@ Evitar:
 
 La imagen puede usar el azul como atmósfera y reservar el lima para foco/acento.
 
+### Realismo del pádel
+
+Cuando una pieza represente elementos físicos del deporte, la corrección deportiva prevalece sobre una imagen “parecida”. Para cancha, cerramientos, accesos, red, superficie y errores críticos de generación, usar como referencia técnica complementaria:
+
+- [`Referencia_Visual_Padel.md`](Referencia_Visual_Padel.md)
+
+La cancha es el primer bloque documentado. La referencia podrá ampliarse a pala, pelota, calzado, gestos y situaciones de juego a medida que esos recursos sean necesarios.
+
 ---
 
 ## 10. Splash e iconos digitales
