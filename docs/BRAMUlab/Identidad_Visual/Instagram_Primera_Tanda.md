@@ -10,7 +10,7 @@
 - `Descartadas/`: opciones B y C de la 01 y rondas anteriores `v1`, `v2` y `v3`.
 
 ## Ronda de cierre (16/10/2026)
-Regla de comunicación: los partidos se **cargan**; lo que se **guarda** es la historia del jugador. Cambios: 01 (título en dos líneas), 02 reescrita como «Cargar un partido» (una carga alcanza, lo valida un rival), 03 y 04 con los textos pedidos, nueva **Historia de lanzamiento** 1080 × 1920 inspirada en la bienvenida de la app. Detalle, ubicaciones y pendientes en `Trabajo en curso/Nota_de_entrega.md` (Dropbox). Contenido verificado contra `Producto/Experiencia_Inicial.md` (§6.5, §7) y `Producto/Grupos_BRAMU.md`.
+Regla de comunicación: los partidos se **cargan**; lo que se **guarda** es la historia del jugador. Cambios: 01 (título en dos líneas), 02 reescrita como «Cargar un partido» (una carga alcanza, lo valida un rival), 03 y 04 con los textos pedidos, nueva **Historia de lanzamiento** 1080 × 1920 inspirada en la bienvenida de la app. Detalle, ubicaciones y pendientes en la nota de entrega de «Trabajo en curso» (Dropbox). Contenido verificado contra `Producto/Experiencia_Inicial.md` (§6.5, §7) y `Producto/Grupos_BRAMU.md`.
 
 ## Origen y límites
 Foto provisoria de la web (aceptada para esta tanda), Inter, paleta y logo oficiales. Pantallas recreadas con datos ficticios (no capturas de Staging). Sin cambios en app, web, Production, `main` ni BRAMUlive.
