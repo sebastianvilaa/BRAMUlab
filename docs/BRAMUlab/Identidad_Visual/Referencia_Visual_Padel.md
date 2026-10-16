@@ -2,7 +2,7 @@
 
 **Estado:** referencia técnica complementaria para generación y revisión de recursos visuales.  
 **Fecha:** 16/10/2026.  
-**Alcance actual:** cancha de pádel. Este documento puede ampliarse con pala, pelota, calzado, gestos y situaciones de juego cuando sea necesario.
+**Alcance actual:** referencia transversal de pádel para recursos visuales: cancha, equipamiento, jugadores, acciones, reglas, posiciones, situaciones de partido y control de errores. Se ampliará con evidencia, sin inventar reglas ni convertir preferencias en obligaciones.
 
 ## 1. Principio
 
@@ -140,3 +140,141 @@ Para una toma cerrada donde solo aparece una parte de la cancha, mantener igualm
 
 - International Padel Federation — Rules of Padel 2026: dimensiones, red, cerramientos, superficie, accesos e iluminación.
 - FIP Official Court / MejorSet: referencia contemporánea de construcción premium, vidrio templado de 12 mm, estructura galvanizada, césped azul y LED.
+
+---
+
+# PARTE II — Base transversal de conocimiento visual de pádel (16/10/2026)
+
+## 12. Jerarquía y alcance de la información
+
+Tres categorías independientes:
+- **[REGLA FIP]**: requisito verificable en el reglamento oficial FIP aplicable desde 01/01/2026.
+- **[CONVENCIÓN]**: práctica común o descripción técnica, no requisito universal (por ejemplo indumentaria, tipo de calzado, forma de pala, táctica).
+- **[DIRECCIÓN VISUAL]**: preferencia propia de BRAMU; nunca presentarla como regla del deporte.
+
+Este documento sirve para producir y revisar **fotografías y videos estáticos/secuencias**. No constituye una guía médica, técnica de coaching ni fuente de estadísticas de jugadores reales.
+
+## 13. La pala de pádel
+
+### Anatomía y proporciones
+- **[REGLA FIP]** Pala maciza: cabeza + empuñadura. No tiene cuerdas como una raqueta de tenis; tiene **caras planas perforadas**.
+- **[REGLA FIP]** Longitud total máxima **45,5 cm**, ancho máximo **26 cm**, espesor máximo **38 mm**; empuñadura máxima 20 cm.
+- **[REGLA FIP]** Los orificios principales son cilíndricos y distribuidos por la cara; las caras pueden ser lisas o rugosas.
+- **[REGLA FIP]** Cordón de seguridad no elástico fijado a la empuñadura, longitud máxima 35 cm, **obligatoriamente colocado alrededor de la muñeca** mientras se juega.
+- **[CONVENCIÓN]** Formas comerciales habituales: redonda, lágrima e híbrida/diamante; varían entre modelos, no inventar que todo jugador avanzado tiene que usar una determinada forma.
+- **[CONVENCIÓN]** Materiales habituales: caras de fibra de vidrio o carbono, núcleo EVA y marco robusto; no mostrar fibras inventadas o transparencia imposible.
+
+### Controles negativos
+No raqueta encordada de tenis, no pala de ping-pong, no mango kilométrico, no agujeros en la empuñadura, no tercera pala flotante, no pala pegada a la mano, no cordón suelto colgando al golpear.
+
+## 14. La pelota
+
+- **[REGLA FIP]** Pelota esférica de goma con recubrimiento uniforme de fieltro; colores admisibles blanco, amarillo u otro de contraste suficiente.
+- **[REGLA FIP]** Diámetro **6,35–6,77 cm**; masa **56,0–59,4 g**.
+- **[CONVENCIÓN]** La pelota amarilla es visualmente habitual; se ven costuras curvas típicas de pelota de pádel/tenis.
+- **[DIRECCIÓN VISUAL]** Preferir pelota amarilla para que contraste sobre césped azul y universo BRAMU. El verde lima corporativo no implica que la pelota deba ser fosforescente.
+- **Controles:** escala correcta con pala y mano; trayectoria y posición compatibles con la acción. No generar múltiples pelotas duplicadas si la escena representa un solo peloteo.
+
+## 15. Jugadores y espacio de partido
+
+- **[REGLA FIP]** El partido habitual reglamentario se juega en **dobles: dos integrantes por pareja, cuatro jugadores en cancha**, una pareja a cada lado de la red.
+- **[CONVENCIÓN]** En una instantánea pueden verse uno, dos, tres o cuatro jugadores según encuadre, pero **no ubicar tres jugadores en una mitad y uno en la otra sin justificación narrativa**.
+- **[CONVENCIÓN]** Dos zonas tácticas frecuentes: fondo/defensa, cerca de la pared de fondo, y red/ataque, unos metros detrás de la red; los dos compañeros suelen moverse coordinadamente y cubrir los espacios de manera lógica.
+- **[CONVENCIÓN]** Un compañero puede estar algo adelantado o atrasado según jugada, sin exigir simetría perfecta.
+- **[CONVENCIÓN]** Jugadores diestros y zurdos usan empuñaduras y apoyos espejados. No asumir que todos juegan del mismo lado por ser diestros.
+- **[DIRECCIÓN VISUAL]** Mostrar amateur creíble: ropa deportiva realista, diferentes edades y complexiones adultas, expresiones naturales; no convertir todos los momentos en espectáculo profesional.
+
+### Anatomía y continuidad
+Cada persona tiene dos brazos, dos piernas, dos manos y **dos zapatillas puestas**, salvo indicación narrativa explícita. Cada objeto tiene procedencia y finalidad: si una persona se queja de haber resbalado, representar pie y suelo/resbalón; **no añadir una tercera zapatilla que no forma parte de la acción**. Controlar manos, dedos, pala y cordón, dirección de mirada, apoyo de pies, contacto y sombra.
+
+## 16. Calzado, indumentaria y accesorios
+
+- **[CONVENCIÓN]** Zapatillas deportivas aptas para pádel, con suela adherente diseñada para pistas deportivas y desplazamientos laterales. Existen suelas de espiga, mixtas y específicas; ningún dibujo es universal para todos los modelos.
+- **[CONVENCIÓN]** Indumentaria: shorts, polleras/vestidos deportivos, remeras, musculosas, medias deportivas; variedad realista de colores y marcas. No existe uniforme obligatorio BRAMU.
+- **[CONVENCIÓN]** Muñequeras, gorras, viseras, grips, overgrips, paleteros y toallas aparecen según escena, no todos juntos.
+- **[DIRECCIÓN VISUAL]** No imponer la marca en todos los objetos; los colores y logos de patrocinadores no se inventan como si fueran oficiales.
+- **Control de continuidad:** cuando hay lesión, discusión o queja de equipo, hacer que el gesto corresponda al problema real, sin props redundantes o ilógicos.
+
+## 17. Golpes y poses — glosario de referencia para generar escenas
+
+Estos nombres describen familias técnicas y su lectura visual; no son reglas de puntuación.
+
+| Acción | Postura y pelota plausibles | Errores típicos |
+|---|---|---|
+| **Saque** | **[REGLA FIP]** detrás de la línea de saque, pelota soltada y botada antes de golpear, contacto como máximo a altura de cintura; envío diagonal al cuadro contrario | saque de tenis por encima de cabeza, saltar hacia dentro antes del impacto |
+| **Devolución / resto** | jugador en recepción situado en diagonal al servidor, reacción a pelota que bota | restar antes de que pique el saque |
+| **Derecha y revés** | desplazamiento, preparación de pala a un lado, mirada hacia pelota y transferencia de peso | brazos cruzados o golpe con pala detrás de la espalda sin lógica |
+| **Volea** | cerca de la red, impacto en aire antes de bote, movimiento compacto | jugador en fondo con supuesta volea después de dejar botar |
+| **Globo** | golpe de control ascendente, pelota alta buscando pasar rivales junto a red | pelota alta sin trayectoria posible o golpe de remate presentado como globo |
+| **Bandeja** | overhead controlado, jugador de perfil tras globo rival, pala alta y contacto delante/arriba del hombro | postura de tenis saque explosivo como única bandeja |
+| **Víbora** | overhead lateral y más agresivo, rotación de tronco, intención de efecto y salida baja | contacto anatómicamente imposible o pelota atravesando pala |
+| **Remate / smash** | armado por encima de cabeza, extensión y golpe descendente a pelota alta | pelota a ras del piso y persona simulando smash |
+| **Salida de pared** | pelota botó primero en el suelo propio, rebotó en vidrio propio y se prepara golpe posterior | pelota atravesando pared de vidrio |
+| **Bajada de pared** | tras rebote alto de pared de fondo, jugador ataca pelota de salida | golpe representado antes de rebotar |
+| **Doble pared** | secuencia suelo → rebotes en dos paredes propias antes del golpe, según trayectoria | pelota rebota mágicamente de paredes sin primer bote propio |
+| **Chiquita** | toque controlado y relativamente bajo hacia pies de rivales de red | remate de potencia descrito como chiquita |
+| **Contrapared** | recurso defensivo excepcional pegando la bola hacia la propia pared para que vuelva al campo contrario | asumir que es el golpe normal de todos los peloteos |
+
+**[REGLA FIP]** La pelota puede tocar el suelo y después las paredes del mismo campo; la dinámica permitida de malla, vidrio y devoluciones depende de las reglas y del orden de los contactos. Antes de representar una jugada compleja, comprobar el recorrido preciso. Para un fotograma, preferir un instante claramente plausible; para una secuencia, exigir continuidad física.
+
+## 18. Saque, tanteador y desarrollo narrativo
+
+- **[REGLA FIP]** Saque **por debajo de la cintura**: la pelota debe botar antes del impacto y se golpea hacia el cuadro diagonal contrario. El servidor está detrás de la línea de saque y cambia de lado del cuadro al servir puntos sucesivos.
+- **[REGLA FIP]** Durante un saque correcto, quien resta deja picar primero la pelota.
+- **[REGLA FIP]** Tanteador tradicional: 15, 30, 40, juego; en igualdad hay métodos definidos por reglamento/competición (ventajas, punto de oro, Star Point, etc.). **No imponer una modalidad para todas las competencias.**
+- **[CONVENCIÓN]** Partidos amateur frecuentes: comunicación entre compañeros, búsqueda de pelota, cambio de lado, saludo, festejo de punto, hidratación, descansos.
+- **[DIRECCIÓN VISUAL]** BRAMUlab representa el **después de jugar** y la identidad/historial; no insertar pantallas de marcador en vivo como prestación de la app. Si aparece un tanteador físico del club, que sea solo contexto visual y no una función BRAMUlab.
+
+## 19. Situaciones humanas para redes (lógica causal)
+
+Para cada escena, redactar primero:
+1. ¿Qué acaba de pasar?
+2. ¿Qué hace el personaje como consecuencia?
+3. ¿Qué objetos deben estar presentes y por qué?
+4. ¿Qué se ve en la cancha de fondo?
+5. ¿Qué NO podría aparecer si la acción es real?
+
+Casos:
+- **Resbalón:** postura de recuperación del equilibrio, pie que pierde agarre y desplazamiento lateral; las dos zapatillas están en los pies. No tercera zapatilla en mano.
+- **Punto ganado:** compañero cerca para choque de palmas/puños, palas en mano, pelota en posición compatible con punto terminado. No todos festejando si son rivales.
+- **Error no forzado:** jugador frustrado mirando hacia donde cayó la pelota, compañero reaccionando de manera natural. Sin golpes de pala contra el vidrio salvo pedido específico.
+- **Charla entre puntos:** dos compañeros del mismo lado de red conversando, postura relajada, sin pelota congelada en medio de un punto.
+- **Cargar resultado:** teléfono mostrado **después** del partido, fuera de la acción de juego, con interfaz BRAMU solo si se dispone de captura aprobada. No inventar UI ni estadísticas.
+
+## 20. Protocolo para generadores de imágenes y videos
+
+**Entrada:** (a) pedido creativo original —inquebrantable—, (b) esta referencia técnica, (c) fotografía de referencia real cuando haya geometría compleja.
+
+**Paso A, descomposición:** identificar escena y elementos realmente visibles. **No meter todas las reglas en el prompt**: aplicar solo las relacionadas con el encuadre.
+
+**Paso B, contrato visual:** describir cinco cosas concretas: ubicación, postura, objeto, relación física, acción. Por ejemplo: «jugador de derecha se desplaza hacia atrás para una bandeja, golpea pelota alta, pala perforada en mano dominante con cordón de muñeca, compañero cubre red».
+
+**Paso C, restricciones negativas específicas:** máximo 3–8 fallas probables por escena: puertas mal puestas, tercera zapatilla, pala encordada, mal recorrido de pelota, etc. Evitar negativos genéricos interminables.
+
+**Paso D, inspección:** revisar cuatro capas:
+- **geometría e instalación**;
+- **anatomía y equipo**;
+- **lógica del juego/movimiento**;
+- **identidad visual y composición pedidas**.
+
+**Paso E, corrección:** si la composición original funciona pero falla un elemento, preferir edición localizada conservando todo lo aprobado. Si la geometría estructural falla repetidamente, pasar de texto a foto real de referencia / imagen base técnicamente correcta, y modificar solo luz y atmósfera.
+
+### Plantilla de anexo técnico universal
+
+> **ANEXO TÉCNICO — NO REEMPLAZA EL PEDIDO CREATIVO ORIGINAL.** Mantené la composición, encuadre, dirección de arte y clima ya definidos. Para esta escena, representá con precisión los elementos de pádel visibles: [ELEMENTOS]. La acción física debe ser coherente: [ANTES → GESTO → CONSECUENCIA]. Respetá [REGLAS RELEVANTES DEL DOCUMENTO]. Evitá específicamente [ERRORES QUE YA APARECIERON]. Antes de cerrar la imagen, verificá anatomía, objetos y continuidad del juego. No agregues utilería que no exista en la situación.
+
+## 21. Fuentes y trazabilidad
+
+**Autoridad reglamentaria principal:**
+- FIP, *Rules of Padel*, aplicación 01/01/2026: https://www.padelfip.com/wp-content/uploads/2025/12/FIP_Rules-of-Padel-1.pdf
+- Índice FIP oficial: https://www.padelfip.com/documents/
+
+**Referencia técnica y terminología de golpe (descripción pedagógica, no regla FIP):**
+- https://padeligo.com/es/blog/tips/articles/golpes-esenciales-del-padel
+- https://startpadel.app/es/padel/shots
+- https://padelradar.io/es/blog/vibora-vs-bandeja
+
+**Variaciones comerciales de palas (no homologación):**
+- https://www.padelsocietyseries.com/guides/round-vs-teardrop-vs-diamond-padel-rackets/
+
+**Criterio editorial:** las reglas oficiales prevalecen; las guías técnicas ayudan a imaginar acciones, pero se tratan como descripciones comunes, no como condiciones obligatorias. Si las reglas cambian, fechar y verificar antes de reutilizar medidas específicas.
