@@ -149,3 +149,32 @@ Este cambio no reduce necesariamente el número de pasos de la ruta de email tra
 **Riesgos críticos de esta variante:** cuenta existente y OTP, `shouldCreateUser`, trigger `handle_email_confirmed`, aceptación legal y métricas, contraseña creada solo por nuevos jugadores, email no verificado, duplicados/alias proveedor, invitación, PWA, rate limits y spam/abuso de envío. Ver matriz P0 anterior.
 
 **Decisión de producto informada:** preferencia por pantalla estilo HubSpot y por OTP inmediato antes de contraseña/perfil en alta por email. Pendiente elegir forma concreta de evidencia legal (diseño sin bloqueo innecesario, pero válido) y autorizar implementación específica. No hacer deploy ni cambios de Supabase/Production ahora.
+
+
+---
+
+## Dirección de producto confirmada por el responsable (17/10/2026, segunda revisión)
+
+**Se confirma revisar de punta a punta la experiencia de registro/inicio de sesión, y NO limitar la iniciativa al botón de Google.** La auditoría anterior describe factibilidad; esta sección consolida el encargo UX para la etapa de diseño y validación humana.
+
+### Motivos y criterios de éxito
+
+- **Email primero y verificación inmediata:** si el jugador escribió mal su dirección, descubrirlo antes de completar perfil y cuestionario de Nivel evita una mala experiencia. Prioridad de producto confirmada. El OTP de seis dígitos debe pedirse al principio en el camino por email para una cuenta nueva; después, recién crear contraseña, completar perfil y Nivel. El acceso con Google evita contraseña propia y OTP de BRAMUlab cuando hay identidad verificada.
+- **Rediseño completo, no parche:** revisar bienvenida, elección de método, crear cuenta, ingresar, email/OTP, contraseña, errores, reintentos, confirmaciones, recuperación, invitaciones, sesión existente, perfil mínimo y Nivel. El objetivo es simple, claro, visualmente atractivo y coherente con la estética actual de BRAMUlab. El responsable percibe el acceso existente como demasiado plano.
+- **Libertad creativa controlada para Claude Code:** diagnosticar si la interfaz actual necesita retoques moderados o una revisión significativa, elaborar la propuesta de recorrido/UI justificada con criterios de UX y componentes del sistema existente, sin recargar la app ni rehacer el resto. El responsable decide y aprueba UX/UI; agentes absorben ejecución. No añadir funcionalidades extras.
+- **No perpetuar decisiones tempranas:** las exigencias técnicas actuales de contraseña antes de verificación y checkbox legal previo al Auth pueden rediseñarse. El producto no debe quedar condicionado por implementación previa solo por costumbre.
+- **Conservar garantías materiales:** identidad deportiva, cuentas existentes, historial, invitaciones/claim, aislamiento entre Staging/Production, aceptación informada y registro server-side real. No confundir una mejora de UX con autorización para alterar consentimientos reales o modificar Production.
+
+### Términos y privacidad: cambio de perspectiva
+
+El responsable pide **evaluar expresamente un texto de aceptación contextual tipo «Al continuar, aceptás los Términos y Condiciones y la Política de Privacidad»**, con enlaces accesibles, en reemplazo de la casilla obligatoria actual, si puede darse validez a la acción de continuar y conservar evidencia verificable. No asumir que una casilla HTML es condición de la ley ni que una leyenda discreta por sí sola cumple todo.
+
+**Fuentes oficiales:** Ley 25.326, art. 5(1): consentimiento libre, expreso e informado documentado por escrito o medio equiparable, destacado si se combina con otras declaraciones; art. 5(2)(d): excepción cuando los datos derivan de relación contractual y son necesarios para su ejecución; art. 6: información previa, finalidad, destinatarios, responsable, derechos. Texto: https://www.argentina.gob.ar/normativa/nacional/64790/texto . La AAIP reconoce que consentimiento puede obtenerse a través de la aceptación de términos y condiciones en una aplicación o plataforma: https://www.argentina.gob.ar/node/195420 .
+
+**Problema a resolver por diseño y revisión jurídica acotada:** distinguir T&C/uso estrictamente necesario de la política informativa y de las finalidades adicionales (medición de actividad de \`legal_v2\` y transferencia internacional según política vigente). Registrar versión, acción inequívoca, usuario, fecha y evidencia server-side; permitir no aceptar/cancelar. No preautorizar marketing ni analítica adicional solo por mostrar enlaces. No prometer que la práctica de HubSpot o Freepik equivale a cumplimiento de ley argentina. La demora de respuesta del trámite AAIP no impide **diseñar** el recorrido ni valida automáticamente un mecanismo específico; seguimiento registral y cumplimiento del producto son frentes distintos.
+
+### Propuesta para exploración UX (no pantalla final aprobada)
+
+**Bienvenida reconocible → elegir Google o correo → verificar identidad en ese canal → términos/aviso bien resueltos → contraseña solo si se usa correo nuevo → perfil mínimo → estimador Nivel → Home.** El orden exacto del aviso/aceptación frente a la creación del Auth UID debe ser resuelto de manera verificable y puede variar por canal; no crear dos perfiles deportivos, no entrar a Home sin aceptación cuando sea requerida. Las cuentas existentes no deben pasar por alta nueva ni cuestionario repetido.
+
+**Decisiones confirmadas:** revisión integral de UX/estética, verificación email temprana en nuevos registros, evaluar eliminar checkbox en favor de «Al continuar…» con evidencia real, Google y email prioritarios; Apple excluido mientras agregue costo. **Decisiones abiertas:** mecanismo legal concreto adecuado a \`legal_v2\` y analítica; detalles visuales/orden final de pantallas; arquitectura y pruebas de compatibilidad PWA, migraciones mínimas que sean necesarias. **Siguiente etapa:** propuesta UX y plan técnico en Staging, revisión del responsable, autorización separada para implementación y posterior Production. No hacer cambios de código ni Supabase a partir de este documento.
