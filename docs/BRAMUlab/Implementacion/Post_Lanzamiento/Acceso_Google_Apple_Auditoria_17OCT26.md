@@ -110,3 +110,42 @@ Proyecto revisado: **`bramulab-staging`** (sin acceder a datos personales ni con
 - https://developer.apple.com/programs/enroll/
 
 *El cumplimiento jurídico concreto de la secuencia y de la autorización de analítica requiere cotejo humano especializado; la auditoría identifica el contrato técnico pero no emite dictamen legal.*
+
+
+---
+
+## Actualización UX — referencia HubSpot (17/10/2026)
+
+**Origen:** el responsable aportó capturas del alta de HubSpot: pantalla de métodos de acceso (Google, Microsoft, Apple, ChatGPT, correo), pantalla de OTP de 6 dígitos inmediatamente después de introducir el email, y pantalla posterior para crear contraseña con requisitos visibles. Desea evaluar un flujo **similar en claridad y orden**, no copiar los proveedores ni la marca. **Propuesta de UX, aún no autorizada para implementar.**
+
+### Recorrido preferido a diseñar
+
+1. Un único acceso claro para cuentas nuevas y existentes: **«Continuar con Google»** y **«Continuar con correo»**, más enlace contextual para quien ya tiene cuenta si aporta claridad. Apple excluido mientras requiera costo anual; Microsoft/ChatGPT descartados por ahora al no aportar prioridad para pádel amateur.
+2. **Google**: autenticación verificada por proveedor; no pedir contraseña ni un código de seis dígitos adicional de BRAMUlab; si la cuenta existe, entrar al mismo `player_id`; si es nueva, resolver aceptación legal y luego completar perfil + Nivel.
+3. **Correo para cuenta nueva**: ingresar email → recibir código de 6 dígitos inmediatamente → verificar email → **crear contraseña después** (con requisitos y validación visual que ya existen en BRAMUlab) → completar perfil mínimo/@usuario y Nivel → Home. Se evita que la validación del correo sorprenda al usuario después de completar todo su Nivel.
+4. **Correo para cuenta existente**: conservar acceso por contraseña; estudiar opción de código OTP como alternativa sin duplicar cuentas ni revelar si un correo existe. Nunca enviar a «crear contraseña» a quien ya tiene una válida ni pisar credenciales existentes.
+5. Registrar y conservar contexto de invitación entre etapas y redirecciones, y reanudar onboarding tras refresh/error.
+
+### Factibilidad corroborada en la documentación oficial de Supabase
+
+- `auth.signInWithOtp({email})` envía un correo **OTP** de seis dígitos si está configurada su plantilla con `{{ .Token }}`; por defecto el método puede enviar magic link si no se configura la plantilla. **Importante:** por defecto `signInWithOtp` puede CREAR usuario Auth si no existe (`shouldCreateUser:true`). Por ello la aceptación legal y el trigger de creación necesitan coordinación antes de encenderlo. https://supabase.com/docs/guides/auth/auth-email-passwordless
+- `auth.verifyOtp({email,token,type:'email'})` autentica y devuelve sesión tras validación. https://supabase.com/docs/guides/auth/auth-email-passwordless
+- Después de validar email y obtener sesión, `auth.updateUser({password: ...})` permite crear/actualizar contraseña; **aplicarlo solo a la nueva cuenta y nunca a una existente sin el flujo correcto**. Verificar configuración de reautenticación y política de contraseñas en Staging. https://supabase.com/docs/reference/javascript/auth-updateuser
+- La app actual `auth.js` usa `auth.signUp(email,password,...)` y OTP `type:'signup'` al FINAL del onboarding. El camino nuevo `signInWithOtp`/`verifyOtp(type:'email')` es diferente; se necesitan adaptación de cliente, estados, emails y revisión de contratos backend.
+
+### Particularidad de BRAMUlab que obliga a modificar backend con criterio
+
+En el Staging real, `handle_email_confirmed()` se dispara cuando se confirma email y **crea `players`, `profiles`, `level_states` y un evento `signup_completed`**. Hoy registra aceptación por `raw_user_meta_data.legal_version` si esa versión se declaró en el paso 1. Mover el código al principio **sin resolver esta dependencia** generaría una cuenta/identidad deportiva parcial y un evento potencialmente prematuro antes de aceptación y onboarding. Hay que decidir si:
+
+- se captura aceptación informada ANTES de iniciar el OTP y se pasa/evidencia correctamente, o
+- la aceptación se pide DESPUÉS de autenticar por OTP, cambiando el disparador y/o semántica de «cuenta deportiva creada», bloqueando perfil/Nivel/operaciones oficiales hasta evidencia real de consentimiento.
+
+En ambos casos, **es válida la intención de mover la pantalla**: no conservar una traba solo porque existe código heredado; adaptar código y backend primero en Staging. A nivel UX, evaluar una aceptación muy breve, visible y trazable. **NO dar por legalmente suficiente el texto «Al continuar aceptás…» por analogía con HubSpot**: en Argentina la AAIP exige consentimiento informado, por escrito u otro medio similar cuando aplica; la forma exacta requiere revisión de finalidad, documentación, mecanismos probatorios y especialmente analítica/marketing. No copiar la frase de HubSpot que acopla avisos promocionales: BRAMUlab no tiene ese objetivo. Referencia AAIP: https://www.argentina.gob.ar/aaip/datospersonales/derechos.
+
+### Evaluación frente al flujo anterior
+
+Este cambio no reduce necesariamente el número de pasos de la ruta de email tradicional (código+contraseña permanecen), **pero los ordena mejor**: email verificado antes de que el usuario invierta tiempo en Nivel. La ruta Google sí puede eliminar creación de contraseña y OTP propio por completo. Alternativa futura de simplificación: correo + código sin contraseña (passwordless) implica volver a usar OTP en cada nueva sesión; no implementarla sin decisión de producto ni evaluar efectos en reingreso frecuente, recuperación y correo transaccional.
+
+**Riesgos críticos de esta variante:** cuenta existente y OTP, `shouldCreateUser`, trigger `handle_email_confirmed`, aceptación legal y métricas, contraseña creada solo por nuevos jugadores, email no verificado, duplicados/alias proveedor, invitación, PWA, rate limits y spam/abuso de envío. Ver matriz P0 anterior.
+
+**Decisión de producto informada:** preferencia por pantalla estilo HubSpot y por OTP inmediato antes de contraseña/perfil en alta por email. Pendiente elegir forma concreta de evidencia legal (diseño sin bloqueo innecesario, pero válido) y autorizar implementación específica. No hacer deploy ni cambios de Supabase/Production ahora.
